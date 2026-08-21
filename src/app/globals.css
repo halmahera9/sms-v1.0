@@ -1,26 +1,65 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
+@layer base {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #070c18;
+    --foreground: #f1f5f9;
+    --blue-deep: #0f172a;
+    --cyan: #06b6d4;
+    --accent: #38bdf8;
+    --accent-foreground: #070c18;
+    --border: rgba(255, 255, 255, 0.12);
+    --muted-foreground: #94a3b8;
+    --ink: #030712;
+    --card: #0f172a;
+    --card-foreground: #f8fafc;
+    --secondary: rgba(255, 255, 255, 0.06);
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif);
+    overflow-x: hidden;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+.label-mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--accent);
 }
+
+.panel {
+  background-color: rgba(15, 23, 42, 0.7);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(12px);
+}
+
+.panel-solid {
+  background-color: #0f172a;
+  border: 1px solid var(--border);
+}
+
+.hairline {
+  border-top: 1px solid var(--border);
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #070c18;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.4);
+}
+
