@@ -17,7 +17,7 @@ export interface RawNominatifRow {
   USULAN?: string | number;
   MASA_KERJA?: string | number;
   SATYALANCANA?: string | number;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export function parseNominatifExcel(fileBuffer: ArrayBuffer): { proposals: AwardProposal[]; logs: string[] } {

@@ -45,7 +45,7 @@ const readWb = XLSX.read(buf, { type: 'buffer' });
 assert(readWb.SheetNames[0] === 'Rekap_Ketidakhadiran', 'Read back sheet name should match');
 
 const sheet = readWb.Sheets[readWb.SheetNames[0]];
-const readRows: any[] = XLSX.utils.sheet_to_json(sheet);
+const readRows: Record<string, unknown>[] = XLSX.utils.sheet_to_json(sheet);
 
 console.log('\n[5] Testing Read-Back Row Count & Verified Filter Rules...');
 assert(readRows.length > 0, 'Workbook must contain at least 1 verified record');

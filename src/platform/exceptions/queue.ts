@@ -13,7 +13,7 @@ export class PlatformExceptionQueue {
     ruleId: string;
     severity?: ExceptionItem['severity'];
     message: string;
-    metadata?: Record<string, any>;
+    metadata?: Record<string, unknown>;
   }): ExceptionItem {
     const id = `exc-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
     const item: ExceptionItem = {

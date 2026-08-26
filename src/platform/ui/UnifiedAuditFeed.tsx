@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { AuditEvent } from '../types';
 import { PlatformOperationalService } from '../services/operational';
-import { History, User, Activity, Clock, ShieldCheck } from 'lucide-react';
+import { History, User } from 'lucide-react';
 
 export const UnifiedAuditFeed: React.FC = () => {
   const [events, setEvents] = useState<AuditEvent[]>([]);
@@ -11,7 +11,7 @@ export const UnifiedAuditFeed: React.FC = () => {
   useEffect(() => {
     const service = new PlatformOperationalService();
     const loaded = service.getAuditEngine().getAllEvents();
-    setEvents(loaded);
+    Promise.resolve().then(() => setEvents(loaded));
   }, []);
 
   return (
@@ -57,7 +57,7 @@ export const UnifiedAuditFeed: React.FC = () => {
                     </p>
                     {ev.metadata?.details && (
                       <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-1 italic">
-                        "{ev.metadata.details}"
+                        &ldquo;{String(ev.metadata.details)}&rdquo;
                       </p>
                     )}
                   </div>

@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useState } from 'react';
-import { ExceptionItem, ExceptionStatus, ValidationSeverity } from '../types';
+import { ExceptionItem, ExceptionStatus } from '../types';
 import { PlatformExceptionQueue } from '../exceptions/queue';
-import { AlertOctagon, CheckCircle2, Search, Filter, ShieldAlert, ArrowRight, X } from 'lucide-react';
+import { AlertOctagon, Search, ShieldAlert, X } from 'lucide-react';
 
 interface UnifiedExceptionCenterProps {
   exceptionQueue: PlatformExceptionQueue;

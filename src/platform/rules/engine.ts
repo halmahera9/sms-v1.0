@@ -1,6 +1,6 @@
 import { ValidationRule, ValidationResult } from '../types';
 
-export class PlatformValidationEngine<T = any> {
+export class PlatformValidationEngine<T = unknown> {
   private rules: Map<string, ValidationRule<T>> = new Map();
 
   constructor(rules: ValidationRule<T>[] = []) {
@@ -19,18 +19,19 @@ export class PlatformValidationEngine<T = any> {
     return Array.from(this.rules.values());
   }
 
-  public validateEntity(entity: T, context?: any): ValidationResult[] {
+  public validateEntity(entity: T, context?: unknown): ValidationResult[] {
     const results: ValidationResult[] = [];
     for (const rule of this.rules.values()) {
       try {
         const res = rule.validate(entity, context);
         results.push(res);
-      } catch (err: any) {
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
         results.push({
           valid: false,
           ruleId: rule.id,
           severity: 'ERROR',
-          message: `Rule execution error: ${err?.message || String(err)}`,
+          message: `Rule execution error: ${message}`,
         });
       }
     }

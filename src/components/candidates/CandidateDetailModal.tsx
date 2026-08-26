@@ -8,16 +8,13 @@ import { loadSignatoryConfig } from '@/lib/award-storage';
 import {
   X,
   User,
-  Building,
   Award,
   CheckCircle,
   XCircle,
   Upload,
-  FileText,
   AlertCircle,
   FileCheck,
   Download,
-  History,
 } from 'lucide-react';
 
 interface CandidateDetailModalProps {
@@ -34,8 +31,6 @@ export const CandidateDetailModal: React.FC<CandidateDetailModalProps> = ({
   onUpdateCandidate,
 }) => {
   const [activeTab, setActiveTab] = useState<'checklist' | 'identitas' | 'riwayat'>('checklist');
-  const [notes, setNotes] = useState(candidate.catatan || '');
-  const [selectedReqCode, setSelectedReqCode] = useState<string | null>(null);
 
   const requirements = getRequirementsForType(candidate.jenisPenghargaan);
   const signatoryConfig = loadSignatoryConfig();
@@ -50,9 +45,10 @@ export const CandidateDetailModal: React.FC<CandidateDetailModalProps> = ({
     const req = requirements.find((r) => r.code === reqCode);
     if (!req) return;
 
+    const timestamp = Date.now();
     const existingDocs = candidate.documents.filter((d) => d.requirementCode !== reqCode);
     const newDoc: ProposalDocument = {
-      id: `doc-${Date.now()}`,
+      id: `doc-${timestamp}`,
       proposalId: candidate.id,
       requirementCode: reqCode,
       fileName: `${reqCode}_${candidate.employee.nrk}.pdf`,

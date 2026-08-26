@@ -9,8 +9,8 @@ console.log(`[Audit] Total Documents: ${documents.length}`);
 console.log(`[Audit] Total Students in Master Data: ${students.length}`);
 
 // 2. Extract verified items
-const verifiedRows: any[] = [];
-const unverifiedRows: any[] = [];
+const verifiedRows: Record<string, unknown>[] = [];
+const unverifiedRows: Record<string, unknown>[] = [];
 
 documents.forEach((doc) => {
   doc.items.forEach((item) => {

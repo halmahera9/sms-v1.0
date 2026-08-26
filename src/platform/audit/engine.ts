@@ -15,14 +15,14 @@ export class PlatformAuditEngine {
       if (raw) {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed)) {
-          const loaded: AuditEvent[] = parsed.map((item: any) => ({
-            id: item.id || `audit-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-            timestamp: item.timestamp || new Date().toISOString(),
-            actor: item.actor || item.operator || 'system',
-            action: item.action || 'UNKNOWN',
-            entityType: item.entityType || item.target || 'General',
-            entityId: item.entityId || item.target || 'N/A',
-            metadata: item.metadata || (item.details ? { details: item.details } : undefined),
+          const loaded: AuditEvent[] = parsed.map((item: Record<string, unknown>) => ({
+            id: typeof item.id === 'string' ? item.id : `audit-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+            timestamp: typeof item.timestamp === 'string' ? item.timestamp : new Date().toISOString(),
+            actor: typeof item.actor === 'string' ? item.actor : typeof item.operator === 'string' ? item.operator : 'system',
+            action: typeof item.action === 'string' ? item.action : 'UNKNOWN',
+            entityType: typeof item.entityType === 'string' ? item.entityType : typeof item.target === 'string' ? item.target : 'General',
+            entityId: typeof item.entityId === 'string' ? item.entityId : typeof item.target === 'string' ? item.target : 'N/A',
+            metadata: (item.metadata as Record<string, unknown>) || (item.details ? { details: item.details } : undefined),
           }));
 
           const existingIds = new Set(this.events.map((e) => e.id));
@@ -61,9 +61,9 @@ export class PlatformAuditEngine {
     action: string;
     entityType: string;
     entityId: string;
-    beforeState?: any;
-    afterState?: any;
-    metadata?: Record<string, any>;
+    beforeState?: unknown;
+    afterState?: unknown;
+    metadata?: Record<string, unknown>;
   }): AuditEvent {
     const event: AuditEvent = {
       id: `audit-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,

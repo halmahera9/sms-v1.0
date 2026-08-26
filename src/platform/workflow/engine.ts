@@ -21,7 +21,7 @@ export class PlatformWorkflowEngine<S extends WorkflowState, E extends WorkflowE
   public canTransition(
     currentState: S,
     event: E,
-    context?: any
+    context?: unknown
   ): { allowed: boolean; reason?: string; targetState?: S } {
     const transitionDef = this.definition.transitions.find((t) => {
       const matchFrom = Array.isArray(t.from) ? t.from.includes(currentState) : t.from === currentState;
@@ -52,7 +52,7 @@ export class PlatformWorkflowEngine<S extends WorkflowState, E extends WorkflowE
   public transition(
     currentState: S,
     event: E,
-    context?: any,
+    context?: unknown,
     actor: string = 'system'
   ): WorkflowTransitionResult<S> {
     const check = this.canTransition(currentState, event, context);

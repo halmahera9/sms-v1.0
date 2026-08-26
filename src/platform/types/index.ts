@@ -12,7 +12,7 @@ export interface WorkflowTransitionDefinition<S extends WorkflowState, E extends
   event: E;
   name: string;
   description?: string;
-  guard?: (context: any) => boolean | { allowed: boolean; reason?: string };
+  guard?: (context: unknown) => boolean | { allowed: boolean; reason?: string };
 }
 
 export interface WorkflowDefinition<S extends WorkflowState, E extends WorkflowEvent> {
@@ -41,15 +41,15 @@ export interface ValidationResult {
   severity: ValidationSeverity;
   message: string;
   field?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
-export interface ValidationRule<T = any> {
+export interface ValidationRule<T = unknown> {
   id: string;
   name: string;
   description?: string;
   severity: ValidationSeverity;
-  validate: (entity: T, context?: any) => ValidationResult;
+  validate: (entity: T, context?: unknown) => ValidationResult;
 }
 
 // Exception Queue Engine
@@ -67,7 +67,7 @@ export interface ExceptionItem {
   resolvedAt?: string;
   resolvedBy?: string;
   resolutionNote?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 // Audit Trail Engine
@@ -78,9 +78,9 @@ export interface AuditEvent {
   action: string;
   entityType: string;
   entityId: string;
-  beforeState?: any;
-  afterState?: any;
-  metadata?: Record<string, any>;
+  beforeState?: unknown;
+  afterState?: unknown;
+  metadata?: Record<string, unknown>;
 }
 
 // Generic Repository Pattern

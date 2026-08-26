@@ -40,7 +40,8 @@ export function generateNominatifPDF(proposals: AwardProposal[], config: Signato
   });
 
   // Footer / Signatory
-  const finalY = (doc as any).lastAutoTable?.finalY || 150;
+  const docWithTable = doc as unknown as { lastAutoTable?: { finalY?: number } };
+  const finalY = docWithTable.lastAutoTable?.finalY || 150;
   if (finalY + 40 < 200) {
     doc.setFontSize(9);
     doc.text('Mengetahui,', 220, finalY + 15);
@@ -96,7 +97,7 @@ export function generateSingleProposalPDF(proposal: AwardProposal, config: Signa
     columnStyles: { 0: { fontStyle: 'bold', cellWidth: 50 }, 1: { cellWidth: 130 } },
   });
 
-  const tableY = (doc as any).lastAutoTable?.finalY || 120;
+  const tableY = (doc as unknown as { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY || 120;
 
   // Notes
   doc.setFontSize(9);

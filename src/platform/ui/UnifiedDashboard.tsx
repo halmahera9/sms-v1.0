@@ -9,11 +9,8 @@ import {
   Clock,
   CheckCircle2,
   Users,
-  Award,
   ArrowRight,
-  TrendingUp,
   ShieldAlert,
-  Building,
 } from 'lucide-react';
 
 interface UnifiedDashboardProps {
@@ -27,9 +24,10 @@ export const UnifiedDashboard: React.FC<UnifiedDashboardProps> = ({ onNavigateTa
 
   useEffect(() => {
     const service = new PlatformOperationalService();
-    service.getOperationalMetrics().then(setMetrics);
+    service.getOperationalMetrics().then((m) => setMetrics(m));
     service.getWorkQueueItems().then((items) => setWorkItems(items.slice(0, 5)));
-    setExceptions(service.getExceptionQueue().getOpenExceptions().slice(0, 5));
+    const openExcs = service.getExceptionQueue().getOpenExceptions().slice(0, 5);
+    Promise.resolve().then(() => setExceptions(openExcs));
   }, []);
 
   if (!metrics) {
