@@ -1,10 +1,7 @@
 import { PlatformExceptionQueue } from '../exceptions/queue';
 import { PlatformAuditEngine } from '../audit/engine';
-import { ExceptionItem, AuditEvent } from '../types';
 import { EmployeeAwardLocalStorageRepository } from '@/domains/employee/awards/repository';
 import { StudentLocalStorageRepository, OCRDocumentLocalStorageRepository } from '@/domains/student/repository';
-import { AwardProposal } from '@/domains/employee/awards/types';
-import { Student, OCRDocument } from '@/domains/student/types';
 
 export interface WorkQueueItem {
   id: string;

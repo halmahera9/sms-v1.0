@@ -6,11 +6,9 @@ import {
   CheckSquare, 
   Check, 
   Edit3, 
-  AlertTriangle, 
   CheckCircle2, 
   FileText, 
   UserCheck,
-  RefreshCw,
   FileSpreadsheet
 } from 'lucide-react';
 import { getStoredDocuments, saveDocuments, getStoredStudents, addAuditLog } from '@/lib/storage';
@@ -25,11 +23,13 @@ export default function VerificationPage() {
   useEffect(() => {
     const docs = getStoredDocuments();
     const stds = getStoredStudents();
-    setDocuments(docs);
-    setStudents(stds);
-    if (docs.length > 0) {
-      setSelectedDocId(docs[0].id);
-    }
+    Promise.resolve().then(() => {
+      setDocuments(docs);
+      setStudents(stds);
+      if (docs.length > 0) {
+        setSelectedDocId(docs[0].id);
+      }
+    });
   }, []);
 
   const currentDoc = documents.find((d) => d.id === selectedDocId);

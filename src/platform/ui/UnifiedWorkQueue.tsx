@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { WorkQueueItem, PlatformOperationalService } from '../services/operational';
-import { CheckSquare, AlertTriangle, ArrowRight, Clock, Award, Users } from 'lucide-react';
+import { CheckSquare, ArrowRight } from 'lucide-react';
 
 interface UnifiedWorkQueueProps {
   onNavigateDomainItem?: (domain: 'EMPLOYEE' | 'STUDENT', entityId: string) => void;

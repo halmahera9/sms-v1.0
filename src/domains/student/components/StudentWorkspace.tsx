@@ -1,11 +1,10 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Student, OCRDocument, ExtractedItem, AbsenceStatus } from '../types';
+import { Student, OCRDocument } from '../types';
 import {
   getStoredStudents,
   getStoredDocuments,
-  saveStudents,
   saveDocuments,
   addAuditLog,
 } from '@/lib/storage';
@@ -14,16 +13,11 @@ import {
   ScanText,
   CheckSquare,
   FileSpreadsheet,
-  Plus,
   Search,
   CheckCircle2,
-  AlertCircle,
   Upload,
   Download,
-  Edit3,
-  X,
 } from 'lucide-react';
-import * as XLSX from 'xlsx';
 import { exportStudentAbsenceExcel } from '../export';
 
 export const StudentWorkspace: React.FC = () => {
@@ -37,9 +31,11 @@ export const StudentWorkspace: React.FC = () => {
   useEffect(() => {
     const stds = getStoredStudents();
     const docs = getStoredDocuments();
-    setStudents(stds);
-    setDocuments(docs);
-    if (docs.length > 0) setSelectedDocId(docs[0].id);
+    Promise.resolve().then(() => {
+      setStudents(stds);
+      setDocuments(docs);
+      if (docs.length > 0) setSelectedDocId(docs[0].id);
+    });
   }, []);
 
   const filteredStudents = students.filter(

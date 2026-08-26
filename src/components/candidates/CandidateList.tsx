@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { AwardProposal, AwardType, ProposalStatus } from '@/types/award';
-import { Search, Filter, Award, ChevronLeft, ChevronRight, Eye, CheckCircle, Clock } from 'lucide-react';
+import { AwardProposal, ProposalStatus } from '@/types/award';
+import { Search, Award, ChevronLeft, ChevronRight, Eye } from 'lucide-react';
 
 interface CandidateListProps {
   proposals: AwardProposal[];

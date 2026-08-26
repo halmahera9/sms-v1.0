@@ -7,7 +7,6 @@ import {
   AlertOctagon,
   CheckSquare,
   Users,
-  Upload,
   FileText,
   History,
   Settings,

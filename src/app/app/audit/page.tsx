@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { ShieldAlert, Search, Clock, User, FileText, CheckCircle2 } from 'lucide-react';
+import { Search, Clock, User } from 'lucide-react';
 import { getStoredAuditLogs } from '@/lib/storage';
 import { AuditLog } from '@/types/sms';
 
@@ -10,7 +10,7 @@ export default function AuditTrailPage() {
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
-    setLogs(getStoredAuditLogs());
+    Promise.resolve().then(() => setLogs(getStoredAuditLogs()));
   }, []);
 
   const filteredLogs = logs.filter(

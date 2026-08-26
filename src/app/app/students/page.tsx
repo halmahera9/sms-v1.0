@@ -2,11 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { 
-  Users, 
   Upload, 
   Plus, 
   Search, 
-  FileSpreadsheet, 
   Trash2, 
   CheckCircle2, 
   X,
@@ -30,7 +28,7 @@ export default function MasterStudentsPage() {
   const [newGender, setNewGender] = useState<'L' | 'P'>('L');
 
   useEffect(() => {
-    setStudents(getStoredStudents());
+    Promise.resolve().then(() => setStudents(getStoredStudents()));
   }, []);
 
   const showNotification = (msg: string) => {
@@ -61,20 +59,20 @@ export default function MasterStudentsPage() {
         const wb = XLSX.read(bstr, { type: 'binary' });
         const wsname = wb.SheetNames[0];
         const ws = wb.Sheets[wsname];
-        const data = XLSX.utils.sheet_to_json<any>(ws);
+        const data = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws);
 
         if (data.length === 0) {
           alert('File Excel kosong atau format tidak sesuai.');
           return;
         }
 
-        const imported: Student[] = data.map((row: any, idx: number) => ({
+        const imported: Student[] = data.map((row: Record<string, unknown>, idx: number) => ({
           id: `std-imp-${Date.now()}-${idx}`,
           nisn: String(row.NISN || row.nisn || `000${Date.now()}${idx}`),
           nis: String(row.NIS || row.nis || ''),
           name: String(row.Nama || row.NAMA || row.name || `Siswa ${idx + 1}`),
           class: String(row.Kelas || row.KELAS || row.class || '9A'),
-          gender: (row.JK || row.Gender || row.gender || 'L').toUpperCase().startsWith('P') ? 'P' : 'L',
+          gender: String(row.JK || row.Gender || row.gender || 'L').toUpperCase().startsWith('P') ? 'P' : 'L',
           status: 'Aktif',
         }));
 
@@ -88,7 +86,7 @@ export default function MasterStudentsPage() {
           `Mengimpor ${imported.length} siswa dari file spreadsheet.`
         );
         showNotification(`Berhasil mengimpor ${imported.length} data siswa dari ${file.name}`);
-      } catch (err) {
+      } catch {
         alert('Gagal membaca file Excel. Pastikan format file .xlsx atau .csv');
       }
     };

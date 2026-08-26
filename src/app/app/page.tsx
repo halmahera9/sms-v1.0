@@ -6,10 +6,6 @@ import Link from 'next/link';
 import { 
   Users, 
   ScanText, 
-  CheckSquare, 
-  FileSpreadsheet, 
-  ArrowUpRight, 
-  Clock, 
   CheckCircle2, 
   AlertCircle
 } from 'lucide-react';
@@ -21,8 +17,10 @@ function DashboardOverviewContent() {
   const [documents, setDocuments] = useState<OCRDocument[]>([]);
 
   useEffect(() => {
-    setStudents(getStoredStudents());
-    setDocuments(getStoredDocuments());
+    Promise.resolve().then(() => {
+      setStudents(getStoredStudents());
+      setDocuments(getStoredDocuments());
+    });
   }, []);
 
   const totalExtracted = documents.reduce((acc, doc) => acc + doc.extractedCount, 0);

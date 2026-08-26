@@ -4,13 +4,9 @@ import { useState, useEffect } from 'react';
 import { 
   FileSpreadsheet, 
   FileText, 
-  Download, 
   CheckCircle2, 
-  Filter, 
-  Building2,
-  Calendar
+  Filter
 } from 'lucide-react';
-import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { getStoredDocuments, addAuditLog } from '@/lib/storage';
@@ -22,7 +18,7 @@ export default function ExportReportsPage() {
   const [selectedClass, setSelectedClass] = useState<string>('Semua');
 
   useEffect(() => {
-    setDocuments(getStoredDocuments());
+    Promise.resolve().then(() => setDocuments(getStoredDocuments()));
   }, []);
 
   // Collect all verified items from all documents

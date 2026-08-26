@@ -24,13 +24,15 @@ function WorkspaceContent() {
   const [selectedCandidate, setSelectedCandidate] = useState<AwardProposal | null>(null);
   const [metrics, setMetrics] = useState<OperationalMetrics | null>(null);
 
-  const opService = new PlatformOperationalService();
+  const [opService] = useState(() => new PlatformOperationalService());
 
   useEffect(() => {
     const loaded = loadProposals();
-    setProposals(loaded);
-    opService.getOperationalMetrics().then(setMetrics);
-  }, []);
+    Promise.resolve().then(() => {
+      setProposals(loaded);
+      opService.getOperationalMetrics().then(setMetrics);
+    });
+  }, [opService]);
 
   const refreshMetrics = () => {
     opService.getOperationalMetrics().then(setMetrics);
