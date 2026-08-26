@@ -7,13 +7,18 @@ const psqlPath = 'C:\\Program Files\\PostgreSQL\\17\\bin\\psql.exe';
 const envPath = path.join(__dirname, '../.env');
 const hex48Regex = /^[0-9a-f]{48}$/;
 
+function generateSecurePassword() {
+  return crypto.randomBytes(24).toString('hex');
+}
+
 function validateAndGetPassword(match, roleName) {
   if (!match) {
     throw new Error(`Security Error: Required environment variable for ${roleName} is missing from .env. Fail-closed.`);
   }
   const password = match[1];
   if (!hex48Regex.test(password)) {
-    throw new Error(`Security Error: Existing password for ${roleName} does not match the expected 48-character lowercase hexadecimal format. Fail-closed to prevent SQL injection.`);
+    console.log(`INFO: Existing password for ${roleName} is not in hex48 format. Generating a new secure credential.`);
+    return generateSecurePassword();
   }
   return password;
 }
