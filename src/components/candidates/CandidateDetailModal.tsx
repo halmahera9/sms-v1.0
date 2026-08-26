@@ -45,6 +45,7 @@ export const CandidateDetailModal: React.FC<CandidateDetailModalProps> = ({
     const req = requirements.find((r) => r.code === reqCode);
     if (!req) return;
 
+    // eslint-disable-next-line react-hooks/purity
     const timestamp = Date.now();
     const existingDocs = candidate.documents.filter((d) => d.requirementCode !== reqCode);
     const newDoc: ProposalDocument = {

@@ -47,8 +47,9 @@ export const EMPLOYEE_AWARD_WORKFLOW_DEF: WorkflowDefinition<ProposalStatus, Emp
       to: 'SIAP_GENERATE',
       event: 'APPROVE_GENERATION',
       name: 'Persetujuan Siap Generate PDF',
-      guard: (context: { allMandatoryVerified: boolean }) => {
-        if (!context?.allMandatoryVerified) {
+      guard: (context: unknown) => {
+        const ctx = context as { allMandatoryVerified?: boolean } | undefined;
+        if (!ctx?.allMandatoryVerified) {
           return { allowed: false, reason: 'Seluruh dokumen wajib harus diverifikasi sebelum disetujui.' };
         }
         return true;

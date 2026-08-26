@@ -34,8 +34,9 @@ export const STUDENT_ABSENCE_WORKFLOW_DEF: WorkflowDefinition<
       to: 'VERIFIED',
       event: 'VERIFY_ALL_ITEMS',
       name: 'Verifikasi Manual Seluruh Item',
-      guard: (context: { allItemsVerified: boolean }) => {
-        if (!context?.allItemsVerified) {
+      guard: (context: unknown) => {
+        const ctx = context as { allItemsVerified?: boolean } | undefined;
+        if (!ctx?.allItemsVerified) {
           return { allowed: false, reason: 'Seluruh item ekstraksi harus diverifikasi sebelum menyetujui dokumen.' };
         }
         return true;

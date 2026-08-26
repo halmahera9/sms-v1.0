@@ -55,9 +55,9 @@ export const UnifiedAuditFeed: React.FC = () => {
                     <p className="text-xs text-slate-500 mt-0.5">
                       Target: <span className="font-mono font-medium text-slate-700 dark:text-slate-300">{ev.entityType} ({ev.entityId})</span>
                     </p>
-                    {ev.metadata?.details && (
+                    {Boolean(ev.metadata?.details) && (
                       <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-1 italic">
-                        &ldquo;{String(ev.metadata.details)}&rdquo;
+                        &ldquo;{String(ev.metadata?.details)}&rdquo;
                       </p>
                     )}
                   </div>

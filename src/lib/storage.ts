@@ -62,7 +62,7 @@ export function getStoredAuditLogs(): AuditLog[] {
     operator: e.actor,
     action: e.action,
     target: e.entityType || e.entityId,
-    details: e.metadata?.details || e.action,
+    details: typeof e.metadata?.details === 'string' ? e.metadata.details : e.action,
   }));
 }
 
