@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { parseNominatifExcel } from '@/lib/excel-import';
 import { AwardProposal } from '@/types/award';
-import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, ArrowRight } from 'lucide-react';
+import { Upload, FileSpreadsheet, CheckCircle2, ArrowRight } from 'lucide-react';
 
 interface ExcelImporterProps {
   onImportComplete: (newProposals: AwardProposal[]) => void;

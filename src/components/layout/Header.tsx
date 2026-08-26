@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Award, FileText, Upload, Settings, LayoutDashboard, ShieldCheck, UserCheck } from 'lucide-react';
+import { Award, FileText, Upload, Settings, LayoutDashboard } from 'lucide-react';
 
 interface HeaderProps {
   activeTab: string;

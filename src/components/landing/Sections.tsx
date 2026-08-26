@@ -16,7 +16,6 @@ import {
   FileSpreadsheet,
   Database,
   Shield,
-  FileCheck,
   Building2,
   Send
 } from 'lucide-react';

@@ -1,7 +1,5 @@
 import { PlatformExceptionQueue } from '../src/platform/exceptions/queue';
-import { PlatformAuditEngine } from '../src/platform/audit/engine';
 import { PlatformOperationalService } from '../src/platform/services/operational';
-import { ExceptionItem } from '../src/platform/types';
 
 let testCount = 0;
 let passCount = 0;
@@ -41,7 +39,7 @@ const exc2 = excQueue.createException({
 });
 
 const allExceptions = excQueue.getAll();
-assert(allExceptions.length === 2, 'Should list exactly 2 exceptions');
+assert(allExceptions.length === 2 && exc2.id !== '', 'Should list exactly 2 exceptions');
 
 // 2. Exception Filtering
 console.log('\n[2] Testing Exception Filtering by Entity/Domain...');

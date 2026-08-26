@@ -1,4 +1,3 @@
-import { StudentLocalStorageRepository, OCRDocumentLocalStorageRepository } from '../src/domains/student/repository';
 import { PlatformOperationalService } from '../src/platform/services/operational';
 import { saveDocuments, getStoredDocuments, addAuditLog, getStoredAuditLogs } from '../src/lib/storage';
 import { OCRDocument } from '../src/domains/student/types';

@@ -11,7 +11,6 @@ import {
   Clock,
   ArrowRight,
   TrendingUp,
-  FileCheck,
   Building2,
 } from 'lucide-react';
 
@@ -33,7 +32,6 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
   const diverifikasi = proposals.filter((p) => p.status === 'DIVERIFIKASI');
   const lengkap = proposals.filter((p) => p.status === 'LENGKAP');
   const sebagian = proposals.filter((p) => p.status === 'SEBAGIAN');
-  const belumUpload = proposals.filter((p) => p.status === 'BELUM_UPLOAD' || p.status === 'NOMINATIF');
 
   // Breakdown per Wilayah
   const wilayahMap: Record<string, number> = {};

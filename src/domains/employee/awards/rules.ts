@@ -1,5 +1,5 @@
 import { PlatformValidationEngine } from '@/platform/rules/engine';
-import { ValidationRule, ValidationResult } from '@/platform/types';
+import { ValidationRule } from '@/platform/types';
 import { AwardProposal, AwardType, DocumentRequirement, ProposalStatus } from './types';
 
 export const MASA_KERJA_REQUIREMENTS: DocumentRequirement[] = [

@@ -43,7 +43,7 @@ export function loadSignatoryConfig(): SignatoryConfig {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.SIGNATORY);
     return raw ? JSON.parse(raw) : DEFAULT_SIGNATORY;
-  } catch (err) {
+  } catch {
     return DEFAULT_SIGNATORY;
   }
 }
@@ -58,7 +58,7 @@ export function loadAuditLogs(): AuditEvent[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.AUDIT_LOGS);
     return raw ? JSON.parse(raw) : [];
-  } catch (err) {
+  } catch {
     return [];
   }
 }

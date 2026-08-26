@@ -1,10 +1,10 @@
 'use client';
 
 import React, { useState } from 'react';
-import { AwardProposal, SignatoryConfig } from '@/types/award';
+import { AwardProposal } from '@/types/award';
 import { generateNominatifPDF, generateSingleProposalPDF } from '@/lib/pdf-generator';
 import { loadSignatoryConfig } from '@/lib/award-storage';
-import { FileText, Download, CheckCircle2, FileCheck, Layers, Printer } from 'lucide-react';
+import { Download, CheckCircle2, Printer } from 'lucide-react';
 
 interface DocumentGeneratorProps {
   proposals: AwardProposal[];

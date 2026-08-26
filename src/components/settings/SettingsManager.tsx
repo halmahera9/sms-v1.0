@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { SignatoryConfig } from '@/types/award';
 import { loadSignatoryConfig, saveSignatoryConfig } from '@/lib/award-storage';
-import { Settings, Save, CheckCircle2, ShieldAlert, FileCode } from 'lucide-react';
+import { Settings, Save, CheckCircle2 } from 'lucide-react';
 
 export const SettingsManager: React.FC = () => {
   const [config, setConfig] = useState<SignatoryConfig>(loadSignatoryConfig());
