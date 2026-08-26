@@ -1,5 +1,5 @@
 // Prisma Schema Specification for Banyubiru Administrative Intelligence Platform
-// Phase 4D Schema Correction Gate - Fully Mapped & Approved Tenant-Aware Model
+// Phase 4D Final Schema Correction Gate - Authoritative Tenant-Aware Model
 
 generator client {
   provider = "prisma-client-js"
@@ -135,7 +135,7 @@ enum ExceptionStatus {
 // ----------------------------------------------------
 
 model Tenant {
-  id        String       @id @default(uuid()) @db.Uuid
+  id        String       @id @db.Uuid
   name      String       @db.VarChar(255)
   code      String       @unique @db.VarChar(64)
   status    TenantStatus @default(ACTIVE)
@@ -163,7 +163,7 @@ model Tenant {
 }
 
 model UserActor {
-  id        String     @id @default(uuid()) @db.Uuid
+  id        String     @id @db.Uuid
   tenantId  String     @map("tenant_id") @db.Uuid
   username  String     @db.VarChar(128)
   email     String     @db.VarChar(255)
@@ -192,7 +192,7 @@ model UserActor {
 }
 
 model Employee {
-  id        String         @id @default(uuid()) @db.Uuid
+  id        String         @id @db.Uuid
   tenantId  String         @map("tenant_id") @db.Uuid
   nip       String         @db.VarChar(18)
   nrk       String         @db.VarChar(10)
@@ -217,7 +217,7 @@ model Employee {
 }
 
 model AwardProposal {
-  id               String          @id @default(uuid()) @db.Uuid
+  id               String          @id @db.Uuid
   tenantId         String          @map("tenant_id") @db.Uuid
   employeeId       String          @map("employee_id") @db.Uuid
   jenisPenghargaan AwardType       @map("jenis_penghargaan")
@@ -244,7 +244,7 @@ model AwardProposal {
 }
 
 model AwardProposalDocument {
-  id                 String             @id @default(uuid()) @db.Uuid
+  id                 String             @id @db.Uuid
   tenantId           String             @map("tenant_id") @db.Uuid
   proposalId         String             @map("proposal_id") @db.Uuid
   documentId         String             @map("document_id") @db.Uuid
@@ -259,7 +259,7 @@ model AwardProposalDocument {
   tenant         Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   proposal       AwardProposal @relation(fields: [tenantId, proposalId], references: [tenantId, id], onDelete: Cascade, onUpdate: Cascade)
   document       Document      @relation(fields: [tenantId, documentId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade)
-  verifiedByUser UserActor?    @relation(fields: [verifiedByUserId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  verifiedByUser UserActor?    @relation(fields: [tenantId, verifiedByUserId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade)
 
   @@unique([tenantId, id])
   @@unique([proposalId, requirementCode])
@@ -268,7 +268,7 @@ model AwardProposalDocument {
 }
 
 model Student {
-  id        String        @id @default(uuid()) @db.Uuid
+  id        String        @id @db.Uuid
   tenantId  String        @map("tenant_id") @db.Uuid
   nisn      String        @db.VarChar(10)
   nis       String        @db.VarChar(20)
@@ -291,7 +291,7 @@ model Student {
 }
 
 model AbsenceRecord {
-  id               String        @id @default(uuid()) @db.Uuid
+  id               String        @id @db.Uuid
   tenantId         String        @map("tenant_id") @db.Uuid
   studentId        String        @map("student_id") @db.Uuid
   documentId       String?       @map("document_id") @db.Uuid
@@ -304,7 +304,7 @@ model AbsenceRecord {
 
   tenant         Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   student        Student        @relation(fields: [tenantId, studentId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade)
-  document       Document?      @relation(fields: [documentId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  document       Document?      @relation(fields: [tenantId, documentId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade)
   verifiedByUser UserActor      @relation(fields: [tenantId, verifiedByUserId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade)
   extractedItem  ExtractedItem?
 
@@ -315,7 +315,7 @@ model AbsenceRecord {
 }
 
 model OCRExtraction {
-  id             String                      @id @default(uuid()) @db.Uuid
+  id             String                      @id @db.Uuid
   tenantId       String                      @map("tenant_id") @db.Uuid
   documentId     String                      @map("document_id") @db.Uuid
   status         OCRExtractionStatus         @default(NEEDS_VERIFICATION)
@@ -336,11 +336,11 @@ model OCRExtraction {
 }
 
 model ExtractedItem {
-  id                 String             @id @default(uuid()) @db.Uuid
+  id                 String             @id @db.Uuid
   tenantId           String             @map("tenant_id") @db.Uuid
   ocrExtractionId    String             @map("ocr_extraction_id") @db.Uuid
   matchedStudentId   String?            @map("matched_student_id") @db.Uuid
-  absenceRecordId    String?            @unique @map("absence_record_id") @db.Uuid
+  absenceRecordId    String?            @map("absence_record_id") @db.Uuid
   ocrText            String             @map("ocr_text") @db.Text
   confidenceScore    Decimal            @map("confidence_score") @db.Decimal(5, 2)
   className          String             @map("class_name") @db.VarChar(64)
@@ -353,17 +353,18 @@ model ExtractedItem {
 
   tenant         Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   ocrExtraction  OCRExtraction  @relation(fields: [tenantId, ocrExtractionId], references: [tenantId, id], onDelete: Cascade, onUpdate: Cascade)
-  matchedStudent Student?       @relation(fields: [matchedStudentId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  absenceRecord  AbsenceRecord? @relation(fields: [absenceRecordId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  matchedStudent Student?       @relation(fields: [tenantId, matchedStudentId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade)
+  absenceRecord  AbsenceRecord? @relation(fields: [tenantId, absenceRecordId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade)
 
   @@unique([tenantId, id])
+  @@unique([tenantId, absenceRecordId])
   @@index([tenantId, verificationStatus])
   @@index([ocrExtractionId, verificationStatus])
   @@map("extracted_items")
 }
 
 model Document {
-  id                   String           @id @default(uuid()) @db.Uuid
+  id                   String           @id @db.Uuid
   tenantId             String           @map("tenant_id") @db.Uuid
   title                String           @db.VarChar(255)
   category             DocumentCategory
@@ -385,7 +386,7 @@ model Document {
 }
 
 model DocumentVersion {
-  id               String   @id @default(uuid()) @db.Uuid
+  id               String   @id @db.Uuid
   tenantId         String   @map("tenant_id") @db.Uuid
   documentId       String   @map("document_id") @db.Uuid
   versionNumber    Int      @map("version_number")
@@ -407,7 +408,7 @@ model DocumentVersion {
 }
 
 model HumanVerification {
-  id                   String               @id @default(uuid()) @db.Uuid
+  id                   String               @id @db.Uuid
   tenantId             String               @map("tenant_id") @db.Uuid
   verifierUserId       String               @map("verifier_user_id") @db.Uuid
   targetEntityType     String               @map("target_entity_type") @db.VarChar(64)
@@ -425,7 +426,7 @@ model HumanVerification {
 }
 
 model WorkflowInstance {
-  id                   String    @id @default(uuid()) @db.Uuid
+  id                   String    @id @db.Uuid
   tenantId             String    @map("tenant_id") @db.Uuid
   entityType           String    @map("entity_type") @db.VarChar(64)
   entityId             String    @map("entity_id") @db.Uuid
@@ -437,7 +438,7 @@ model WorkflowInstance {
   updatedAt            DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   tenant       Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  lockedByUser UserActor?           @relation(fields: [lockedByUserId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  lockedByUser UserActor?           @relation(fields: [tenantId, lockedByUserId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade)
   transitions  WorkflowTransition[]
 
   @@unique([tenantId, id])
@@ -447,7 +448,7 @@ model WorkflowInstance {
 }
 
 model WorkflowTransition {
-  id                 String   @id @default(uuid()) @db.Uuid
+  id                 String   @id @db.Uuid
   tenantId           String   @map("tenant_id") @db.Uuid
   workflowInstanceId String   @map("workflow_instance_id") @db.Uuid
   fromState          String   @map("from_state") @db.VarChar(64)
@@ -467,7 +468,7 @@ model WorkflowTransition {
 }
 
 model ValidationResult {
-  id         String   @id @default(uuid()) @db.Uuid
+  id         String   @id @db.Uuid
   tenantId   String   @map("tenant_id") @db.Uuid
   entityType String   @map("entity_type") @db.VarChar(64)
   entityId   String   @map("entity_id") @db.Uuid
@@ -486,7 +487,7 @@ model ValidationResult {
 }
 
 model ExceptionItem {
-  id               String          @id @default(uuid()) @db.Uuid
+  id               String          @id @db.Uuid
   tenantId         String          @map("tenant_id") @db.Uuid
   entityType       String          @map("entity_type") @db.VarChar(64)
   entityId         String          @map("entity_id") @db.Uuid
@@ -502,8 +503,8 @@ model ExceptionItem {
   updatedAt        DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   tenant         Tenant     @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  assignedToUser UserActor? @relation("AssignedExceptions", fields: [assignedToUserId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  resolvedByUser UserActor? @relation("ResolvedExceptions", fields: [resolvedByUserId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  assignedToUser UserActor? @relation("AssignedExceptions", fields: [tenantId, assignedToUserId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade)
+  resolvedByUser UserActor? @relation("ResolvedExceptions", fields: [tenantId, resolvedByUserId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade)
 
   @@unique([tenantId, id])
   @@index([tenantId, status])
@@ -512,7 +513,7 @@ model ExceptionItem {
 }
 
 model AuditEvent {
-  id          String   @id @default(uuid()) @db.Uuid
+  id          String   @id @db.Uuid
   tenantId    String   @map("tenant_id") @db.Uuid
   actorId     String   @map("actor_id") @db.Uuid
   actorName   String   @map("actor_name") @db.VarChar(255)
