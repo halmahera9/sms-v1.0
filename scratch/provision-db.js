@@ -194,33 +194,16 @@ function main() {
     process.exit(1);
   }
 
-  // 2. Connect to postgres DB to verify / create banyubiru database
-  console.log('Verifying database banyubiru...');
-  const dbExists = runPsql('postgres', "SELECT 1 FROM pg_database WHERE datname='banyubiru';", adminPassword);
-  
-  if (dbExists !== '1') {
-    console.log('Creating database banyubiru...');
-    runPsql('postgres', 'CREATE DATABASE banyubiru;', adminPassword);
-  }
-
-  // 3. Perform read-only check for unexpected role memberships
-  console.log('Auditing role memberships for unexpected inheritance...');
-  const membershipCheckSql = `
-    SELECT COUNT(*) FROM pg_catalog.pg_auth_members m
-    JOIN pg_catalog.pg_roles r1 ON m.roleid = r1.oid
-    JOIN pg_catalog.pg_roles r2 ON m.member = r2.oid
-    WHERE r1.rolname IN ('banyubiru_migrator', 'banyubiru_app', 'banyubiru_admin_app', 'banyubiru_readonly')
-       OR r2.rolname IN ('banyubiru_migrator', 'banyubiru_app', 'banyubiru_admin_app', 'banyubiru_readonly');
-  `;
-  const membershipCount = runPsql('banyubiru', membershipCheckSql, adminPassword);
-  if (membershipCount !== '0') {
-    console.error('Security Error: Unexpected active role memberships detected for Banyubiru database roles in pg_auth_members. Fail-closed.');
+  // Verify PostgreSQL binary is present
+  if (!fs.existsSync(psqlPath)) {
+    console.error(`Error: psql.exe not found at ${psqlPath}`);
     process.exit(1);
   }
 
-  // 4. Create / Update database roles with explicit attributes (Idempotent passwords for all roles via STDIN)
-  console.log('Provisioning and updating database roles with privilege bounds via secure STDIN channel...');
+  // 2. Connect to postgres DB to provision database roles first (Roles are global to the cluster)
+  console.log('Provisioning and updating database roles with explicit privilege bounds via STDIN...');
   const roleSql = `
+  BEGIN;
   DO $$
   BEGIN
     -- 1. banyubiru_migrator (Idempotent)
@@ -252,28 +235,63 @@ function main() {
     END IF;
   END
   $$;
+  COMMIT;
   `;
-  runPsql('banyubiru', roleSql, adminPassword, true);
+  runPsql('postgres', roleSql, adminPassword, true);
 
-  // 5. Establish explicit Database and Schema Ownership to banyubiru_migrator
-  console.log('Establishing database and schema ownership boundaries...');
+  // 3. Connect to postgres DB to verify / create banyubiru database
+  console.log('Verifying database banyubiru...');
+  const dbExists = runPsql('postgres', "SELECT 1 FROM pg_database WHERE datname='banyubiru';", adminPassword);
+  
+  if (dbExists !== '1') {
+    console.log('Creating database banyubiru...');
+    runPsql('postgres', 'CREATE DATABASE banyubiru;', adminPassword);
+  }
+
+  // 4. Establish Database Ownership (Must be run outside a transaction block)
+  console.log('Establishing database ownership boundaries to banyubiru_migrator...');
   runPsql('postgres', 'ALTER DATABASE banyubiru OWNER TO banyubiru_migrator;', adminPassword);
-  runPsql('banyubiru', 'ALTER SCHEMA public OWNER TO banyubiru_migrator;', adminPassword);
 
-  // 6. Apply Revoke / Grant privilege boundaries, database CONNECT, and schema USAGE
-  console.log('Enforcing privilege boundaries and database/schema PUBLIC revocation...');
-  const privilegeSql = `
-    REVOKE ALL ON DATABASE banyubiru FROM PUBLIC;
-    GRANT CONNECT ON DATABASE banyubiru TO banyubiru_app, banyubiru_admin_app, banyubiru_readonly;
-    REVOKE ALL ON SCHEMA public FROM PUBLIC;
-    GRANT USAGE ON SCHEMA public TO banyubiru_app, banyubiru_admin_app, banyubiru_readonly;
+  // 5. Apply Schema Ownership and database/schema privilege boundaries atomically inside a single transaction block via secure STDIN
+  console.log('Applying atomic schema ownership and privilege boundary transaction via secure STDIN channel...');
+  
+  const privilegeBatch = `
+  BEGIN;
+
+  -- A. Audit role memberships for unexpected inheritance
+  DO $$
+  DECLARE
+    m_count INTEGER;
+  BEGIN
+    SELECT COUNT(*) INTO m_count FROM pg_catalog.pg_auth_members m
+    JOIN pg_catalog.pg_roles r1 ON m.roleid = r1.oid
+    JOIN pg_catalog.pg_roles r2 ON m.member = r2.oid
+    WHERE r1.rolname IN ('banyubiru_migrator', 'banyubiru_app', 'banyubiru_admin_app', 'banyubiru_readonly')
+       OR r2.rolname IN ('banyubiru_migrator', 'banyubiru_app', 'banyubiru_admin_app', 'banyubiru_readonly');
+    IF m_count > 0 THEN
+      RAISE EXCEPTION 'Security Error: Unexpected active role memberships detected for Banyubiru database roles in pg_auth_members.';
+    END IF;
+  END
+  $$;
+
+  -- B. Establish explicit public schema ownership to banyubiru_migrator
+  ALTER SCHEMA public OWNER TO banyubiru_migrator;
+
+  -- C. Apply Revoke / Grant privilege boundaries, database CONNECT, and schema USAGE
+  REVOKE ALL ON DATABASE banyubiru FROM PUBLIC;
+  GRANT CONNECT ON DATABASE banyubiru TO banyubiru_app, banyubiru_admin_app, banyubiru_readonly;
+  REVOKE ALL ON SCHEMA public FROM PUBLIC;
+  GRANT USAGE ON SCHEMA public TO banyubiru_app, banyubiru_admin_app, banyubiru_readonly;
+
+  COMMIT;
   `;
-  runPsql('banyubiru', privilegeSql, adminPassword);
 
-  // 7. Perform Post-Provision Security Verification
+  runPsql('banyubiru', privilegeBatch, adminPassword, true);
+
+  // 6. Perform Post-Provision Security Verification
   verifyPostProvision(adminPassword);
 
-  // 8. Update .env lines preserving unrelated variables
+  // 7. Update .env lines preserving unrelated variables
   console.log('Updating .env configuration...');
   let lines = envContent.split(/\r?\n/);
   lines = lines.map(line => {
@@ -295,7 +313,7 @@ function main() {
   fs.writeFileSync(envPath, lines.join('\n'), 'utf8');
   console.log('SUCCESS: Local secrets updated in .env.');
 
-  // 9. Perform non-destructive authentication test as banyubiru_migrator
+  // 8. Perform non-destructive authentication test as banyubiru_migrator
   console.log('Testing connectivity as banyubiru_migrator...');
   try {
     const testResult = execFileSync(psqlPath, [
