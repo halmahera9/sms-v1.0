@@ -15,6 +15,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { getStoredDocuments, addAuditLog } from '@/lib/storage';
 import { OCRDocument, ExtractedItem } from '@/types/sms';
+import { exportStudentAbsenceExcel } from '@/domains/student/export';
 
 export default function ExportReportsPage() {
   const [documents, setDocuments] = useState<OCRDocument[]>([]);
@@ -42,36 +43,10 @@ export default function ExportReportsPage() {
 
   // Export to Excel (.xlsx)
   const handleExportExcel = () => {
-    if (filteredItems.length === 0) {
+    const success = exportStudentAbsenceExcel(selectedClass);
+    if (!success) {
       alert('Tidak ada data terverifikasi untuk diekspor.');
-      return;
     }
-
-    const excelRows = filteredItems.map((row, idx) => ({
-      No: idx + 1,
-      Tanggal: row.item.date,
-      NISN: row.item.matchedNisn || '—',
-      'Nama Siswa': row.item.matchedStudentName || row.item.ocrText,
-      Kelas: row.item.class,
-      Status: row.item.status,
-      Keterangan: row.item.notes || '—',
-      Dokumen: row.docName,
-      'Status Verifikasi': 'Terverifikasi (Human-in-the-Loop)',
-    }));
-
-    const ws = XLSX.utils.json_to_sheet(excelRows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Rekap_Ketidakhadiran');
-    
-    const fileName = `Rekap_SMS_Ketidakhadiran_${new Date().toISOString().split('T')[0]}.xlsx`;
-    XLSX.writeFile(wb, fileName);
-
-    addAuditLog(
-      'Operator TU - Budi',
-      'EXPORT_EXCEL',
-      fileName,
-      `Mengekspor ${filteredItems.length} baris data rekap ketidakhadiran ke format Excel.`
-    );
   };
 
   // Export to PDF

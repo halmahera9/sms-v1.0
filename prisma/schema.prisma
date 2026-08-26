@@ -1,0 +1,349 @@
+// Prisma Schema Specification for Banyubiru Administrative Intelligence Platform
+// Phase 4C Specification - NON-RUNTIME DATABASE MAPPING
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// 1. TENANTS TABLE (Multi-Tenancy Isolation Root)
+model Tenant {
+  id        String   @id @default(uuid())
+  name      String
+  code      String   @unique
+  status    String   @default("ACTIVE")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  userActors        UserActor[]
+  employees         Employee[]
+  awardProposals    AwardProposal[]
+  students          Student[]
+  absenceRecords    AbsenceRecord[]
+  documents         Document[]
+  ocrExtractions    OCRExtraction[]
+  workflowInstances WorkflowInstance[]
+  exceptionItems    ExceptionItem[]
+  auditEvents       AuditEvent[]
+
+  @@map("tenants")
+}
+
+// 2. USER ACTORS TABLE
+model UserActor {
+  id        String   @id @default(uuid())
+  tenantId  String   @map("tenant_id")
+  username  String
+  fullName  String   @map("full_name")
+  email     String?
+  role      String   @default("USER")
+  status    String   @default("ACTIVE")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  documentVersions    DocumentVersion[]
+  absenceRecords      AbsenceRecord[]
+  workflowTransitions WorkflowTransition[]
+  resolvedExceptions  ExceptionItem[]
+  auditEvents         AuditEvent[]
+
+  @@unique([tenantId, username])
+  @@index([tenantId, role])
+  @@map("user_actors")
+}
+
+// 3. EMPLOYEES TABLE (SIMPEG Master Data)
+model Employee {
+  id        String   @id @default(uuid())
+  tenantId  String   @map("tenant_id")
+  nip       String
+  nrk       String
+  fullName  String   @map("full_name")
+  jabatan   String
+  ukpd      String
+  skpd      String
+  status    String   @default("Active")
+  version   Int      @default(1)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  awardProposals AwardProposal[]
+
+  @@unique([tenantId, nip])
+  @@unique([tenantId, nrk])
+  @@index([tenantId, status])
+  @@map("employees")
+}
+
+// 4. EMPLOYEE AWARD PROPOSALS TABLE
+model AwardProposal {
+  id               String   @id @default(uuid())
+  tenantId         String   @map("tenant_id")
+  employeeId       String   @map("employee_id")
+  jenisPenghargaan String   @map("jenis_penghargaan")
+  nilaiUsulan      String   @map("nilai_usulan")
+  tahunUsulan      Int      @map("tahun_usulan")
+  masaKerjaTahun   Int      @map("masa_kerja_tahun")
+  masaKerjaBulan   Int      @map("masa_kerja_bulan")
+  status           String   @default("NOMINATIF")
+  checklistStatus  String   @default("BELUM_UPLOAD") @map("checklist_status")
+  checklistData    Json     @map("checklist_data")
+  version          Int      @default(1)
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  tenant   Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  employee Employee                @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  documents AwardProposalDocument[]
+
+  @@unique([tenantId, employeeId, jenisPenghargaan, tahunUsulan])
+  @@index([tenantId, status])
+  @@index([employeeId])
+  @@map("employee_award_proposals")
+}
+
+// 5. AWARD PROPOSAL DOCUMENTS TABLE
+model AwardProposalDocument {
+  id                 String   @id @default(uuid())
+  proposalId         String   @map("proposal_id")
+  documentId         String   @map("document_id")
+  documentType       String   @map("document_type")
+  verificationStatus String   @default("PENDING") @map("verification_status")
+  rejectionReason    String?  @map("rejection_reason")
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  proposal AwardProposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  document Document      @relation(fields: [documentId], references: [id], onDelete: Restrict)
+
+  @@unique([proposalId, documentType])
+  @@index([proposalId])
+  @@index([documentId])
+  @@map("award_proposal_documents")
+}
+
+// 6. STUDENTS TABLE (Dapodik Master Data)
+model Student {
+  id        String   @id @default(uuid())
+  tenantId  String   @map("tenant_id")
+  nisn      String
+  nis       String?
+  fullName  String   @map("full_name")
+  className String   @map("class_name")
+  gender    String
+  status    String   @default("Aktif")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  absenceRecords AbsenceRecord[]
+  extractedItems ExtractedItem[]
+
+  @@unique([tenantId, nisn])
+  @@index([tenantId, className])
+  @@map("students")
+}
+
+// 7. ABSENCE RECORDS TABLE (Source of Truth for Student Absence)
+model AbsenceRecord {
+  id               String   @id @default(uuid())
+  tenantId         String   @map("tenant_id")
+  studentId        String   @map("student_id")
+  documentId       String?  @map("document_id")
+  absenceDate      DateTime @map("absence_date")
+  absenceStatus    String   @map("absence_status")
+  notes            String?
+  verifiedByUserId String   @map("verified_by_user_id")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  tenant     Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  student    Student   @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  document   Document? @relation(fields: [documentId], references: [id], onDelete: Set Null)
+  verifier   UserActor @relation(fields: [verifiedByUserId], references: [id], onDelete: Restrict)
+
+  extractedItem ExtractedItem?
+
+  @@index([tenantId, absenceDate])
+  @@index([studentId])
+  @@map("absence_records")
+}
+
+// 8. DOCUMENTS TABLE (Platform Level Document Header)
+model Document {
+  id        String   @id @default(uuid())
+  tenantId  String   @map("tenant_id")
+  title     String
+  category  String
+  status    String   @default("ACTIVE")
+  version   Int      @default(1)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  versions          DocumentVersion[]
+  proposalDocuments AwardProposalDocument[]
+  ocrExtractions    OCRExtraction[]
+  absenceRecords    AbsenceRecord[]
+
+  @@index([tenantId, category])
+  @@map("documents")
+}
+
+// 9. DOCUMENT VERSIONS TABLE (Physical File Integrity)
+model DocumentVersion {
+  id               String   @id @default(uuid())
+  documentId       String   @map("document_id")
+  versionNumber    Int      @map("version_number")
+  fileName         String   @map("file_name")
+  fileSizeBytes    Int      @map("file_size_bytes")
+  mimeType         String   @map("mime_type")
+  storagePath      String   @map("storage_path")
+  checksumSha256   String   @map("checksum_sha256")
+  uploadedByUserId String   @map("uploaded_by_user_id")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  document   Document  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  uploadedBy UserActor @relation(fields: [uploadedByUserId], references: [id], onDelete: Restrict)
+
+  @@unique([documentId, versionNumber])
+  @@index([checksumSha256])
+  @@map("document_versions")
+}
+
+// 10. OCR EXTRACTIONS TABLE (Header for OCR Processing)
+model OCRExtraction {
+  id             String   @id @default(uuid())
+  tenantId       String   @map("tenant_id")
+  documentId     String   @map("document_id")
+  status         String   @default("needs_verification")
+  workflowState  String   @default("NEEDS_VERIFICATION") @map("workflow_state")
+  extractedCount Int      @default(0) @map("extracted_count")
+  verifiedCount  Int      @default(0) @map("verified_count")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  items ExtractedItem[]
+
+  @@index([tenantId, status])
+  @@index([documentId])
+  @@map("ocr_extractions")
+}
+
+// 11. EXTRACTED ITEMS TABLE (Draft Line Items from OCR)
+model ExtractedItem {
+  id                 String   @id @default(uuid())
+  ocrExtractionId    String   @map("ocr_extraction_id")
+  matchedStudentId   String?  @map("matched_student_id")
+  absenceRecordId    String?  @unique @map("absence_record_id")
+  ocrText            String   @map("ocr_text")
+  matchedStudentName String?  @map("matched_student_name")
+  matchedNisn        String?  @map("matched_nisn")
+  confidenceScore    Float    @map("confidence_score")
+  className          String   @map("class_name")
+  absenceDate        DateTime @map("absence_date")
+  absenceStatus      String   @map("absence_status")
+  notes              String?
+  verificationStatus String   @default("pending") @map("verification_status")
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  ocrExtraction OCRExtraction  @relation(fields: [ocrExtractionId], references: [id], onDelete: Cascade)
+  matchedStudent Student?       @relation(fields: [matchedStudentId], references: [id], onDelete: Set Null)
+  absenceRecord  AbsenceRecord? @relation(fields: [absenceRecordId], references: [id], onDelete: Set Null)
+
+  @@index([ocrExtractionId])
+  @@index([verificationStatus])
+  @@map("extracted_items")
+}
+
+// 12. WORKFLOW INSTANCES TABLE (Current Workflow State)
+model WorkflowInstance {
+  id           String   @id @default(uuid())
+  tenantId     String   @map("tenant_id")
+  entityType   String   @map("entity_type")
+  entityId     String   @map("entity_id")
+  currentState String   @map("current_state")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  transitions WorkflowTransition[]
+
+  @@unique([entityType, entityId])
+  @@index([tenantId, currentState])
+  @@map("workflow_instances")
+}
+
+// 13. WORKFLOW TRANSITIONS TABLE (Immutable State Transition Ledger)
+model WorkflowTransition {
+  id                 String   @id @default(uuid())
+  workflowInstanceId String   @map("workflow_instance_id")
+  fromState          String   @map("from_state")
+  toState            String   @map("to_state")
+  triggerAction      String   @map("trigger_action")
+  actorId            String   @map("actor_id")
+  metadata           Json?
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  workflowInstance WorkflowInstance @relation(fields: [workflowInstanceId], references: [id], onDelete: Cascade)
+  actor            UserActor        @relation(fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@index([workflowInstanceId])
+  @@index([createdAt])
+  @@map("workflow_transitions")
+}
+
+// 14. EXCEPTION ITEMS TABLE (Unified Exception Queue)
+model ExceptionItem {
+  id               String    @id @default(uuid())
+  tenantId         String    @map("tenant_id")
+  entityType       String    @map("entity_type")
+  entityId         String    @map("entity_id")
+  ruleId           String    @map("rule_id")
+  severity         String
+  status           String    @default("OPEN")
+  message          String
+  resolvedByUserId String?   @map("resolved_by_user_id")
+  resolutionNote   String?   @map("resolution_note")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  resolvedAt       DateTime? @map("resolved_at")
+
+  tenant     Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  resolvedBy UserActor? @relation(fields: [resolvedByUserId], references: [id], onDelete: Set Null)
+
+  @@index([tenantId, status])
+  @@index([entityType, entityId])
+  @@map("exception_items")
+}
+
+// 15. AUDIT EVENTS TABLE (Append-Only Immutable Ledger)
+model AuditEvent {
+  id          String   @id @default(uuid())
+  tenantId    String   @map("tenant_id")
+  actorId     String   @map("actor_id")
+  actorName   String   @map("actor_name")
+  action      String
+  entityType  String   @map("entity_type")
+  entityId    String   @map("entity_id")
+  beforeState Json?    @map("before_state")
+  afterState  Json?    @map("after_state")
+  metadata    Json?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  tenant Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  actor  UserActor @relation(fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, createdAt(sort: Desc)])
+  @@index([entityType, entityId])
+  @@map("audit_events")
+}
