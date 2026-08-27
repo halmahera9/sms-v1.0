@@ -39,27 +39,28 @@ enum EmployeeStatus {
 }
 
 enum AwardType {
-  MASA_KERJA
-  SATYALANCANA
+  SATYALANCANA_X
+  SATYALANCANA_XX
+  SATYALANCANA_XXX
+  PEGAWAI_TELADAN
+  INOVASI_PELAYANAN
 }
 
 enum ProposalStatus {
-  NOMINATIF
-  BELUM_UPLOAD
-  SEBAGIAN
-  LENGKAP
-  DIVERIFIKASI
-  SIAP_GENERATE
-  GENERATED
-  DITANDATANGANI
-  DIKIRIM
-  SELESAI
+  DRAFT
+  SUBMITTED
+  VERIFIED_STAGE_1
+  VERIFIED_STAGE_2
+  APPROVED
+  REJECTED
+  CANCELLED
 }
 
 enum ChecklistStatus {
-  BELUM_LENGKAP
-  LENGKAP
-  SIAP_GENERATE
+  PENDING
+  PASSED
+  FAILED
+  WAIVED
 }
 
 enum DocumentCategory {
@@ -228,7 +229,7 @@ model AwardProposal {
   tahunUsulan      Int                     @map("tahun_usulan")
   masaKerjaTahun   Int                     @default(0) @map("masa_kerja_tahun")
   masaKerjaBulan   Int                     @default(0) @map("masa_kerja_bulan")
-  status           ProposalStatus          @default(NOMINATIF)
+  status           ProposalStatus          @default(DRAFT)
   catatan          String?                 @db.Text
   createdAt        DateTime                @default(now()) @map("created_at") @db.Timestamptz
   updatedAt        DateTime                @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
@@ -250,7 +251,7 @@ model AwardProposalDocument {
   proposalId       String          @map("proposal_id") @db.Uuid
   documentId       String?         @map("document_id") @db.Uuid
   requirementCode  String          @map("requirement_code") @db.VarChar(100)
-  status           ChecklistStatus @default(BELUM_LENGKAP)
+  status           ChecklistStatus @default(PENDING)
   verifiedByUserId String?         @map("verified_by_user_id") @db.Uuid
   verifiedAt       DateTime?       @map("verified_at") @db.Timestamptz
   catatan          String?         @db.Text
