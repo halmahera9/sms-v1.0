@@ -96,6 +96,84 @@ async function runAwardProposalContractTests() {
   const computedEmptyStatus = calculateProposalStatus('MASA_KERJA', [], 'NOMINATIF');
   assert(computedEmptyStatus === 'BELUM_UPLOAD', 'Empty documents must compute proposal status to BELUM_UPLOAD');
 
+  const partialDocs = [
+    {
+      id: 'doc-1',
+      proposalId: mockProposal.id,
+      requirementCode: 'SK_CPNS',
+      fileName: 'sk_cpns.pdf',
+      fileSize: 1024,
+      fileType: 'application/pdf',
+      fileUrl: '#',
+      uploadedAt: new Date().toISOString(),
+      verificationStatus: 'pending' as const,
+    },
+  ];
+  assert(
+    calculateProposalStatus('MASA_KERJA', partialDocs, 'BELUM_UPLOAD') === 'SEBAGIAN',
+    'Partial unverified documents must compute to SEBAGIAN'
+  );
+
+  const allMandatoryCodes = ['SK_CPNS', 'SK_PNS', 'SK_PANGKAT_TERAKHIR', 'SK_JABATAN_TERAKHIR', 'SKP_2025', 'SKT_TIDAK_HUKDIS'];
+  const allUploadedUnverifiedDocs = allMandatoryCodes.map((code, idx) => ({
+    id: `doc-${idx}`,
+    proposalId: mockProposal.id,
+    requirementCode: code,
+    fileName: `${code}.pdf`,
+    fileSize: 1024,
+    fileType: 'application/pdf',
+    fileUrl: '#',
+    uploadedAt: new Date().toISOString(),
+    verificationStatus: 'pending' as const,
+  }));
+  assert(
+    calculateProposalStatus('MASA_KERJA', allUploadedUnverifiedDocs, 'SEBAGIAN') === 'LENGKAP',
+    'All mandatory uploaded unverified documents must compute to LENGKAP'
+  );
+
+  const allVerifiedDocs = allMandatoryCodes.map((code, idx) => ({
+    id: `doc-${idx}`,
+    proposalId: mockProposal.id,
+    requirementCode: code,
+    fileName: `${code}.pdf`,
+    fileSize: 1024,
+    fileType: 'application/pdf',
+    fileUrl: '#',
+    uploadedAt: new Date().toISOString(),
+    verificationStatus: 'verified' as const,
+  }));
+  const verifiedResult = calculateProposalStatus('MASA_KERJA', allVerifiedDocs, 'LENGKAP');
+  assert(
+    verifiedResult === 'DIVERIFIKASI',
+    'All mandatory verified documents must compute to DIVERIFIKASI (NEVER auto-promote to SIAP_GENERATE)'
+  );
+  assert(
+    verifiedResult !== 'SIAP_GENERATE',
+    'calculateProposalStatus MUST NOT return SIAP_GENERATE merely from document completeness'
+  );
+
+  // Preserve existing post-approval statuses
+  assert(
+    calculateProposalStatus('MASA_KERJA', allVerifiedDocs, 'SIAP_GENERATE') === 'SIAP_GENERATE',
+    'calculateProposalStatus preserves SIAP_GENERATE'
+  );
+  assert(
+    calculateProposalStatus('MASA_KERJA', allVerifiedDocs, 'GENERATED') === 'GENERATED',
+    'calculateProposalStatus preserves GENERATED'
+  );
+  assert(
+    calculateProposalStatus('MASA_KERJA', allVerifiedDocs, 'DITANDATANGANI') === 'DITANDATANGANI',
+    'calculateProposalStatus preserves DITANDATANGANI'
+  );
+  assert(
+    calculateProposalStatus('MASA_KERJA', allVerifiedDocs, 'DIKIRIM') === 'DIKIRIM',
+    'calculateProposalStatus preserves DIKIRIM'
+  );
+  assert(
+    calculateProposalStatus('MASA_KERJA', allVerifiedDocs, 'SELESAI') === 'SELESAI',
+    'calculateProposalStatus preserves SELESAI'
+  );
+
   // 3. Audit Postgres Award Proposal Repository Contract Instantiation
   console.log('\n[3] Testing Postgres Award Proposal Repository Contract Instantiation...');
   const proposalRepo = new PostgresAwardProposalRepository();

@@ -212,11 +212,7 @@ export function calculateProposalStatus(
   const allMandatoryUploaded = mandatoryReqs.every((req) => uploadedMandatoryCodes.has(req.code));
   const allMandatoryVerified = mandatoryReqs.every((req) => verifiedMandatoryCodes.has(req.code));
 
-  if (allMandatoryVerified) {
-    return 'SIAP_GENERATE';
-  }
-
-  if (verifiedMandatoryCodes.size > 0 || documents.some((d) => d.verificationStatus === 'verified')) {
+  if (allMandatoryVerified || verifiedMandatoryCodes.size > 0 || documents.some((d) => d.verificationStatus === 'verified')) {
     return 'DIVERIFIKASI';
   }
 
