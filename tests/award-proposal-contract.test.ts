@@ -183,6 +183,8 @@ async function runAwardProposalContractTests() {
   assert(typeof proposalRepo.findAllTx === 'function', 'PostgresAwardProposalRepository has findAllTx');
   assert(typeof proposalRepo.saveTx === 'function', 'PostgresAwardProposalRepository has saveTx');
   assert(typeof proposalRepo.saveAllTx === 'function', 'PostgresAwardProposalRepository has saveAllTx');
+  assert(typeof proposalRepo.saveDocumentTx === 'function', 'PostgresAwardProposalRepository has saveDocumentTx');
+  assert(typeof proposalRepo.verifyDocumentTx === 'function', 'PostgresAwardProposalRepository has verifyDocumentTx');
   assert(typeof proposalRepo.deleteTx === 'function', 'PostgresAwardProposalRepository has deleteTx');
 
   // 4. Audit Excel Importer Field Mapping & Semantics

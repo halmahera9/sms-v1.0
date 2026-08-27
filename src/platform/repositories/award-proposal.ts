@@ -1,9 +1,29 @@
-import { AwardProposal, ProposalStatus, AwardType, AwardValue } from '@/domains/employee/awards/types';
+import crypto from 'crypto';
+import {
+  AwardProposal,
+  ProposalStatus,
+  AwardType,
+  AwardValue,
+  ProposalDocument,
+  VerificationStatus,
+} from '@/domains/employee/awards/types';
 import { ProposalStatus as PrismaProposalStatus, AwardType as PrismaAwardType } from '@prisma/client';
 import { TenantTransactionClient } from '../db/tenant-context';
 import { BasePostgresRepository } from './postgres-base';
 
 export type AwardProposalPersistenceModel = AwardProposal & { tenantId: string };
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function ensureUuid(val?: string | null): string {
+  if (typeof val === 'string' && UUID_REGEX.test(val)) {
+    return val;
+  }
+  return crypto.randomUUID();
+}
+
+function isValidUuid(val?: string | null): boolean {
+  return typeof val === 'string' && UUID_REGEX.test(val);
+}
 
 export interface IAwardProposalRepository {
   findByIdTx(
@@ -40,6 +60,23 @@ export interface IAwardProposalRepository {
     proposals: AwardProposal[]
   ): Promise<AwardProposal[]>;
 
+  saveDocumentTx(
+    tx: TenantTransactionClient,
+    tenantId: string,
+    proposalId: string,
+    document: ProposalDocument
+  ): Promise<ProposalDocument>;
+
+  verifyDocumentTx(
+    tx: TenantTransactionClient,
+    tenantId: string,
+    proposalId: string,
+    requirementCode: string,
+    status: VerificationStatus,
+    verifiedByUserId?: string,
+    notes?: string
+  ): Promise<ProposalDocument>;
+
   deleteTx(
     tx: TenantTransactionClient,
     id: string
@@ -63,7 +100,10 @@ export class PostgresAwardProposalRepository
       },
     });
 
-    if (!record) return null;
+    if (!record) {
+      return null;
+    }
+
     return this.mapToDomain(record);
   }
 
@@ -74,12 +114,14 @@ export class PostgresAwardProposalRepository
     jenisPenghargaan: AwardType,
     tahunUsulan: number
   ): Promise<AwardProposalPersistenceModel | null> {
-    const record = await tx.awardProposal.findFirst({
+    const record = await tx.awardProposal.findUnique({
       where: {
-        tenantId,
-        employeeId,
-        jenisPenghargaan: jenisPenghargaan as unknown as PrismaAwardType,
-        tahunUsulan,
+        tenantId_employeeId_jenisPenghargaan_tahunUsulan: {
+          tenantId,
+          employeeId,
+          jenisPenghargaan: jenisPenghargaan as unknown as PrismaAwardType,
+          tahunUsulan,
+        },
       },
       include: {
         employee: true,
@@ -91,11 +133,17 @@ export class PostgresAwardProposalRepository
       },
     });
 
-    if (!record) return null;
+    if (!record) {
+      return null;
+    }
+
     return this.mapToDomain(record);
   }
 
-  public async findByStatusTx(tx: TenantTransactionClient, status: ProposalStatus): Promise<AwardProposalPersistenceModel[]> {
+  public async findByStatusTx(
+    tx: TenantTransactionClient,
+    status: ProposalStatus
+  ): Promise<AwardProposalPersistenceModel[]> {
     const records = await tx.awardProposal.findMany({
       where: {
         status: status as unknown as PrismaProposalStatus,
@@ -192,6 +240,126 @@ export class PostgresAwardProposalRepository
       savedList.push(saved);
     }
     return savedList;
+  }
+
+  public async saveDocumentTx(
+    tx: TenantTransactionClient,
+    tenantId: string,
+    proposalId: string,
+    document: ProposalDocument
+  ): Promise<ProposalDocument> {
+    const docId = ensureUuid(document.id);
+    const checklistStatus =
+      document.verificationStatus === 'verified'
+        ? 'PASSED'
+        : document.verificationStatus === 'rejected'
+        ? 'FAILED'
+        : 'PENDING';
+    const verifiedByUserId = isValidUuid(document.verifiedBy) ? document.verifiedBy : null;
+    const verifiedAt = document.verifiedAt ? new Date(document.verifiedAt) : null;
+
+    const record = await tx.awardProposalDocument.upsert({
+      where: {
+        proposalId_requirementCode: {
+          proposalId,
+          requirementCode: document.requirementCode,
+        },
+      },
+      create: {
+        id: docId,
+        tenantId,
+        proposalId,
+        requirementCode: document.requirementCode,
+        status: checklistStatus,
+        verifiedByUserId,
+        verifiedAt,
+        catatan: document.catatan || null,
+      },
+      update: {
+        requirementCode: document.requirementCode,
+        status: checklistStatus,
+        verifiedByUserId,
+        verifiedAt,
+        catatan: document.catatan || null,
+      },
+      include: {
+        document: true,
+      },
+    });
+
+    return {
+      id: record.id,
+      proposalId: record.proposalId,
+      requirementCode: record.requirementCode,
+      fileName: record.document?.title || `${record.requirementCode}.pdf`,
+      fileSize: 1024 * 100,
+      fileType: 'application/pdf',
+      fileUrl: '#',
+      uploadedAt: record.createdAt ? new Date(record.createdAt).toISOString() : new Date().toISOString(),
+      verificationStatus:
+        record.status === 'PASSED' ? 'verified' : record.status === 'FAILED' ? 'rejected' : 'pending',
+      verifiedBy: record.verifiedByUserId || undefined,
+      verifiedAt: record.verifiedAt ? new Date(record.verifiedAt).toISOString() : undefined,
+      catatan: record.catatan || undefined,
+    };
+  }
+
+  public async verifyDocumentTx(
+    tx: TenantTransactionClient,
+    tenantId: string,
+    proposalId: string,
+    requirementCode: string,
+    status: VerificationStatus,
+    verifiedByUserId?: string,
+    notes?: string
+  ): Promise<ProposalDocument> {
+    const checklistStatus = status === 'verified' ? 'PASSED' : status === 'rejected' ? 'FAILED' : 'PENDING';
+    const validVerifierId = isValidUuid(verifiedByUserId) ? verifiedByUserId : null;
+    const verifiedAt = new Date();
+
+    const record = await tx.awardProposalDocument.upsert({
+      where: {
+        proposalId_requirementCode: {
+          proposalId,
+          requirementCode,
+        },
+      },
+      create: {
+        id: crypto.randomUUID(),
+        tenantId,
+        proposalId,
+        requirementCode,
+        status: checklistStatus,
+        verifiedByUserId: validVerifierId,
+        verifiedAt,
+        catatan: notes || null,
+      },
+      update: {
+        status: checklistStatus,
+        verifiedByUserId: validVerifierId,
+        verifiedAt,
+        catatan: notes || null,
+      },
+      include: {
+        document: true,
+      },
+    });
+
+    return {
+      id: record.id,
+      proposalId: record.proposalId,
+      requirementCode: record.requirementCode,
+      fileName: record.document?.title || `${record.requirementCode}.pdf`,
+      fileSize: 1024 * 100,
+      fileType: 'application/pdf',
+      fileUrl: '#',
+      uploadedAt: record.createdAt ? new Date(record.createdAt).toISOString() : new Date().toISOString(),
+      verificationStatus:
+        record.status === 'PASSED' ? 'verified' : record.status === 'FAILED' ? 'rejected' : 'pending',
+      verifiedBy: record.verifiedByUserId || undefined,
+      verifiedAt: record.verifiedAt ? new Date(record.verifiedAt).toISOString() : undefined,
+      catatan: record.catatan || undefined,
+    };
   }
 
   public async deleteTx(tx: TenantTransactionClient, id: string): Promise<boolean> {
