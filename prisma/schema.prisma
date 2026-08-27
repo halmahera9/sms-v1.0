@@ -32,9 +32,10 @@ enum UserStatus {
 }
 
 enum EmployeeStatus {
-  ACTIVE
-  MUTATED
-  RETIRED
+  PNS
+  PPPK
+  HONORER
+  NON_ASN
 }
 
 enum AwardType {
@@ -62,19 +63,24 @@ enum ChecklistStatus {
 }
 
 enum DocumentCategory {
-  SURAT_IZIN
   SK_CPNS
   SK_PNS
-  SK_PANGKAT
   SK_JABATAN
-  SKP
-  SURAT_KETERANGAN
+  SKP_2_TAHUN
+  SURAT_PENGANTAR
+  DP3
+  SERTIFIKAT
+  FOTO
+  IDENTITAS
+  LAINNYA
 }
 
 enum DocumentStatus {
-  ACTIVE
+  DRAFT
+  PENDING_VERIFICATION
+  VERIFIED
+  REJECTED
   ARCHIVED
-  DELETED
 }
 
 enum VerificationStatus {
@@ -357,7 +363,7 @@ model Document {
   title          String           @db.VarChar(255)
   category       DocumentCategory
   currentVersion Int              @default(1) @map("current_version")
-  status         DocumentStatus   @default(ACTIVE)
+  status         DocumentStatus   @default(DRAFT)
   createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz
   updatedAt      DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
