@@ -1,5 +1,5 @@
 // Prisma Schema Specification for Banyubiru Administrative Intelligence Platform
-// Phase 4D Final Schema Correction Gate - Authoritative Tenant-Aware Model
+// Phase 4G Canonical Schema Reconciliation - Authoritative Tenant-Aware Model
 
 generator client {
   provider = "prisma-client-js"
@@ -174,9 +174,7 @@ model UserActor {
   updatedAt DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   tenant                    Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  uploadedDocumentVersions  DocumentVersion[]
   verifiedProposalDocuments AwardProposalDocument[]
-  verifiedAbsenceRecords    AbsenceRecord[]
   humanVerifications        HumanVerification[]
   lockedWorkflowInstances   WorkflowInstance[]
   workflowTransitions       WorkflowTransition[]
@@ -192,19 +190,19 @@ model UserActor {
 }
 
 model Employee {
-  id        String         @id @db.Uuid
-  tenantId  String         @map("tenant_id") @db.Uuid
-  nip       String         @db.VarChar(18)
-  nrk       String         @db.VarChar(10)
-  fullName  String         @map("full_name") @db.VarChar(255)
-  jabatan   String         @db.VarChar(255)
-  ukpd      String         @db.VarChar(255)
-  skpd      String         @db.VarChar(255)
-  wilayah   String         @db.VarChar(128)
-  status    EmployeeStatus @default(ACTIVE)
-  version   Int            @default(1)
-  createdAt DateTime       @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  id                String         @id @db.Uuid
+  tenantId          String         @map("tenant_id") @db.Uuid
+  nip               String         @db.VarChar(18)
+  nrk               String         @db.VarChar(10)
+  fullName          String         @map("nama_lengkap") @db.VarChar(255)
+  gelarDepan        String?        @map("gelar_depan") @db.VarChar(50)
+  gelarBelakang     String?        @map("gelar_belakang") @db.VarChar(50)
+  jabatan           String         @db.VarChar(255)
+  unitKerja         String         @map("unit_kerja") @db.VarChar(255)
+  instansi          String         @map("instansi") @db.VarChar(255)
+  statusKepegawaian EmployeeStatus @map("status_kepegawaian")
+  createdAt         DateTime       @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   awardProposals AwardProposal[]
@@ -212,25 +210,22 @@ model Employee {
   @@unique([tenantId, id])
   @@unique([tenantId, nip])
   @@unique([tenantId, nrk])
-  @@index([tenantId, ukpd])
+  @@index([tenantId, unitKerja])
   @@map("employees")
 }
 
 model AwardProposal {
-  id               String          @id @db.Uuid
-  tenantId         String          @map("tenant_id") @db.Uuid
-  employeeId       String          @map("employee_id") @db.Uuid
-  jenisPenghargaan AwardType       @map("jenis_penghargaan")
-  nilaiUsulan      String          @map("nilai_usulan") @db.VarChar(64)
-  tahunUsulan      Int             @map("tahun_usulan")
-  masaKerjaTahun   Int             @default(0) @map("masa_kerja_tahun")
-  masaKerjaBulan   Int             @default(0) @map("masa_kerja_bulan")
-  status           ProposalStatus  @default(NOMINATIF)
-  checklistStatus  ChecklistStatus @default(BELUM_LENGKAP) @map("checklist_status")
-  checklistData    Json            @default("{}") @map("checklist_data")
-  version          Int             @default(1)
-  createdAt        DateTime        @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt        DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  id               String                  @id @db.Uuid
+  tenantId         String                  @map("tenant_id") @db.Uuid
+  employeeId       String                  @map("employee_id") @db.Uuid
+  jenisPenghargaan AwardType               @map("jenis_penghargaan")
+  tahunUsulan      Int                     @map("tahun_usulan")
+  masaKerjaTahun   Int                     @default(0) @map("masa_kerja_tahun")
+  masaKerjaBulan   Int                     @default(0) @map("masa_kerja_bulan")
+  status           ProposalStatus          @default(NOMINATIF)
+  catatan          String?                 @db.Text
+  createdAt        DateTime                @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime                @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   tenant    Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   employee  Employee                @relation(fields: [tenantId, employeeId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade)
@@ -244,26 +239,26 @@ model AwardProposal {
 }
 
 model AwardProposalDocument {
-  id                 String             @id @db.Uuid
-  tenantId           String             @map("tenant_id") @db.Uuid
-  proposalId         String             @map("proposal_id") @db.Uuid
-  documentId         String             @map("document_id") @db.Uuid
-  requirementCode    String             @map("requirement_code") @db.VarChar(64)
-  verificationStatus VerificationStatus @default(PENDING) @map("verification_status")
-  verifiedAt         DateTime?          @map("verified_at") @db.Timestamptz
-  verifiedByUserId   String?            @map("verified_by_user_id") @db.Uuid
-  rejectionReason    String?            @map("rejection_reason") @db.Text
-  createdAt          DateTime           @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt          DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  id               String          @id @db.Uuid
+  tenantId         String          @map("tenant_id") @db.Uuid
+  proposalId       String          @map("proposal_id") @db.Uuid
+  documentId       String?         @map("document_id") @db.Uuid
+  requirementCode  String          @map("requirement_code") @db.VarChar(100)
+  status           ChecklistStatus @default(BELUM_LENGKAP)
+  verifiedByUserId String?         @map("verified_by_user_id") @db.Uuid
+  verifiedAt       DateTime?       @map("verified_at") @db.Timestamptz
+  catatan          String?         @db.Text
+  createdAt        DateTime        @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   tenant         Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   proposal       AwardProposal @relation(fields: [tenantId, proposalId], references: [tenantId, id], onDelete: Cascade, onUpdate: Cascade)
-  document       Document      @relation(fields: [tenantId, documentId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade)
+  document       Document?     @relation(fields: [tenantId, documentId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade)
   verifiedByUser UserActor?    @relation(fields: [tenantId, verifiedByUserId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade)
 
   @@unique([tenantId, id])
   @@unique([proposalId, requirementCode])
-  @@index([tenantId, verificationStatus])
+  @@index([tenantId, status])
   @@map("award_proposal_documents")
 }
 
@@ -272,9 +267,9 @@ model Student {
   tenantId  String        @map("tenant_id") @db.Uuid
   nisn      String        @db.VarChar(10)
   nis       String        @db.VarChar(20)
-  fullName  String        @map("full_name") @db.VarChar(255)
-  className String        @map("class_name") @db.VarChar(64)
-  gender    String        @db.VarChar(1)
+  fullName  String        @map("nama_lengkap") @db.VarChar(255)
+  className String        @map("kelas") @db.VarChar(50)
+  jurusan   String?       @map("jurusan") @db.VarChar(100)
   status    StudentStatus @default(ACTIVE)
   createdAt DateTime      @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
@@ -291,22 +286,20 @@ model Student {
 }
 
 model AbsenceRecord {
-  id               String        @id @db.Uuid
-  tenantId         String        @map("tenant_id") @db.Uuid
-  studentId        String        @map("student_id") @db.Uuid
-  documentId       String?       @map("document_id") @db.Uuid
-  absenceDate      DateTime      @map("absence_date") @db.Date
-  absenceStatus    AbsenceStatus @map("absence_status")
-  notes            String?       @db.Text
-  verifiedByUserId String        @map("verified_by_user_id") @db.Uuid
-  createdAt        DateTime      @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt        DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  id          String        @id @db.Uuid
+  tenantId    String        @map("tenant_id") @db.Uuid
+  studentId   String        @map("student_id") @db.Uuid
+  absenceDate DateTime      @map("absence_date") @db.Date
+  status      AbsenceStatus
+  reason      String?       @db.Text
+  documentId  String?       @map("document_id") @db.Uuid
+  createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
-  tenant         Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  student        Student        @relation(fields: [tenantId, studentId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade)
-  document       Document?      @relation(fields: [tenantId, documentId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade)
-  verifiedByUser UserActor      @relation(fields: [tenantId, verifiedByUserId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade)
-  extractedItem  ExtractedItem?
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  student       Student        @relation(fields: [tenantId, studentId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade)
+  document      Document?      @relation(fields: [tenantId, documentId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade)
+  extractedItem ExtractedItem?
 
   @@unique([tenantId, id])
   @@unique([tenantId, studentId, absenceDate])
@@ -315,15 +308,14 @@ model AbsenceRecord {
 }
 
 model OCRExtraction {
-  id             String                      @id @db.Uuid
-  tenantId       String                      @map("tenant_id") @db.Uuid
-  documentId     String                      @map("document_id") @db.Uuid
-  status         OCRExtractionStatus         @default(NEEDS_VERIFICATION)
-  workflowState  StudentAbsenceWorkflowState @default(DRAFT) @map("workflow_state")
-  extractedCount Int                         @default(0) @map("extracted_count")
-  verifiedCount  Int                         @default(0) @map("verified_count")
-  createdAt      DateTime                    @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt      DateTime                    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  id           String              @id @db.Uuid
+  tenantId     String              @map("tenant_id") @db.Uuid
+  documentId   String              @map("document_id") @db.Uuid
+  status       OCRExtractionStatus @default(NEEDS_VERIFICATION)
+  rawJson      Json?               @map("raw_json")
+  errorMessage String?             @map("error_message") @db.Text
+  createdAt    DateTime            @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   tenant   Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   document Document        @relation(fields: [tenantId, documentId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade)
@@ -331,25 +323,22 @@ model OCRExtraction {
 
   @@unique([tenantId, id])
   @@index([tenantId, status])
-  @@index([tenantId, workflowState])
   @@map("ocr_extractions")
 }
 
 model ExtractedItem {
-  id                 String             @id @db.Uuid
-  tenantId           String             @map("tenant_id") @db.Uuid
-  ocrExtractionId    String             @map("ocr_extraction_id") @db.Uuid
-  matchedStudentId   String?            @map("matched_student_id") @db.Uuid
-  absenceRecordId    String?            @map("absence_record_id") @db.Uuid
-  ocrText            String             @map("ocr_text") @db.Text
-  confidenceScore    Decimal            @map("confidence_score") @db.Decimal(5, 2)
-  className          String             @map("class_name") @db.VarChar(64)
-  absenceDate        DateTime           @map("absence_date") @db.Date
-  absenceStatus      AbsenceStatus      @map("absence_status")
-  notes              String?            @db.Text
-  verificationStatus VerificationStatus @default(PENDING) @map("verification_status")
-  createdAt          DateTime           @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt          DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  id               String   @id @db.Uuid
+  tenantId         String   @map("tenant_id") @db.Uuid
+  ocrExtractionId  String   @map("ocr_extraction_id") @db.Uuid
+  studentNameRaw   String   @map("student_name_raw") @db.VarChar(255)
+  nisnRaw          String?  @map("nisn_raw") @db.VarChar(20)
+  absenceDateRaw   String?  @map("absence_date_raw") @db.VarChar(50)
+  absenceTypeRaw   String?  @map("absence_type_raw") @db.VarChar(50)
+  confidenceScore  Decimal  @map("confidence_score") @db.Decimal(5, 2)
+  matchedStudentId String?  @map("matched_student_id") @db.Uuid
+  absenceRecordId  String?  @map("absence_record_id") @db.Uuid
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   tenant         Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   ocrExtraction  OCRExtraction  @relation(fields: [tenantId, ocrExtractionId], references: [tenantId, id], onDelete: Cascade, onUpdate: Cascade)
@@ -358,21 +347,19 @@ model ExtractedItem {
 
   @@unique([tenantId, id])
   @@unique([tenantId, absenceRecordId])
-  @@index([tenantId, verificationStatus])
-  @@index([ocrExtractionId, verificationStatus])
+  @@index([ocrExtractionId])
   @@map("extracted_items")
 }
 
 model Document {
-  id                   String           @id @db.Uuid
-  tenantId             String           @map("tenant_id") @db.Uuid
-  title                String           @db.VarChar(255)
-  category             DocumentCategory
-  status               DocumentStatus   @default(ACTIVE)
-  currentVersionNumber Int              @default(1) @map("current_version_number")
-  version              Int              @default(1)
-  createdAt            DateTime         @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt            DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  id             String           @id @db.Uuid
+  tenantId       String           @map("tenant_id") @db.Uuid
+  title          String           @db.VarChar(255)
+  category       DocumentCategory
+  currentVersion Int              @default(1) @map("current_version")
+  status         DocumentStatus   @default(ACTIVE)
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   tenant                 Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   versions               DocumentVersion[]
@@ -386,21 +373,18 @@ model Document {
 }
 
 model DocumentVersion {
-  id               String   @id @db.Uuid
-  tenantId         String   @map("tenant_id") @db.Uuid
-  documentId       String   @map("document_id") @db.Uuid
-  versionNumber    Int      @map("version_number")
-  fileName         String   @map("file_name") @db.VarChar(255)
-  fileSizeBytes    BigInt   @map("file_size_bytes")
-  mimeType         String   @map("mime_type") @db.VarChar(128)
-  storagePath      String   @map("storage_path") @db.VarChar(512)
-  checksumSha256   String   @map("checksum_sha256") @db.VarChar(64)
-  uploadedByUserId String   @map("uploaded_by_user_id") @db.Uuid
-  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
+  id             String   @id @db.Uuid
+  tenantId       String   @map("tenant_id") @db.Uuid
+  documentId     String   @map("document_id") @db.Uuid
+  versionNumber  Int      @map("version_number")
+  filePath       String   @map("file_path") @db.VarChar(500)
+  fileSizeBytes  BigInt   @map("file_size_bytes")
+  mimeType       String   @map("mime_type") @db.VarChar(100)
+  checksumSha256 String   @map("checksum_sha256") @db.VarChar(64)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
 
-  tenant         Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  document       Document  @relation(fields: [tenantId, documentId], references: [tenantId, id], onDelete: Cascade, onUpdate: Cascade)
-  uploadedByUser UserActor @relation(fields: [tenantId, uploadedByUserId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade)
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  document Document @relation(fields: [tenantId, documentId], references: [tenantId, id], onDelete: Cascade, onUpdate: Cascade)
 
   @@unique([tenantId, id])
   @@unique([documentId, versionNumber])
@@ -408,17 +392,17 @@ model DocumentVersion {
 }
 
 model HumanVerification {
-  id                   String               @id @db.Uuid
-  tenantId             String               @map("tenant_id") @db.Uuid
-  verifierUserId       String               @map("verifier_user_id") @db.Uuid
-  targetEntityType     String               @map("target_entity_type") @db.VarChar(64)
-  targetEntityId       String               @map("target_entity_id") @db.Uuid
-  verificationDecision VerificationDecision @map("verification_decision")
-  notes                String?              @db.Text
-  createdAt            DateTime             @default(now()) @map("created_at") @db.Timestamptz
+  id               String               @id @db.Uuid
+  tenantId         String               @map("tenant_id") @db.Uuid
+  targetEntityType String               @map("target_entity_type") @db.VarChar(50)
+  targetEntityId   String               @map("target_entity_id") @db.Uuid
+  verifiedByUserId String               @map("verified_by_user_id") @db.Uuid
+  decision         VerificationDecision @map("decision")
+  notes            String?              @db.Text
+  createdAt        DateTime             @default(now()) @map("created_at") @db.Timestamptz
 
   tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  verifierUser UserActor @relation(fields: [tenantId, verifierUserId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade)
+  verifiedByUser UserActor @relation(fields: [tenantId, verifiedByUserId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade)
 
   @@unique([tenantId, id])
   @@index([tenantId, targetEntityType, targetEntityId])
@@ -426,20 +410,20 @@ model HumanVerification {
 }
 
 model WorkflowInstance {
-  id                   String    @id @db.Uuid
-  tenantId             String    @map("tenant_id") @db.Uuid
-  entityType           String    @map("entity_type") @db.VarChar(64)
-  entityId             String    @map("entity_id") @db.Uuid
-  workflowDefinitionId String    @map("workflow_definition_id") @db.VarChar(64)
-  currentState         String    @map("current_state") @db.VarChar(64)
-  lockedByUserId       String?   @map("locked_by_user_id") @db.Uuid
-  lockedUntil          DateTime? @map("locked_until") @db.Timestamptz
-  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt            DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  id             String                      @id @db.Uuid
+  tenantId       String                      @map("tenant_id") @db.Uuid
+  entityType     String                      @map("entity_type") @db.VarChar(50)
+  entityId       String                      @map("entity_id") @db.Uuid
+  currentState   StudentAbsenceWorkflowState @map("current_state")
+  lockedByUserId String?                     @map("locked_by_user_id") @db.Uuid
+  lockedUntil    DateTime?                   @map("locked_until") @db.Timestamptz
+  createdAt      DateTime                    @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime                    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
-  tenant       Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  lockedByUser UserActor?           @relation(fields: [tenantId, lockedByUserId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade)
-  transitions  WorkflowTransition[]
+  tenant         Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  lockedByUser   UserActor?           @relation(fields: [tenantId, lockedByUserId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade)
+  transitions    WorkflowTransition[]
+  exceptionItems ExceptionItem[]
 
   @@unique([tenantId, id])
   @@unique([tenantId, entityType, entityId])
@@ -448,63 +432,58 @@ model WorkflowInstance {
 }
 
 model WorkflowTransition {
-  id                 String   @id @db.Uuid
-  tenantId           String   @map("tenant_id") @db.Uuid
-  workflowInstanceId String   @map("workflow_instance_id") @db.Uuid
-  fromState          String   @map("from_state") @db.VarChar(64)
-  toState            String   @map("to_state") @db.VarChar(64)
-  triggerEvent       String   @map("trigger_event") @db.VarChar(64)
-  actorId            String   @map("actor_id") @db.Uuid
-  metadata           Json     @default("{}")
-  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz
+  id                 String                      @id @db.Uuid
+  tenantId           String                      @map("tenant_id") @db.Uuid
+  workflowInstanceId String                      @map("workflow_instance_id") @db.Uuid
+  fromState          StudentAbsenceWorkflowState @map("from_state")
+  toState            StudentAbsenceWorkflowState @map("to_state")
+  triggeredByUserId  String                      @map("triggered_by_user_id") @db.Uuid
+  reason             String?                     @db.Text
+  createdAt          DateTime                    @default(now()) @map("created_at") @db.Timestamptz
 
   tenant           Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   workflowInstance WorkflowInstance @relation(fields: [tenantId, workflowInstanceId], references: [tenantId, id], onDelete: Cascade, onUpdate: Cascade)
-  actor            UserActor        @relation(fields: [tenantId, actorId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade)
+  triggeredByUser  UserActor        @relation(fields: [tenantId, triggeredByUserId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade)
 
   @@unique([tenantId, id])
-  @@index([workflowInstanceId, createdAt])
   @@map("workflow_transitions")
 }
 
 model ValidationResult {
-  id         String   @id @db.Uuid
-  tenantId   String   @map("tenant_id") @db.Uuid
-  entityType String   @map("entity_type") @db.VarChar(64)
-  entityId   String   @map("entity_id") @db.Uuid
-  ruleId     String   @map("rule_id") @db.VarChar(64)
-  isValid    Boolean  @map("is_valid")
-  severity   Severity
-  message    String   @db.Text
-  metadata   Json     @default("{}")
-  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+  id               String   @id @db.Uuid
+  tenantId         String   @map("tenant_id") @db.Uuid
+  ruleCode         String   @map("rule_code") @db.VarChar(100)
+  targetEntityType String   @map("target_entity_type") @db.VarChar(50)
+  targetEntityId   String   @map("target_entity_id") @db.Uuid
+  passed           Boolean  @map("passed")
+  detailsJson      Json?    @map("details_json")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
 
   @@unique([tenantId, id])
-  @@index([tenantId, entityType, entityId])
+  @@index([tenantId, targetEntityType, targetEntityId])
   @@map("validation_results")
 }
 
 model ExceptionItem {
-  id               String          @id @db.Uuid
-  tenantId         String          @map("tenant_id") @db.Uuid
-  entityType       String          @map("entity_type") @db.VarChar(64)
-  entityId         String          @map("entity_id") @db.Uuid
-  ruleId           String          @map("rule_id") @db.VarChar(64)
-  severity         Severity
-  status           ExceptionStatus @default(OPEN)
-  message          String          @db.Text
-  assignedToUserId String?         @map("assigned_to_user_id") @db.Uuid
-  resolvedByUserId String?         @map("resolved_by_user_id") @db.Uuid
-  resolvedAt       DateTime?       @map("resolved_at") @db.Timestamptz
-  resolutionNote   String?         @map("resolution_note") @db.Text
-  createdAt        DateTime        @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt        DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  id                 String          @id @db.Uuid
+  tenantId           String          @map("tenant_id") @db.Uuid
+  workflowInstanceId String          @map("workflow_instance_id") @db.Uuid
+  ruleCode           String          @map("rule_code") @db.VarChar(100)
+  severity           Severity
+  status             ExceptionStatus @default(OPEN)
+  assignedToUserId   String?         @map("assigned_to_user_id") @db.Uuid
+  resolutionNotes    String?         @map("resolution_notes") @db.Text
+  resolvedByUserId   String?         @map("resolved_by_user_id") @db.Uuid
+  resolvedAt         DateTime?       @map("resolved_at") @db.Timestamptz
+  createdAt          DateTime        @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt          DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
-  tenant         Tenant     @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  assignedToUser UserActor? @relation("AssignedExceptions", fields: [tenantId, assignedToUserId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade)
-  resolvedByUser UserActor? @relation("ResolvedExceptions", fields: [tenantId, resolvedByUserId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade)
+  tenant           Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  workflowInstance WorkflowInstance @relation(fields: [tenantId, workflowInstanceId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade)
+  assignedToUser   UserActor?       @relation("AssignedExceptions", fields: [tenantId, assignedToUserId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade)
+  resolvedByUser   UserActor?       @relation("ResolvedExceptions", fields: [tenantId, resolvedByUserId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade)
 
   @@unique([tenantId, id])
   @@index([tenantId, status])
@@ -515,21 +494,19 @@ model ExceptionItem {
 model AuditEvent {
   id          String   @id @db.Uuid
   tenantId    String   @map("tenant_id") @db.Uuid
-  actorId     String   @map("actor_id") @db.Uuid
-  actorName   String   @map("actor_name") @db.VarChar(255)
-  action      String   @db.VarChar(128)
-  entityType  String   @map("entity_type") @db.VarChar(64)
+  actorUserId String?  @map("actor_user_id") @db.Uuid
+  action      String   @db.VarChar(100)
+  entityType  String   @map("entity_type") @db.VarChar(50)
   entityId    String   @map("entity_id") @db.Uuid
-  beforeState Json?    @map("before_state")
-  afterState  Json?    @map("after_state")
-  metadata    Json     @default("{}")
+  payloadJson Json?    @map("payload_json")
+  ipAddress   String?  @map("ip_address") @db.VarChar(45)
+  userAgent   String?  @map("user_agent") @db.VarChar(255)
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
 
-  tenant Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  actor  UserActor @relation(fields: [tenantId, actorId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade)
+  tenant    Tenant     @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  actorUser UserActor? @relation(fields: [tenantId, actorUserId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade)
 
   @@unique([tenantId, id])
   @@index([tenantId, createdAt])
-  @@index([entityType, entityId])
   @@map("audit_events")
 }
