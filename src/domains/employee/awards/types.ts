@@ -62,6 +62,7 @@ export interface ProposalDocument {
 
 export interface AwardProposal {
   id: string;
+  tenantId?: string;
   employeeId: string;
   employee: Employee;
   jenisPenghargaan: AwardType;
