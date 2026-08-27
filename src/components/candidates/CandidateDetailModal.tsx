@@ -2,9 +2,14 @@
 
 import React, { useState } from 'react';
 import { AwardProposal, ProposalDocument, VerificationStatus } from '@/types/award';
-import { getRequirementsForType, calculateProposalStatus } from '@/lib/checklist-rules';
+import { getRequirementsForType } from '@/lib/checklist-rules';
 import { generateSingleProposalPDF } from '@/lib/pdf-generator';
 import { loadSignatoryConfig } from '@/lib/award-storage';
+import {
+  uploadProposalDocumentAction,
+  verifyProposalDocumentAction,
+  approveProposalGenerationAction,
+} from '@/domains/employee/awards/actions';
 import {
   X,
   User,
@@ -15,6 +20,7 @@ import {
   AlertCircle,
   FileCheck,
   Download,
+  Loader2,
 } from 'lucide-react';
 
 interface CandidateDetailModalProps {
@@ -31,6 +37,8 @@ export const CandidateDetailModal: React.FC<CandidateDetailModalProps> = ({
   onUpdateCandidate,
 }) => {
   const [activeTab, setActiveTab] = useState<'checklist' | 'identitas' | 'riwayat'>('checklist');
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const requirements = getRequirementsForType(candidate.jenisPenghargaan);
   const signatoryConfig = loadSignatoryConfig();
@@ -40,94 +48,137 @@ export const CandidateDetailModal: React.FC<CandidateDetailModalProps> = ({
     return candidate.documents.find((d) => d.requirementCode === reqCode);
   };
 
-  // Simulate file upload for a requirement
-  const handleSimulateUpload = (reqCode: string) => {
-    const req = requirements.find((r) => r.code === reqCode);
-    if (!req) return;
-
-    // eslint-disable-next-line react-hooks/purity
-    const timestamp = Date.now();
-    const existingDocs = candidate.documents.filter((d) => d.requirementCode !== reqCode);
-    const newDoc: ProposalDocument = {
-      id: `doc-${timestamp}`,
-      proposalId: candidate.id,
-      requirementCode: reqCode,
-      fileName: `${reqCode}_${candidate.employee.nrk}.pdf`,
-      fileSize: 1024 * 350,
-      fileType: 'application/pdf',
-      fileUrl: '#',
-      uploadedAt: new Date().toISOString(),
-      verificationStatus: 'pending',
-    };
-
-    const updatedDocs = [...existingDocs, newDoc];
-    const newStatus = calculateProposalStatus(candidate.jenisPenghargaan, updatedDocs, candidate.status);
-
-    const updatedProposal: AwardProposal = {
-      ...candidate,
-      documents: updatedDocs,
-      status: newStatus,
-      updatedAt: new Date().toISOString(),
-    };
-
-    onUpdateCandidate(updatedProposal);
-  };
-
-  // Verify / Reject document status
-  const handleVerifyDocument = (reqCode: string, status: VerificationStatus, noteText?: string) => {
-    const updatedDocs = candidate.documents.map((doc) => {
-      if (doc.requirementCode === reqCode) {
-        return {
-          ...doc,
-          verificationStatus: status,
-          verifiedBy: userRole === 'verifikator' ? 'Verifikator Tim BKD' : 'Admin BKD',
-          verifiedAt: new Date().toISOString(),
-          catatan: noteText || doc.catatan,
-        };
-      }
-      return doc;
-    });
-
-    const newStatus = calculateProposalStatus(candidate.jenisPenghargaan, updatedDocs, candidate.status);
-
-    const updatedProposal: AwardProposal = {
-      ...candidate,
-      documents: updatedDocs,
-      status: newStatus,
-      updatedAt: new Date().toISOString(),
-    };
-
-    onUpdateCandidate(updatedProposal);
-  };
-
-  // Mark all mandatory docs as verified (Quick action for Demo)
-  const handleQuickVerifyAll = () => {
-    const updatedDocs = requirements.map((req) => {
-      const existing = getDocForReq(req.code);
-      return {
-        id: existing?.id || `doc-auto-${req.code}`,
+  // Upload file for a requirement via Server Action
+  const handleSimulateUpload = async (reqCode: string) => {
+    setIsLoading(true);
+    setErrorMessage(null);
+    try {
+      const res = await uploadProposalDocumentAction({
         proposalId: candidate.id,
-        requirementCode: req.code,
-        fileName: existing?.fileName || `${req.code}_${candidate.employee.nrk}.pdf`,
-        fileSize: 1024 * 400,
+        requirementCode: reqCode,
+        fileName: `${reqCode}_${candidate.employee.nrk}.pdf`,
+        fileSize: 1024 * 350,
         fileType: 'application/pdf',
-        fileUrl: '#',
-        uploadedAt: existing?.uploadedAt || new Date().toISOString(),
-        verificationStatus: 'verified' as VerificationStatus,
-        verifiedBy: 'Verifikator BKD',
-        verifiedAt: new Date().toISOString(),
-      };
-    });
+      });
 
-    const updatedProposal: AwardProposal = {
-      ...candidate,
-      documents: updatedDocs,
-      status: 'SIAP_GENERATE',
-      catatan: 'Seluruh berkas persyaratan telah diverifikasi 100% lengkap.',
-      updatedAt: new Date().toISOString(),
-    };
+      if (!res.success || !res.data) {
+        setErrorMessage(res.error?.message || 'Gagal mengunggah berkas.');
+        return;
+      }
 
-    onUpdateCandidate(updatedProposal);
+      onUpdateCandidate(res.data);
+    } catch (err: unknown) {
+      setErrorMessage('Terjadi kesalahan jaringan atau server saat mengunggah berkas.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Verify / Reject document status via Server Action
+  const handleVerifyDocument = async (reqCode: string, status: VerificationStatus, noteText?: string) => {
+    setIsLoading(true);
+    setErrorMessage(null);
+    try {
+      const res = await verifyProposalDocumentAction({
+        proposalId: candidate.id,
+        requirementCode: reqCode,
+        status,
+        notes: noteText,
+      });
+
+      if (!res.success || !res.data) {
+        setErrorMessage(res.error?.message || 'Gagal memverifikasi berkas.');
+        return;
+      }
+
+      onUpdateCandidate(res.data);
+    } catch (err: unknown) {
+      setErrorMessage('Terjadi kesalahan jaringan atau server saat memverifikasi berkas.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Explicit Approve Generation via Workflow Engine
+  const handleApproveGeneration = async () => {
+    setIsLoading(true);
+    setErrorMessage(null);
+    try {
+      const res = await approveProposalGenerationAction({
+        proposalId: candidate.id,
+      });
+
+      if (!res.success || !res.data) {
+        setErrorMessage(res.error?.message || 'Gagal menyetujui usulan untuk generate.');
+        return;
+      }
+
+      onUpdateCandidate(res.data);
+    } catch (err: unknown) {
+      setErrorMessage('Terjadi kesalahan jaringan atau server saat menyetujui usulan.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Mark all mandatory docs as verified via Server Actions (Demonstration / Batch flow)
+  const handleQuickVerifyAll = async () => {
+    setIsLoading(true);
+    setErrorMessage(null);
+    try {
+      let currentProposal = candidate;
+
+      // 1. Ensure all mandatory documents exist and are uploaded
+      for (const req of requirements) {
+        const doc = currentProposal.documents.find((d) => d.requirementCode === req.code);
+        if (!doc) {
+          const upRes = await uploadProposalDocumentAction({
+            proposalId: currentProposal.id,
+            requirementCode: req.code,
+            fileName: `${req.code}_${currentProposal.employee.nrk}.pdf`,
+            fileSize: 1024 * 350,
+            fileType: 'application/pdf',
+          });
+          if (upRes.success && upRes.data) {
+            currentProposal = upRes.data;
+          }
+        }
+      }
+
+      // 2. Ensure all mandatory documents are marked verified
+      for (const req of requirements) {
+        const doc = currentProposal.documents.find((d) => d.requirementCode === req.code);
+        if (doc && doc.verificationStatus !== 'verified') {
+          const verRes = await verifyProposalDocumentAction({
+            proposalId: currentProposal.id,
+            requirementCode: req.code,
+            status: 'verified',
+            notes: 'Verifikasi berkas lengkap.',
+          });
+          if (verRes.success && verRes.data) {
+            currentProposal = verRes.data;
+          }
+        }
+      }
+
+      // 3. Formally trigger approveProposalGenerationAction to let Workflow Engine transition to SIAP_GENERATE
+      const appRes = await approveProposalGenerationAction({
+        proposalId: currentProposal.id,
+      });
+
+      if (appRes.success && appRes.data) {
+        onUpdateCandidate(appRes.data);
+      } else {
+        if (appRes.error) {
+          setErrorMessage(appRes.error.message);
+        }
+        onUpdateCandidate(currentProposal);
+      }
+    } catch (err: unknown) {
+      setErrorMessage('Terjadi kesalahan saat memproses verifikasi berkas.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -162,11 +213,28 @@ export const CandidateDetailModal: React.FC<CandidateDetailModalProps> = ({
 
           <button
             onClick={onClose}
-            className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            disabled={isLoading}
+            className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors disabled:opacity-50"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
+
+        {/* Error Notification Banner */}
+        {errorMessage && (
+          <div className="bg-rose-50 dark:bg-rose-950/60 border-b border-rose-200 dark:border-rose-800 px-5 py-3 flex items-center justify-between">
+            <div className="flex items-center space-x-2 text-rose-700 dark:text-rose-300 text-xs font-medium">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              <span>{errorMessage}</span>
+            </div>
+            <button
+              onClick={() => setErrorMessage(null)}
+              className="text-rose-500 hover:text-rose-700 dark:hover:text-rose-200 text-xs font-bold ml-4"
+            >
+              ✕
+            </button>
+          </div>
+        )}
 
         {/* Navigation Tabs */}
         <div className="flex border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-5 pt-3 space-x-4">
@@ -211,23 +279,38 @@ export const CandidateDetailModal: React.FC<CandidateDetailModalProps> = ({
                     <span className="text-xs text-slate-500 font-normal">
                       {candidate.status === 'SIAP_GENERATE'
                         ? 'Semua dokumen wajib lengkap dan terverifikasi.'
+                        : candidate.status === 'DIVERIFIKASI'
+                        ? 'Dokumen telah diverifikasi. Siap disetujui untuk generate.'
                         : 'Lengkapi seluruh dokumen berkas wajib.'}
                     </span>
                   </span>
                 </div>
 
                 <div className="flex space-x-2">
+                  {candidate.status === 'DIVERIFIKASI' && (
+                    <button
+                      onClick={handleApproveGeneration}
+                      disabled={isLoading}
+                      className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs px-3 py-2 rounded-lg font-semibold flex items-center space-x-1.5 transition-all shadow-sm"
+                    >
+                      {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+                      <span>Setujui Siap Generate</span>
+                    </button>
+                  )}
+
                   <button
                     onClick={handleQuickVerifyAll}
-                    className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs px-3 py-2 rounded-lg font-semibold flex items-center space-x-1.5 transition-all shadow-sm"
+                    disabled={isLoading}
+                    className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs px-3 py-2 rounded-lg font-semibold flex items-center space-x-1.5 transition-all shadow-sm"
                   >
-                    <CheckCircle className="w-4 h-4" />
+                    {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
                     <span>Verifikasi 100% Lengkap</span>
                   </button>
 
                   <button
                     onClick={() => generateSingleProposalPDF(candidate, signatoryConfig)}
-                    className="bg-blue-600 hover:bg-blue-500 text-white text-xs px-3 py-2 rounded-lg font-semibold flex items-center space-x-1.5 transition-all shadow-sm"
+                    disabled={isLoading}
+                    className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs px-3 py-2 rounded-lg font-semibold flex items-center space-x-1.5 transition-all shadow-sm"
                   >
                     <Download className="w-4 h-4" />
                     <span>Cetak PDF</span>
@@ -296,9 +379,10 @@ export const CandidateDetailModal: React.FC<CandidateDetailModalProps> = ({
                           {!isUploaded ? (
                             <button
                               onClick={() => handleSimulateUpload(req.code)}
-                              className="bg-blue-50 hover:bg-blue-100 text-blue-600 dark:bg-blue-950 dark:text-blue-300 text-xs px-3 py-1.5 rounded-lg font-semibold border border-blue-200 dark:border-blue-800 flex items-center space-x-1"
+                              disabled={isLoading}
+                              className="bg-blue-50 hover:bg-blue-100 text-blue-600 dark:bg-blue-950 dark:text-blue-300 text-xs px-3 py-1.5 rounded-lg font-semibold border border-blue-200 dark:border-blue-800 flex items-center space-x-1 disabled:opacity-50"
                             >
-                              <Upload className="w-3.5 h-3.5" />
+                              {isLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
                               <span>Upload Berkas</span>
                             </button>
                           ) : (
@@ -306,7 +390,8 @@ export const CandidateDetailModal: React.FC<CandidateDetailModalProps> = ({
                               {doc.verificationStatus !== 'verified' && (
                                 <button
                                   onClick={() => handleVerifyDocument(req.code, 'verified')}
-                                  className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs px-2.5 py-1.5 rounded-lg font-semibold border border-emerald-200"
+                                  disabled={isLoading}
+                                  className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs px-2.5 py-1.5 rounded-lg font-semibold border border-emerald-200 disabled:opacity-50"
                                 >
                                   Verifikasi ✓
                                 </button>
@@ -314,7 +399,8 @@ export const CandidateDetailModal: React.FC<CandidateDetailModalProps> = ({
                               {doc.verificationStatus !== 'rejected' && (
                                 <button
                                   onClick={() => handleVerifyDocument(req.code, 'rejected', 'Berkas kurang jelas / perlu diperbaiki.')}
-                                  className="bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs px-2.5 py-1.5 rounded-lg font-semibold border border-rose-200"
+                                  disabled={isLoading}
+                                  className="bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs px-2.5 py-1.5 rounded-lg font-semibold border border-rose-200 disabled:opacity-50"
                                 >
                                   Tolak ✕
                                 </button>
@@ -390,7 +476,8 @@ export const CandidateDetailModal: React.FC<CandidateDetailModalProps> = ({
         <div className="bg-slate-50 dark:bg-slate-950 px-6 py-4 border-t border-slate-200 dark:border-slate-800 flex justify-end space-x-3">
           <button
             onClick={onClose}
-            className="px-4 py-2 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-lg text-xs font-semibold transition-colors"
+            disabled={isLoading}
+            className="px-4 py-2 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50"
           >
             Tutup
           </button>
