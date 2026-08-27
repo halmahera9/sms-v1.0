@@ -4,18 +4,22 @@ import React, { useState } from 'react';
 import { AwardProposal } from '@/types/award';
 import { generateNominatifPDF, generateSingleProposalPDF } from '@/lib/pdf-generator';
 import { loadSignatoryConfig } from '@/lib/award-storage';
-import { Download, CheckCircle2, Printer } from 'lucide-react';
+import { batchMarkGeneratedAction } from '@/domains/employee/awards/actions';
+import { Download, CheckCircle2, Printer, Loader2, AlertCircle } from 'lucide-react';
 
 interface DocumentGeneratorProps {
   proposals: AwardProposal[];
-  onUpdateProposalStatus: (proposalIds: string[], status: AwardProposal['status']) => void;
+  onUpdateProposals: (updatedProposals: AwardProposal[]) => void;
 }
 
 export const DocumentGenerator: React.FC<DocumentGeneratorProps> = ({
   proposals,
-  onUpdateProposalStatus,
+  onUpdateProposals,
 }) => {
   const [filterType, setFilterType] = useState<'ALL' | 'SIAP_GENERATE'>('SIAP_GENERATE');
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
   const signatoryConfig = loadSignatoryConfig();
 
   const targetProposals = proposals.filter((p) => {
@@ -23,15 +27,37 @@ export const DocumentGenerator: React.FC<DocumentGeneratorProps> = ({
     return true;
   });
 
-  const readyCount = proposals.filter((p) => p.status === 'SIAP_GENERATE').length;
+  const readyProposals = proposals.filter((p) => p.status === 'SIAP_GENERATE');
+  const readyCount = readyProposals.length;
 
   const handleBatchExportNominatif = () => {
     generateNominatifPDF(targetProposals, signatoryConfig);
   };
 
-  const handleBatchMarkAsGenerated = () => {
-    const ids = targetProposals.map((p) => p.id);
-    onUpdateProposalStatus(ids, 'GENERATED');
+  const handleBatchMarkAsGenerated = async () => {
+    const ids = readyProposals.map((p) => p.id);
+    if (ids.length === 0) return;
+
+    setIsLoading(true);
+    setErrorMessage(null);
+    try {
+      // 1. Send plain intent with proposal IDs (no target status requested by UI)
+      const res = await batchMarkGeneratedAction({ proposalIds: ids });
+
+      if (!res.success || !res.data) {
+        setErrorMessage(res.error?.message || 'Gagal menandai dokumen sebagai ter-generate.');
+        return;
+      }
+
+      // 2. Authoritative updated proposals passed directly to parent
+      if (typeof onUpdateProposals === 'function') {
+        onUpdateProposals(res.data);
+      }
+    } catch (err: unknown) {
+      setErrorMessage('Terjadi kesalahan jaringan atau server saat memproses batch generate.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -52,7 +78,7 @@ export const DocumentGenerator: React.FC<DocumentGeneratorProps> = ({
           <div className="flex items-center space-x-2">
             <button
               onClick={handleBatchExportNominatif}
-              disabled={targetProposals.length === 0}
+              disabled={isLoading || targetProposals.length === 0}
               className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-xs font-bold shadow flex items-center space-x-2 transition-all"
             >
               <Download className="w-4 h-4" />
@@ -61,11 +87,28 @@ export const DocumentGenerator: React.FC<DocumentGeneratorProps> = ({
           </div>
         </div>
 
+        {/* Error Notification Banner */}
+        {errorMessage && (
+          <div className="bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 rounded-lg px-4 py-3 flex items-center justify-between">
+            <div className="flex items-center space-x-2 text-rose-700 dark:text-rose-300 text-xs font-medium">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              <span>{errorMessage}</span>
+            </div>
+            <button
+              onClick={() => setErrorMessage(null)}
+              className="text-rose-500 hover:text-rose-700 dark:hover:text-rose-200 text-xs font-bold ml-4"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
         {/* Filter bar */}
         <div className="flex items-center justify-between border-t border-slate-100 dark:border-slate-800 pt-3">
           <div className="flex items-center space-x-2">
             <button
               onClick={() => setFilterType('SIAP_GENERATE')}
+              disabled={isLoading}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                 filterType === 'SIAP_GENERATE'
                   ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300'
@@ -76,6 +119,7 @@ export const DocumentGenerator: React.FC<DocumentGeneratorProps> = ({
             </button>
             <button
               onClick={() => setFilterType('ALL')}
+              disabled={isLoading}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                 filterType === 'ALL'
                   ? 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300 border border-blue-300'
@@ -89,9 +133,14 @@ export const DocumentGenerator: React.FC<DocumentGeneratorProps> = ({
           {readyCount > 0 && (
             <button
               onClick={handleBatchMarkAsGenerated}
-              className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:underline flex items-center space-x-1"
+              disabled={isLoading}
+              className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:underline flex items-center space-x-1 disabled:opacity-50"
             >
-              <CheckCircle2 className="w-3.5 h-3.5" />
+              {isLoading ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <CheckCircle2 className="w-3.5 h-3.5" />
+              )}
               <span>Tandai Semua ({readyCount}) Ter-generate</span>
             </button>
           )}
@@ -141,7 +190,8 @@ export const DocumentGenerator: React.FC<DocumentGeneratorProps> = ({
                     <td className="py-3 px-4 text-center">
                       <button
                         onClick={() => generateSingleProposalPDF(p, signatoryConfig)}
-                        className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1 rounded text-xs font-semibold transition-all inline-flex items-center space-x-1"
+                        disabled={isLoading}
+                        className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white px-3 py-1 rounded text-xs font-semibold transition-all inline-flex items-center space-x-1"
                       >
                         <Download className="w-3.5 h-3.5" />
                         <span>PDF</span>

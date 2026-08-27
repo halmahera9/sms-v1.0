@@ -54,15 +54,11 @@ function WorkspaceContent() {
     refreshMetrics();
   };
 
-  const handleUpdateProposalStatus = (ids: string[], status: AwardProposal['status']) => {
-    const updatedList = proposals.map((p) => {
-      if (ids.includes(p.id)) {
-        return { ...p, status, updatedAt: new Date().toISOString() };
-      }
-      return p;
-    });
-    setProposals(updatedList);
-    saveProposals(updatedList);
+  const handleUpdateProposals = (updatedProposals: AwardProposal[]) => {
+    const updatedMap = new Map(updatedProposals.map((p) => [p.id, p]));
+    const nextList = proposals.map((p) => updatedMap.get(p.id) || p);
+    setProposals(nextList);
+    saveProposals(nextList);
     refreshMetrics();
   };
 
@@ -126,7 +122,7 @@ function WorkspaceContent() {
         {activeTab === 'import' && <ExcelImporter onImportComplete={handleImportComplete} />}
 
         {activeTab === 'generator' && (
-          <DocumentGenerator proposals={proposals} onUpdateProposalStatus={handleUpdateProposalStatus} />
+          <DocumentGenerator proposals={proposals} onUpdateProposals={handleUpdateProposals} />
         )}
 
         {activeTab === 'audit' && <UnifiedAuditFeed />}
