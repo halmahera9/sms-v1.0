@@ -17,10 +17,16 @@ export interface RawNominatifRow {
   USULAN?: string | number;
   MASA_KERJA?: string | number;
   SATYALANCANA?: string | number;
+  TAHUN_USULAN?: string | number;
+  MASA_KERJA_TAHUN?: string | number;
+  MASA_KERJA_BULAN?: string | number;
   [key: string]: unknown;
 }
 
-export function parseNominatifExcel(fileBuffer: ArrayBuffer): { proposals: AwardProposal[]; logs: string[] } {
+export function parseNominatifExcel(
+  fileBuffer: ArrayBuffer,
+  options?: { defaultTahunUsulan?: number }
+): { proposals: AwardProposal[]; logs: string[] } {
   const workbook = XLSX.read(fileBuffer, { type: 'array' });
   const sheetName = workbook.SheetNames[0];
   const worksheet = workbook.Sheets[sheetName];
@@ -58,6 +64,27 @@ export function parseNominatifExcel(fileBuffer: ArrayBuffer): { proposals: Award
       else nilaiUsulan = '10';
     }
 
+    // Parse tahunUsulan explicitly from TAHUN_USULAN / tahun_usulan (source data prioritized over default)
+    const rawTahunVal = row.TAHUN_USULAN ?? row.tahun_usulan;
+    const parsedTahun = parseInt(String(rawTahunVal ?? ''), 10);
+    const hasValidTahun = !isNaN(parsedTahun);
+    const tahunUsulan = hasValidTahun ? parsedTahun : (options?.defaultTahunUsulan ?? new Date().getFullYear());
+
+    // Parse masaKerjaTahun explicitly from MASA_KERJA_TAHUN / masa_kerja_tahun ONLY (no legacy MASA_KERJA fallback)
+    const rawMkTahunVal = row.MASA_KERJA_TAHUN ?? row.masa_kerja_tahun;
+    const parsedMkTahun = parseInt(String(rawMkTahunVal ?? ''), 10);
+    const hasValidMkTahun = !isNaN(parsedMkTahun);
+    const masaKerjaTahun = hasValidMkTahun ? parsedMkTahun : 0;
+
+    if (jenisPenghargaan === 'MASA_KERJA' && !hasValidMkTahun) {
+      logs.push(`Peringatan (Baris ${idx + 1} - ${nama}): masaKerjaTahun tidak ditemukan dalam data Excel untuk usulan MASA_KERJA.`);
+    }
+
+    // Parse masaKerjaBulan explicitly from MASA_KERJA_BULAN / masa_kerja_bulan
+    const rawMkBulanVal = row.MASA_KERJA_BULAN ?? row.masa_kerja_bulan;
+    const parsedMkBulan = parseInt(String(rawMkBulanVal ?? ''), 10);
+    const masaKerjaBulan = !isNaN(parsedMkBulan) ? parsedMkBulan : 0;
+
     const employee: Employee = {
       id: `emp-${nrk}`,
       nip,
@@ -81,6 +108,9 @@ export function parseNominatifExcel(fileBuffer: ArrayBuffer): { proposals: Award
       employee,
       jenisPenghargaan,
       nilaiUsulan,
+      tahunUsulan,
+      masaKerjaTahun,
+      masaKerjaBulan,
       status: 'NOMINATIF',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),

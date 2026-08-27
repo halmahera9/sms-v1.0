@@ -39,6 +39,8 @@ enum EmployeeStatus {
 }
 
 enum AwardType {
+  MASA_KERJA
+  SATYALANCANA
   SATYALANCANA_X
   SATYALANCANA_XX
   SATYALANCANA_XXX
@@ -47,6 +49,16 @@ enum AwardType {
 }
 
 enum ProposalStatus {
+  NOMINATIF
+  BELUM_UPLOAD
+  SEBAGIAN
+  LENGKAP
+  DIVERIFIKASI
+  SIAP_GENERATE
+  GENERATED
+  DITANDATANGANI
+  DIKIRIM
+  SELESAI
   DRAFT
   SUBMITTED
   VERIFIED_STAGE_1
@@ -229,6 +241,7 @@ model AwardProposal {
   tahunUsulan      Int                     @map("tahun_usulan")
   masaKerjaTahun   Int                     @default(0) @map("masa_kerja_tahun")
   masaKerjaBulan   Int                     @default(0) @map("masa_kerja_bulan")
+  nilaiUsulan      String?                 @map("nilai_usulan") @db.VarChar(50)
   status           ProposalStatus          @default(DRAFT)
   catatan          String?                 @db.Text
   createdAt        DateTime                @default(now()) @map("created_at") @db.Timestamptz

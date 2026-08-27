@@ -65,7 +65,10 @@ export interface AwardProposal {
   employeeId: string;
   employee: Employee;
   jenisPenghargaan: AwardType;
-  nilaiUsulan: AwardValue;
+  nilaiUsulan?: AwardValue;
+  tahunUsulan: number;
+  masaKerjaTahun: number;
+  masaKerjaBulan: number;
   status: ProposalStatus;
   catatan?: string;
   createdAt: string;

@@ -5,7 +5,7 @@ const STORAGE_KEY_PROPOSALS = 'banyubiru_award_proposals_v2';
 
 export interface IEmployeeAwardRepository {
   findById(id: string): Promise<AwardProposal | null>;
-  findAll(): Promise<AwardProposal[]>;
+  findAll(tenantId?: string): Promise<AwardProposal[]>;
   save(entity: AwardProposal): Promise<AwardProposal>;
   saveAll(entities: AwardProposal[]): Promise<AwardProposal[]>;
   delete(id: string): Promise<boolean>;
@@ -89,6 +89,9 @@ export class EmployeeAwardLocalStorageRepository
         },
         jenisPenghargaan: 'MASA_KERJA',
         nilaiUsulan,
+        tahunUsulan: 2026,
+        masaKerjaTahun: 10 + (i % 25),
+        masaKerjaBulan: 0,
         status,
         createdAt: '2026-08-20T09:00:00Z',
         updatedAt: '2026-08-25T14:30:00Z',
@@ -206,6 +209,9 @@ export class EmployeeAwardLocalStorageRepository
         },
         jenisPenghargaan: 'SATYALANCANA',
         nilaiUsulan,
+        tahunUsulan: 2026,
+        masaKerjaTahun: 10 + (i % 25),
+        masaKerjaBulan: 0,
         status,
         createdAt: '2026-08-20T09:00:00Z',
         updatedAt: '2026-08-25T15:00:00Z',
@@ -216,7 +222,7 @@ export class EmployeeAwardLocalStorageRepository
     return proposals;
   }
 
-  public async findAll(): Promise<AwardProposal[]> {
+  public async findAll(tenantId?: string): Promise<AwardProposal[]> {
     const raw = this.getRawItems();
     if (raw.length === 0) {
       const initial = this.generateInitialMockProposals();
