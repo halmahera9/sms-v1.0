@@ -3,8 +3,8 @@
 import React, { useEffect, useState } from 'react';
 import { OperationalMetrics, WorkQueueItem } from '../repositories/operational-query';
 import { getOperationalMetricsAction, getUnifiedWorkQueueAction } from '../actions/operational';
-import { PlatformExceptionQueue } from '../exceptions/queue';
-import { ExceptionItem } from '../types';
+import { getExceptionsAction } from '../actions/exception';
+import { ExceptionItemRecord } from '../repositories/exception';
 import {
   AlertOctagon,
   CheckSquare,
@@ -22,7 +22,7 @@ interface UnifiedDashboardProps {
 export const UnifiedDashboard: React.FC<UnifiedDashboardProps> = ({ onNavigateTab }) => {
   const [metrics, setMetrics] = useState<OperationalMetrics | null>(null);
   const [workItems, setWorkItems] = useState<WorkQueueItem[]>([]);
-  const [exceptions, setExceptions] = useState<ExceptionItem[]>([]);
+  const [exceptions, setExceptions] = useState<ExceptionItemRecord[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -40,9 +40,14 @@ export const UnifiedDashboard: React.FC<UnifiedDashboardProps> = ({ onNavigateTa
       }
     });
 
-    const excQueue = new PlatformExceptionQueue();
-    const openExcs = excQueue.getOpenExceptions().slice(0, 5);
-    setExceptions(openExcs);
+    getExceptionsAction({
+      status: 'OPEN',
+      limit: 5,
+    }).then((res) => {
+      if (res.success && res.data) {
+        setExceptions(res.data);
+      }
+    });
   }, []);
 
   if (error && !metrics) {
@@ -235,7 +240,7 @@ export const UnifiedDashboard: React.FC<UnifiedDashboardProps> = ({ onNavigateTa
               exceptions.map((exc) => (
                 <div key={exc.id} className="py-3 flex items-center justify-between">
                   <div>
-                    <div className="font-mono text-xs font-bold text-slate-900 dark:text-white">{exc.ruleId}</div>
+                    <div className="font-mono text-xs font-bold text-slate-900 dark:text-white">{exc.ruleCode}</div>
                     <p className="text-xs text-slate-500 mt-0.5 line-clamp-1">{exc.message}</p>
                   </div>
 

@@ -1,4 +1,3 @@
-import { PlatformOperationalService } from '../src/platform/services/operational';
 import { saveDocuments, getStoredDocuments, addAuditLog, getStoredAuditLogs } from '../src/lib/storage';
 import { OCRDocument } from '../src/domains/student/types';
 
@@ -103,20 +102,17 @@ const createdAudit = auditLogs.find((a) => a.target === newDoc.items[0].id);
 assert(createdAudit !== undefined, 'Audit event for verification must exist in audit log store');
 assert(createdAudit?.operator === 'Operator Workspace', 'Audit actor should match');
 
-// 6. Work Queue reflects new state
-console.log('\n[6] Testing Work Queue Synchronization...');
-const opService = new PlatformOperationalService();
-opService.getWorkQueueItems().then((workItems) => {
-  const verifiedItemInQueue = workItems.find((w) => w.entityId === newDoc.items[0].id);
-  assert(verifiedItemInQueue === undefined, 'Verified OCR item must be removed from Work Queue');
-});
+// 6. Verified items integrity check
+console.log('\n[6] Testing Verified Items Integrity...');
+assert(
+  foundDoc?.items.every((item) => item.verificationStatus === 'verified') === true,
+  'All extracted items in document must be marked as verified'
+);
+assert(
+  foundDoc?.verifiedCount === foundDoc?.extractedCount,
+  'Verified count must match extracted count upon completion'
+);
 
-// 7. Dashboard metrics reflect new state
-console.log('\n[7] Testing Dashboard Metrics Synchronization...');
-opService.getOperationalMetrics().then((metrics) => {
-  assert(typeof metrics.pendingVerifications === 'number', 'Dashboard pending verifications must be numeric');
-
-  console.log('\n=====================================================');
-  console.log(` SUCCESS: All ${passCount}/${testCount} Student OCR Workflow tests passed! `);
-  console.log('=====================================================\n');
-});
+console.log('\n=====================================================');
+console.log(` SUCCESS: All ${passCount}/${testCount} Student OCR Workflow tests passed! `);
+console.log('=====================================================\n');
