@@ -106,12 +106,34 @@ async function runStudentClientMigrationTests() {
     'TEST 11: StudentWorkspace prevents duplicate form submissions while saving'
   );
 
-  // TEST 12: OCR/document transitional dependencies remain intact
+  // TEST 12: StudentWorkspace imports getOCRDocumentsAction
   assert(
-    componentSource.includes('getStoredDocuments') &&
-      componentSource.includes('saveDocuments') &&
-      componentSource.includes('addAuditLog'),
-    'TEST 12: OCR/document transitional dependencies remain legitimately present'
+    componentSource.includes('getOCRDocumentsAction') &&
+      componentSource.includes("from '@/platform/actions/student-workflow'"),
+    'TEST 12: StudentWorkspace imports getOCRDocumentsAction server action'
+  );
+
+  // TEST 13: StudentWorkspace imports uploadOCRDocumentAction
+  assert(
+    componentSource.includes('uploadOCRDocumentAction') &&
+      componentSource.includes("from '@/platform/actions/student-workflow'"),
+    'TEST 13: StudentWorkspace imports uploadOCRDocumentAction server action'
+  );
+
+  // TEST 14: StudentWorkspace imports verifyExtractedItemAction
+  assert(
+    componentSource.includes('verifyExtractedItemAction') &&
+      componentSource.includes("from '@/platform/actions/student-workflow'"),
+    'TEST 14: StudentWorkspace imports verifyExtractedItemAction server action'
+  );
+
+  // TEST 15: StudentWorkspace has ZERO imports from @/lib/storage
+  assert(
+    !componentSource.includes("from '@/lib/storage'") &&
+      !componentSource.includes("from '../lib/storage'") &&
+      !componentSource.includes('getStoredDocuments') &&
+      !componentSource.includes('saveDocuments'),
+    'TEST 15: StudentWorkspace has completely eliminated all imports from @/lib/storage'
   );
 
   console.log(`\n=====================================================`);

@@ -20,10 +20,12 @@ enum TenantStatus {
 }
 
 enum UserRole {
+  ADMIN_TENANT
   ADMIN
-  VERIFIKATOR
-  PEGAWAI
   OPERATOR
+  VERIFIKATOR
+  AUDITOR
+  PEGAWAI
 }
 
 enum UserStatus {
@@ -104,9 +106,9 @@ enum VerificationStatus {
 }
 
 enum VerificationDecision {
-  VERIFIED
+  PASSED
+  FLAGGED
   REJECTED
-  CORRECTED
 }
 
 enum StudentStatus {
@@ -116,16 +118,17 @@ enum StudentStatus {
 }
 
 enum AbsenceStatus {
-  Sakit
-  Izin
-  Alpha
+  SAKIT
+  IZIN
+  ALPHA
+  DISPENSASI
 }
 
 enum OCRExtractionStatus {
-  NEEDS_VERIFICATION
-  IN_PROGRESS
-  VERIFIED
+  QUEUED
+  PROCESSING
   COMPLETED
+  FAILED
 }
 
 enum StudentAbsenceWorkflowState {
@@ -332,7 +335,7 @@ model OCRExtraction {
   id           String              @id @db.Uuid
   tenantId     String              @map("tenant_id") @db.Uuid
   documentId   String              @map("document_id") @db.Uuid
-  status       OCRExtractionStatus @default(NEEDS_VERIFICATION)
+  status       OCRExtractionStatus @default(QUEUED)
   rawJson      Json?               @map("raw_json")
   errorMessage String?             @map("error_message") @db.Text
   createdAt    DateTime            @default(now()) @map("created_at") @db.Timestamptz

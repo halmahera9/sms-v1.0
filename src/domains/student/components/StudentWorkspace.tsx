@@ -1,18 +1,19 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { OCRDocument } from '../types';
-import {
-  getStoredDocuments,
-  saveDocuments,
-  addAuditLog,
-} from '@/lib/storage';
 import {
   getStudentsAction,
   saveStudentAction,
   StudentRecordDTO,
   SaveStudentDTO,
 } from '@/platform/actions/student';
+import {
+  getOCRDocumentsAction,
+  uploadOCRDocumentAction,
+  verifyExtractedItemAction,
+  OCRDocumentDTO,
+  ExtractedItemDTO,
+} from '@/platform/actions/student-workflow';
 import { StudentStatus } from '@prisma/client';
 import {
   Users,
@@ -52,11 +53,15 @@ export const StudentWorkspace: React.FC = () => {
   const [formError, setFormError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState<boolean>(false);
 
-  // OCR Documents State (Transitional)
-  const [documents, setDocuments] = useState<OCRDocument[]>([]);
+  // OCR Documents State (PostgreSQL Server-backed)
+  const [documents, setDocuments] = useState<OCRDocumentDTO[]>([]);
+  const [loadingDocs, setLoadingDocs] = useState<boolean>(true);
+  const [docError, setDocError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDocId, setSelectedDocId] = useState<string>('');
-  const [uploadResultDoc, setUploadResultDoc] = useState<OCRDocument | null>(null);
+  const [uploadResultDoc, setUploadResultDoc] = useState<OCRDocumentDTO | null>(null);
+  const [isUploading, setIsUploading] = useState<boolean>(false);
+  const [verifyingItemId, setVerifyingItemId] = useState<string | null>(null);
 
   const fetchStudents = async () => {
     setLoadingStudents(true);
@@ -75,11 +80,29 @@ export const StudentWorkspace: React.FC = () => {
     }
   };
 
+  const fetchDocuments = async () => {
+    setLoadingDocs(true);
+    setDocError(null);
+    try {
+      const res = await getOCRDocumentsAction();
+      if (res.success && res.data) {
+        setDocuments(res.data);
+        if (res.data.length > 0 && !selectedDocId) {
+          setSelectedDocId(res.data[0].id);
+        }
+      } else {
+        setDocError(res.error?.message || 'Gagal memuat data dokumen OCR dari server.');
+      }
+    } catch {
+      setDocError('Terjadi kesalahan saat memuat dokumen OCR.');
+    } finally {
+      setLoadingDocs(false);
+    }
+  };
+
   useEffect(() => {
     fetchStudents();
-    const docs = getStoredDocuments();
-    setDocuments(docs);
-    if (docs.length > 0) setSelectedDocId(docs[0].id);
+    fetchDocuments();
   }, []);
 
   const filteredStudents = students.filter(
@@ -91,7 +114,7 @@ export const StudentWorkspace: React.FC = () => {
       (s.jurusan && s.jurusan.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  const currentDoc = documents.find((d) => d.id === selectedDocId);
+  const currentDoc = documents.find((d) => d.id === selectedDocId) || (documents.length > 0 ? documents[0] : null);
 
   const handleOpenCreateModal = () => {
     setEditingStudent(null);
@@ -144,81 +167,71 @@ export const StudentWorkspace: React.FC = () => {
     }
   };
 
-  const handleVerifyItem = (itemId: string) => {
-    if (!currentDoc) return;
-    const updatedDocs = documents.map((doc) => {
-      if (doc.id === currentDoc.id) {
-        const updatedItems = doc.items.map((item) =>
-          item.id === itemId ? { ...item, verificationStatus: 'verified' as const } : item
-        );
-        const verifiedCount = updatedItems.filter(
-          (i) => i.verificationStatus === 'verified' || i.verificationStatus === 'edited'
-        ).length;
-        const allVerified = verifiedCount === doc.extractedCount;
+  const handleVerifyItem = async (itemId: string) => {
+    if (verifyingItemId) return;
+    setVerifyingItemId(itemId);
 
-        return {
-          ...doc,
-          items: updatedItems,
-          verifiedCount,
-          status: allVerified ? ('completed' as const) : ('needs_verification' as const),
-          workflowState: allVerified ? ('VERIFIED' as const) : ('NEEDS_VERIFICATION' as const),
-        };
+    try {
+      const res = await verifyExtractedItemAction({ itemId });
+      if (res.success) {
+        await fetchDocuments();
+      } else {
+        alert(res.error?.message || 'Gagal memverifikasi item ekstraksi.');
       }
-      return doc;
-    });
-
-    setDocuments(updatedDocs);
-    saveDocuments(updatedDocs);
-    addAuditLog('Operator Workspace', 'VERIFY_ITEM', itemId, 'Verifikasi item ketidakhadiran siswa');
+    } catch {
+      alert('Terjadi kesalahan jaringan saat memverifikasi item.');
+    } finally {
+      setVerifyingItemId(null);
+    }
   };
 
-  const handleSimulateOCRUpload = () => {
-    const newDoc: OCRDocument = {
-      id: `doc-ocr-${Date.now()}`,
-      fileName: `Surat_Izin_Ketidakhadiran_${Date.now().toString().slice(-4)}.png`,
+  const handleSimulateOCRUpload = async () => {
+    if (isUploading) return;
+    setIsUploading(true);
+
+    const timestamp = Date.now();
+    const payload = {
+      fileName: `Surat_Izin_Ketidakhadiran_${timestamp.toString().slice(-4)}.png`,
       fileSize: 1024 * 520,
-      uploadedAt: new Date().toISOString(),
       imageUrl: '/placeholder-doc.png',
-      status: 'needs_verification',
-      workflowState: 'NEEDS_VERIFICATION',
-      extractedCount: 2,
-      verifiedCount: 0,
       items: [
         {
-          id: `item-${Date.now()}-1`,
           ocrText: 'Citra Dewi - X IPA 1 - Sakit flu berat',
-          matchedStudentId: 'std-3',
           matchedStudentName: 'Citra Dewi',
           matchedNisn: '0051234569',
           confidence: 92,
           class: 'X IPA 1',
           date: new Date().toISOString().slice(0, 10),
-          status: 'Sakit',
+          status: 'Sakit' as const,
           notes: 'Flu dan demam 2 hari',
-          verificationStatus: 'pending',
         },
         {
-          id: `item-${Date.now()}-2`,
           ocrText: 'Dewi L - X IPA 2 - Izin acara',
-          matchedStudentId: 'std-4',
           matchedStudentName: 'Dewi Lestari',
           matchedNisn: '0051234570',
           confidence: 68,
           class: 'X IPA 2',
           date: new Date().toISOString().slice(0, 10),
-          status: 'Izin',
+          status: 'Izin' as const,
           notes: 'Izin urusan keluarga',
-          verificationStatus: 'pending',
         },
       ],
     };
 
-    const updated = [newDoc, ...documents];
-    setDocuments(updated);
-    saveDocuments(updated);
-    setSelectedDocId(newDoc.id);
-    setUploadResultDoc(newDoc);
-    addAuditLog('Operator Workspace', 'UPLOAD_OCR', newDoc.id, `Mengunggah dokumen OCR ${newDoc.fileName}`);
+    try {
+      const res = await uploadOCRDocumentAction(payload);
+      if (res.success && res.data) {
+        setUploadResultDoc(res.data);
+        setSelectedDocId(res.data.id);
+        await fetchDocuments();
+      } else {
+        alert(res.error?.message || 'Gagal mengunggah dokumen OCR.');
+      }
+    } catch {
+      alert('Terjadi kesalahan saat memproses unggahan OCR.');
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const handleExportExcel = () => {
@@ -246,10 +259,11 @@ export const StudentWorkspace: React.FC = () => {
         <div className="flex items-center space-x-2">
           <button
             onClick={handleSimulateOCRUpload}
-            className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg text-xs font-bold shadow flex items-center space-x-2 transition-all"
+            disabled={isUploading}
+            className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg text-xs font-bold shadow flex items-center space-x-2 transition-all disabled:opacity-50"
           >
-            <Upload className="w-4 h-4" />
-            <span>Upload OCR Baru</span>
+            {isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+            <span>{isUploading ? 'Memproses OCR...' : 'Upload OCR Baru'}</span>
           </button>
         </div>
       </div>
@@ -425,7 +439,12 @@ export const StudentWorkspace: React.FC = () => {
       {/* SUB-TAB 2: ANTREAN VERIFIKASI OCR */}
       {activeSubTab === 'verify' && (
         <div className="space-y-4">
-          {currentDoc ? (
+          {loadingDocs ? (
+            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm p-12 text-center">
+              <Loader2 className="w-6 h-6 animate-spin text-emerald-600 mx-auto mb-2" />
+              <p className="text-xs text-slate-400 font-mono">Memuat Antrean Verifikasi OCR dari Server...</p>
+            </div>
+          ) : currentDoc ? (
             <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
               <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
                 <div>
@@ -482,10 +501,15 @@ export const StudentWorkspace: React.FC = () => {
                       {item.verificationStatus !== 'verified' ? (
                         <button
                           onClick={() => handleVerifyItem(item.id)}
-                          className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs px-3 py-1.5 rounded-lg font-bold shadow flex items-center space-x-1"
+                          disabled={verifyingItemId === item.id}
+                          className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs px-3 py-1.5 rounded-lg font-bold shadow flex items-center space-x-1 disabled:opacity-50"
                         >
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                          <span>Verifikasi Manual ✓</span>
+                          {verifyingItemId === item.id ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                          )}
+                          <span>{verifyingItemId === item.id ? 'Memverifikasi...' : 'Verifikasi Manual ✓'}</span>
                         </button>
                       ) : (
                         <span className="text-xs font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-lg">
@@ -506,42 +530,57 @@ export const StudentWorkspace: React.FC = () => {
       {/* SUB-TAB 3: DOKUMEN OCR LIST */}
       {activeSubTab === 'ocr' && (
         <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-slate-50 dark:bg-slate-800 text-[11px] font-bold text-slate-500 uppercase">
-              <tr>
-                <th className="py-3 px-4">Nama File</th>
-                <th className="py-3 px-4">Tanggal Upload</th>
-                <th className="py-3 px-4">Ekstraksi</th>
-                <th className="py-3 px-4">Terverifikasi</th>
-                <th className="py-3 px-4">Status Workflow</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {documents.map((d) => (
-                <tr
-                  key={d.id}
-                  className={`hover:bg-slate-50 ${selectedDocId === d.id ? 'bg-blue-50/50 dark:bg-blue-950/20' : ''}`}
-                >
-                  <td className="py-3 px-4 font-bold text-slate-900 dark:text-white flex items-center space-x-2">
-                    <span>{d.fileName}</span>
-                    {selectedDocId === d.id && (
-                      <span className="text-[10px] font-bold bg-blue-100 text-blue-800 px-2 py-0.5 rounded">Dipilih</span>
-                    )}
-                  </td>
-                  <td className="py-3 px-4 font-mono text-slate-500">
-                    {new Date(d.uploadedAt).toLocaleString('id-ID')}
-                  </td>
-                  <td className="py-3 px-4 font-bold text-blue-600">{d.extractedCount} item</td>
-                  <td className="py-3 px-4 font-bold text-emerald-600">{d.verifiedCount} item</td>
-                  <td className="py-3 px-4">
-                    <span className="bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-bold px-2 py-0.5 rounded">
-                      {d.status}
-                    </span>
-                  </td>
+          {loadingDocs ? (
+            <div className="p-12 text-center">
+              <Loader2 className="w-6 h-6 animate-spin text-emerald-600 mx-auto mb-2" />
+              <p className="text-xs text-slate-400 font-mono">Memuat Dokumen OCR dari Server...</p>
+            </div>
+          ) : (
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50 dark:bg-slate-800 text-[11px] font-bold text-slate-500 uppercase">
+                <tr>
+                  <th className="py-3 px-4">Nama File</th>
+                  <th className="py-3 px-4">Tanggal Upload</th>
+                  <th className="py-3 px-4">Ekstraksi</th>
+                  <th className="py-3 px-4">Terverifikasi</th>
+                  <th className="py-3 px-4">Status Workflow</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                {documents.length > 0 ? (
+                  documents.map((d) => (
+                    <tr
+                      key={d.id}
+                      className={`hover:bg-slate-50 ${selectedDocId === d.id ? 'bg-blue-50/50 dark:bg-blue-950/20' : ''}`}
+                    >
+                      <td className="py-3 px-4 font-bold text-slate-900 dark:text-white flex items-center space-x-2">
+                        <span>{d.fileName}</span>
+                        {selectedDocId === d.id && (
+                          <span className="text-[10px] font-bold bg-blue-100 text-blue-800 px-2 py-0.5 rounded">Dipilih</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 font-mono text-slate-500">
+                        {new Date(d.uploadedAt).toLocaleString('id-ID')}
+                      </td>
+                      <td className="py-3 px-4 font-bold text-blue-600">{d.extractedCount} item</td>
+                      <td className="py-3 px-4 font-bold text-emerald-600">{d.verifiedCount} item</td>
+                      <td className="py-3 px-4">
+                        <span className="bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-bold px-2 py-0.5 rounded">
+                          {d.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={5} className="py-8 text-center text-slate-400">
+                      Belum ada dokumen OCR terdaftar.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          )}
         </div>
       )}
 
