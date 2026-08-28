@@ -1,13 +1,19 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Student, OCRDocument } from '../types';
+import { OCRDocument } from '../types';
 import {
-  getStoredStudents,
   getStoredDocuments,
   saveDocuments,
   addAuditLog,
 } from '@/lib/storage';
+import {
+  getStudentsAction,
+  saveStudentAction,
+  StudentRecordDTO,
+  SaveStudentDTO,
+} from '@/platform/actions/student';
+import { StudentStatus } from '@prisma/client';
 import {
   Users,
   ScanText,
@@ -17,36 +23,126 @@ import {
   CheckCircle2,
   Upload,
   Download,
+  Plus,
+  Edit2,
+  X,
+  AlertCircle,
+  Loader2,
+  RefreshCw,
 } from 'lucide-react';
 import { exportStudentAbsenceExcel } from '../export';
 
 export const StudentWorkspace: React.FC = () => {
   const [activeSubTab, setActiveSubTab] = useState<'students' | 'ocr' | 'verify' | 'export'>('students');
-  const [students, setStudents] = useState<Student[]>([]);
+  const [students, setStudents] = useState<StudentRecordDTO[]>([]);
+  const [loadingStudents, setLoadingStudents] = useState<boolean>(true);
+  const [studentError, setStudentError] = useState<string | null>(null);
+
+  // Modal / Form state for Create/Edit Student
+  const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
+  const [editingStudent, setEditingStudent] = useState<StudentRecordDTO | null>(null);
+  const [formData, setFormData] = useState<SaveStudentDTO>({
+    nisn: '',
+    nis: '',
+    fullName: '',
+    className: '',
+    jurusan: '',
+    status: StudentStatus.ACTIVE,
+  });
+  const [formError, setFormError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+
+  // OCR Documents State (Transitional)
   const [documents, setDocuments] = useState<OCRDocument[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDocId, setSelectedDocId] = useState<string>('');
   const [uploadResultDoc, setUploadResultDoc] = useState<OCRDocument | null>(null);
 
+  const fetchStudents = async () => {
+    setLoadingStudents(true);
+    setStudentError(null);
+    try {
+      const res = await getStudentsAction();
+      if (res.success && res.data) {
+        setStudents(res.data);
+      } else {
+        setStudentError(res.error?.message || 'Gagal memuat master data siswa dari server.');
+      }
+    } catch {
+      setStudentError('Terjadi kesalahan saat menghubungi server.');
+    } finally {
+      setLoadingStudents(false);
+    }
+  };
+
   useEffect(() => {
-    const stds = getStoredStudents();
+    fetchStudents();
     const docs = getStoredDocuments();
-    Promise.resolve().then(() => {
-      setStudents(stds);
-      setDocuments(docs);
-      if (docs.length > 0) setSelectedDocId(docs[0].id);
-    });
+    setDocuments(docs);
+    if (docs.length > 0) setSelectedDocId(docs[0].id);
   }, []);
 
   const filteredStudents = students.filter(
     (s) =>
       !searchTerm ||
-      s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      s.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       s.nisn.includes(searchTerm) ||
-      s.class.toLowerCase().includes(searchTerm.toLowerCase())
+      s.className.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (s.jurusan && s.jurusan.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   const currentDoc = documents.find((d) => d.id === selectedDocId);
+
+  const handleOpenCreateModal = () => {
+    setEditingStudent(null);
+    setFormData({
+      nisn: '',
+      nis: '',
+      fullName: '',
+      className: '',
+      jurusan: '',
+      status: StudentStatus.ACTIVE,
+    });
+    setFormError(null);
+    setIsModalOpen(true);
+  };
+
+  const handleOpenEditModal = (student: StudentRecordDTO) => {
+    setEditingStudent(student);
+    setFormData({
+      id: student.id,
+      nisn: student.nisn,
+      nis: student.nis,
+      fullName: student.fullName,
+      className: student.className,
+      jurusan: student.jurusan || '',
+      status: student.status,
+    });
+    setFormError(null);
+    setIsModalOpen(true);
+  };
+
+  const handleSaveStudentSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isSaving) return;
+
+    setIsSaving(true);
+    setFormError(null);
+
+    try {
+      const res = await saveStudentAction(formData);
+      if (res.success && res.data) {
+        setIsModalOpen(false);
+        await fetchStudents();
+      } else {
+        setFormError(res.error?.message || 'Gagal menyimpan data siswa.');
+      }
+    } catch {
+      setFormError('Terjadi kesalahan jaringan saat menyimpan data siswa.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const handleVerifyItem = (itemId: string) => {
     if (!currentDoc) return;
@@ -217,54 +313,112 @@ export const StudentWorkspace: React.FC = () => {
       {/* SUB-TAB 1: MASTER DATA SISWA */}
       {activeSubTab === 'students' && (
         <div className="space-y-4">
-          <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex justify-between items-center">
-            <div className="relative w-72">
+          <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col sm:flex-row justify-between items-center gap-3">
+            <div className="relative w-full sm:w-72">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
               <input
                 type="text"
-                placeholder="Cari Nama, NISN, Kelas..."
+                placeholder="Cari Nama, NISN, Kelas, Jurusan..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 pl-9 pr-4 py-2 rounded-lg text-xs text-slate-900 dark:text-white"
               />
             </div>
-            <span className="text-xs text-slate-500">
-              Menampilkan {filteredStudents.length} siswa terdaftar di Dapodik
-            </span>
+            <div className="flex items-center space-x-3 w-full sm:w-auto justify-between sm:justify-end">
+              <span className="text-xs text-slate-500">
+                Menampilkan {filteredStudents.length} siswa terdaftar di PostgreSQL
+              </span>
+              <button
+                onClick={handleOpenCreateModal}
+                className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow flex items-center space-x-1.5 transition-all shrink-0"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Tambah Siswa</span>
+              </button>
+            </div>
           </div>
 
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 dark:bg-slate-800 text-[11px] font-bold text-slate-500 uppercase">
-                <tr>
-                  <th className="py-3 px-4">No</th>
-                  <th className="py-3 px-4">NISN / NIS</th>
-                  <th className="py-3 px-4">Nama Siswa</th>
-                  <th className="py-3 px-4">Kelas</th>
-                  <th className="py-3 px-4">Jenis Kelamin</th>
-                  <th className="py-3 px-4">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
-                {filteredStudents.map((std, idx) => (
-                  <tr key={std.id} className="hover:bg-slate-50">
-                    <td className="py-3 px-4 font-mono text-slate-400">{idx + 1}</td>
-                    <td className="py-3 px-4 font-mono font-bold text-slate-900 dark:text-white">
-                      {std.nisn} <span className="text-slate-400 font-normal">({std.nis || '-'})</span>
-                    </td>
-                    <td className="py-3 px-4 font-bold text-slate-900 dark:text-white">{std.name}</td>
-                    <td className="py-3 px-4 font-semibold text-slate-700 dark:text-slate-300">{std.class}</td>
-                    <td className="py-3 px-4">{std.gender === 'L' ? 'Laki-Laki' : 'Perempuan'}</td>
-                    <td className="py-3 px-4">
-                      <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold px-2 py-0.5 rounded">
-                        {std.status}
-                      </span>
-                    </td>
+          {/* Student Error Banner */}
+          {studentError && (
+            <div className="bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800 rounded-xl p-4 flex items-center justify-between text-rose-800 dark:text-rose-200 text-xs">
+              <div className="flex items-center space-x-2">
+                <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
+                <span>{studentError}</span>
+              </div>
+              <button
+                onClick={fetchStudents}
+                className="bg-rose-100 dark:bg-rose-900 hover:bg-rose-200 text-rose-800 dark:text-rose-200 px-3 py-1 rounded-lg text-xs font-bold flex items-center space-x-1"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Coba Lagi</span>
+              </button>
+            </div>
+          )}
+
+          {/* Loading State */}
+          {loadingStudents ? (
+            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm p-12 text-center">
+              <Loader2 className="w-6 h-6 animate-spin text-emerald-600 mx-auto mb-2" />
+              <p className="text-xs text-slate-400 font-mono">Memuat Master Data Siswa dari Server PostgreSQL...</p>
+            </div>
+          ) : (
+            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 dark:bg-slate-800 text-[11px] font-bold text-slate-500 uppercase">
+                  <tr>
+                    <th className="py-3 px-4">No</th>
+                    <th className="py-3 px-4">NISN / NIS</th>
+                    <th className="py-3 px-4">Nama Siswa</th>
+                    <th className="py-3 px-4">Kelas</th>
+                    <th className="py-3 px-4">Jurusan</th>
+                    <th className="py-3 px-4">Status</th>
+                    <th className="py-3 px-4 text-right">Aksi</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
+                  {filteredStudents.length > 0 ? (
+                    filteredStudents.map((std, idx) => (
+                      <tr key={std.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                        <td className="py-3 px-4 font-mono text-slate-400">{idx + 1}</td>
+                        <td className="py-3 px-4 font-mono font-bold text-slate-900 dark:text-white">
+                          {std.nisn} <span className="text-slate-400 font-normal">({std.nis || '-'})</span>
+                        </td>
+                        <td className="py-3 px-4 font-bold text-slate-900 dark:text-white">{std.fullName}</td>
+                        <td className="py-3 px-4 font-semibold text-slate-700 dark:text-slate-300">{std.className}</td>
+                        <td className="py-3 px-4 text-slate-500">{std.jurusan || '-'}</td>
+                        <td className="py-3 px-4">
+                          <span
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
+                              std.status === 'ACTIVE'
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                : 'bg-slate-100 text-slate-700 border-slate-200'
+                            }`}
+                          >
+                            {std.status}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          <button
+                            onClick={() => handleOpenEditModal(std)}
+                            className="text-blue-600 dark:text-blue-400 hover:underline font-bold text-xs inline-flex items-center space-x-1"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                            <span>Edit</span>
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={7} className="py-8 text-center text-slate-400">
+                        Tidak ada data siswa yang cocok dengan pencarian.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
@@ -409,6 +563,143 @@ export const StudentWorkspace: React.FC = () => {
             <Download className="w-4 h-4" />
             <span>Download Rekap Excel</span>
           </button>
+        </div>
+      )}
+
+      {/* Create / Edit Student Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-lg w-full border border-slate-200 dark:border-slate-800 shadow-2xl p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center space-x-2">
+                <Users className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                <h3 className="font-bold text-slate-900 dark:text-white text-base">
+                  {editingStudent ? 'Edit Data Siswa' : 'Tambah Siswa Baru'}
+                </h3>
+              </div>
+              <button
+                onClick={() => setIsModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {formError && (
+              <div className="bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800 rounded-lg p-3 text-rose-800 dark:text-rose-200 text-xs flex items-center space-x-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{formError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSaveStudentSubmit} className="space-y-3 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-700 dark:text-slate-300 font-bold mb-1">
+                    NISN (10 Digit) *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    maxLength={10}
+                    placeholder="Contoh: 0051234567"
+                    value={formData.nisn}
+                    onChange={(e) => setFormData({ ...formData, nisn: e.target.value })}
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-2 rounded-lg text-slate-900 dark:text-white font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-700 dark:text-slate-300 font-bold mb-1">
+                    NIS (Nomor Induk Siswa) *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    maxLength={20}
+                    placeholder="Contoh: 21221001"
+                    value={formData.nis}
+                    onChange={(e) => setFormData({ ...formData, nis: e.target.value })}
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-2 rounded-lg text-slate-900 dark:text-white font-mono"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-700 dark:text-slate-300 font-bold mb-1">
+                  Nama Lengkap Siswa *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Nama lengkap sesuai Dapodik"
+                  value={formData.fullName}
+                  onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
+                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-2 rounded-lg text-slate-900 dark:text-white"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-700 dark:text-slate-300 font-bold mb-1">
+                    Kelas *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Contoh: X IPA 1"
+                    value={formData.className}
+                    onChange={(e) => setFormData({ ...formData, className: e.target.value })}
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-2 rounded-lg text-slate-900 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-700 dark:text-slate-300 font-bold mb-1">
+                    Jurusan (Opsional)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Contoh: IPA / IPS"
+                    value={formData.jurusan || ''}
+                    onChange={(e) => setFormData({ ...formData, jurusan: e.target.value })}
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-2 rounded-lg text-slate-900 dark:text-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-700 dark:text-slate-300 font-bold mb-1">
+                  Status Siswa
+                </label>
+                <select
+                  value={formData.status}
+                  onChange={(e) => setFormData({ ...formData, status: e.target.value as StudentStatus })}
+                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-2 rounded-lg text-slate-900 dark:text-white"
+                >
+                  <option value={StudentStatus.ACTIVE}>ACTIVE (Aktif)</option>
+                  <option value={StudentStatus.GRADUATED}>GRADUATED (Lulus)</option>
+                  <option value={StudentStatus.TRANSFERRED}>TRANSFERRED (Pindah)</option>
+                </select>
+              </div>
+
+              <div className="flex justify-end space-x-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  className="px-4 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 font-bold"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSaving}
+                  className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold flex items-center space-x-1.5 disabled:opacity-50"
+                >
+                  {isSaving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  <span>{isSaving ? 'Menyimpan...' : 'Simpan Data'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 
