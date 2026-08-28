@@ -1,7 +1,9 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { OperationalMetrics, PlatformOperationalService, WorkQueueItem } from '../services/operational';
+import { OperationalMetrics, WorkQueueItem } from '../repositories/operational-query';
+import { getOperationalMetricsAction, getUnifiedWorkQueueAction } from '../actions/operational';
+import { PlatformExceptionQueue } from '../exceptions/queue';
 import { ExceptionItem } from '../types';
 import {
   AlertOctagon,
@@ -21,14 +23,38 @@ export const UnifiedDashboard: React.FC<UnifiedDashboardProps> = ({ onNavigateTa
   const [metrics, setMetrics] = useState<OperationalMetrics | null>(null);
   const [workItems, setWorkItems] = useState<WorkQueueItem[]>([]);
   const [exceptions, setExceptions] = useState<ExceptionItem[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const service = new PlatformOperationalService();
-    service.getOperationalMetrics().then((m) => setMetrics(m));
-    service.getWorkQueueItems().then((items) => setWorkItems(items.slice(0, 5)));
-    const openExcs = service.getExceptionQueue().getOpenExceptions().slice(0, 5);
-    Promise.resolve().then(() => setExceptions(openExcs));
+    getOperationalMetricsAction().then((res) => {
+      if (res.success && res.data) {
+        setMetrics(res.data);
+      } else {
+        setError(res.error?.message || 'Gagal memuat metrik operasional.');
+      }
+    });
+
+    getUnifiedWorkQueueAction(5).then((res) => {
+      if (res.success && res.data) {
+        setWorkItems(res.data);
+      }
+    });
+
+    const excQueue = new PlatformExceptionQueue();
+    const openExcs = excQueue.getOpenExceptions().slice(0, 5);
+    setExceptions(openExcs);
   }, []);
+
+  if (error && !metrics) {
+    return (
+      <div className="p-8 text-center">
+        <div className="bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800 rounded-xl p-4 inline-flex items-center space-x-3 text-rose-800 dark:text-rose-200 text-xs">
+          <AlertOctagon className="w-5 h-5 text-rose-600 dark:text-rose-400 shrink-0" />
+          <span>{error}</span>
+        </div>
+      </div>
+    );
+  }
 
   if (!metrics) {
     return <div className="p-8 text-center text-slate-400 font-mono text-xs">Memuat Dashboard Operasional...</div>;

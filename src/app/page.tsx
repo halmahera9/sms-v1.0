@@ -15,7 +15,9 @@ import { ExcelImporter } from '@/components/import/ExcelImporter';
 import { DocumentGenerator } from '@/components/documents/DocumentGenerator';
 import { SettingsManager } from '@/components/settings/SettingsManager';
 import { StudentWorkspace } from '@/domains/student/components/StudentWorkspace';
-import { PlatformOperationalService, OperationalMetrics } from '@/platform/services/operational';
+import { OperationalMetrics } from '@/platform/repositories/operational-query';
+import { getOperationalMetricsAction } from '@/platform/actions/operational';
+import { PlatformExceptionQueue } from '@/platform/exceptions/queue';
 
 function WorkspaceContent() {
   const [proposals, setProposals] = useState<AwardProposal[]>([]);
@@ -23,20 +25,21 @@ function WorkspaceContent() {
   const [userRole, setUserRole] = useState<'admin' | 'verifikator' | 'pegawai'>('admin');
   const [selectedCandidate, setSelectedCandidate] = useState<AwardProposal | null>(null);
   const [metrics, setMetrics] = useState<OperationalMetrics | null>(null);
+  const [exceptionQueue] = useState(() => new PlatformExceptionQueue());
 
-  const [opService] = useState(() => new PlatformOperationalService());
+  const refreshMetrics = () => {
+    getOperationalMetricsAction().then((res) => {
+      if (res.success && res.data) {
+        setMetrics(res.data);
+      }
+    });
+  };
 
   useEffect(() => {
     const loaded = loadProposals();
-    Promise.resolve().then(() => {
-      setProposals(loaded);
-      opService.getOperationalMetrics().then(setMetrics);
-    });
-  }, [opService]);
-
-  const refreshMetrics = () => {
-    opService.getOperationalMetrics().then(setMetrics);
-  };
+    setProposals(loaded);
+    refreshMetrics();
+  }, []);
 
   const handleUpdateCandidate = (updated: AwardProposal) => {
     const updatedList = proposals.map((p) => (p.id === updated.id ? updated : p));
@@ -89,10 +92,10 @@ function WorkspaceContent() {
         userRole={userRole}
         setUserRole={setUserRole}
         counts={{
-          totalEmployees: metrics?.totalEmployees || proposals.length,
-          totalStudents: metrics?.totalStudents || 8,
-          openExceptions: metrics?.totalOpenExceptions || 0,
-          pendingWorkItems: metrics?.pendingVerifications || 0,
+          totalEmployees: metrics?.totalEmployees ?? 0,
+          totalStudents: metrics?.totalStudents ?? 0,
+          openExceptions: metrics?.totalOpenExceptions ?? 0,
+          pendingWorkItems: metrics?.pendingVerifications ?? 0,
         }}
       />
 
@@ -108,7 +111,7 @@ function WorkspaceContent() {
 
         {activeTab === 'exceptions' && (
           <UnifiedExceptionCenter
-            exceptionQueue={opService.getExceptionQueue()}
+            exceptionQueue={exceptionQueue}
             onRefresh={refreshMetrics}
           />
         )}

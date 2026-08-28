@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { WorkQueueItem, PlatformOperationalService } from '../services/operational';
-import { CheckSquare, ArrowRight } from 'lucide-react';
+import { WorkQueueItem } from '../repositories/operational-query';
+import { getUnifiedWorkQueueAction } from '../actions/operational';
+import { CheckSquare, ArrowRight, AlertCircle } from 'lucide-react';
 
 interface UnifiedWorkQueueProps {
   onNavigateDomainItem?: (domain: 'EMPLOYEE' | 'STUDENT', entityId: string) => void;
@@ -11,17 +12,33 @@ interface UnifiedWorkQueueProps {
 export const UnifiedWorkQueue: React.FC<UnifiedWorkQueueProps> = ({ onNavigateDomainItem }) => {
   const [items, setItems] = useState<WorkQueueItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const service = new PlatformOperationalService();
-    service.getWorkQueueItems().then((res) => {
-      setItems(res);
+    getUnifiedWorkQueueAction().then((res) => {
+      if (res.success && res.data) {
+        setItems(res.data);
+        setError(null);
+      } else {
+        setError(res.error?.message || 'Gagal memuat antrean kerja operasional.');
+      }
       setLoading(false);
     });
   }, []);
 
   if (loading) {
     return <div className="p-8 text-center text-slate-400 font-mono text-xs">Memuat Antrean Kerja...</div>;
+  }
+
+  if (error) {
+    return (
+      <div className="p-6 max-w-6xl mx-auto">
+        <div className="bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800 rounded-xl p-4 flex items-center space-x-3 text-rose-800 dark:text-rose-200 text-xs">
+          <AlertCircle className="w-5 h-5 text-rose-600 dark:text-rose-400 shrink-0" />
+          <span>{error}</span>
+        </div>
+      </div>
+    );
   }
 
   return (
