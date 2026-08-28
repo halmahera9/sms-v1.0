@@ -137,9 +137,10 @@ enum StudentAbsenceWorkflowState {
 }
 
 enum Severity {
-  INFO
-  WARNING
-  ERROR
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
 }
 
 enum ExceptionStatus {

@@ -98,7 +98,7 @@ const excQueue = new PlatformExceptionQueue();
 const exceptions = excQueue.createFromValidationResults('ExtractedItem', lowConfidenceItem.id, ocrValidationRes);
 assert(exceptions.length === 1, 'Should create 1 exception item for failed OCR extraction');
 assert(exceptions[0].status === 'OPEN', 'Exception status should be OPEN');
-assert(exceptions[0].severity === 'ERROR', 'Exception severity should be ERROR');
+assert(exceptions[0].severity === 'HIGH', 'Exception severity should be ExceptionSeverity HIGH');
 
 // 5. Exception Resolution
 console.log('\n[5] Testing Exception Resolution Pipeline...');

@@ -1,4 +1,4 @@
-import { ExceptionItem, ExceptionStatus, ValidationResult } from '../types';
+import { ExceptionItem, ExceptionSeverity, ExceptionStatus, ValidationResult } from '../types';
 
 export class PlatformExceptionQueue {
   private items: Map<string, ExceptionItem> = new Map();
@@ -11,7 +11,7 @@ export class PlatformExceptionQueue {
     entityType: string;
     entityId: string;
     ruleId: string;
-    severity?: ExceptionItem['severity'];
+    severity?: ExceptionSeverity;
     message: string;
     metadata?: Record<string, unknown>;
   }): ExceptionItem {
@@ -21,7 +21,7 @@ export class PlatformExceptionQueue {
       entityType: params.entityType,
       entityId: params.entityId,
       ruleId: params.ruleId,
-      severity: params.severity || 'ERROR',
+      severity: params.severity || 'HIGH',
       status: 'OPEN',
       message: params.message,
       createdAt: new Date().toISOString(),
@@ -41,11 +41,13 @@ export class PlatformExceptionQueue {
     const invalidResults = results.filter((r) => !r.valid);
 
     for (const res of invalidResults) {
+      const severity: ExceptionSeverity =
+        res.severity === 'ERROR' ? 'HIGH' : res.severity === 'WARNING' ? 'MEDIUM' : 'LOW';
       const item = this.createException({
         entityType,
         entityId,
         ruleId: res.ruleId,
-        severity: res.severity,
+        severity,
         message: res.message,
         metadata: res.metadata,
       });

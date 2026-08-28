@@ -54,9 +54,9 @@ export class PlatformOperationalService {
       0
     );
 
-    const errorExc = exceptions.filter((e) => e.severity === 'ERROR').length;
-    const warningExc = exceptions.filter((e) => e.severity === 'WARNING').length;
-    const infoExc = exceptions.filter((e) => e.severity === 'INFO').length;
+    const errorExc = exceptions.filter((e) => e.severity === 'CRITICAL').length;
+    const warningExc = exceptions.filter((e) => e.severity === 'HIGH').length;
+    const infoExc = exceptions.filter((e) => e.severity === 'MEDIUM' || e.severity === 'LOW').length;
 
     return {
       totalOpenExceptions: exceptions.length,
@@ -138,7 +138,7 @@ export class PlatformOperationalService {
         title: `Pengecualian: ${e.ruleId}`,
         subtitle: e.message,
         status: e.status,
-        severity: e.severity === 'ERROR' ? 'CRITICAL' : 'HIGH',
+        severity: e.severity,
         createdAt: e.createdAt,
         actionRequired: 'Penyelesaian Pengecualian Aturan',
       });

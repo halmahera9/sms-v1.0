@@ -97,9 +97,10 @@ export const UnifiedExceptionCenter: React.FC<UnifiedExceptionCenterProps> = ({
               className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-2 rounded-lg font-medium text-slate-800 dark:text-slate-200"
             >
               <option value="ALL">Semua Severity</option>
-              <option value="ERROR">ERROR (Kritis)</option>
-              <option value="WARNING">WARNING (Peringatan)</option>
-              <option value="INFO">INFO (Informasi)</option>
+              <option value="CRITICAL">CRITICAL (Kritis)</option>
+              <option value="HIGH">HIGH (Tinggi)</option>
+              <option value="MEDIUM">MEDIUM (Sedang)</option>
+              <option value="LOW">LOW (Rendah)</option>
             </select>
 
             <select
@@ -159,10 +160,12 @@ export const UnifiedExceptionCenter: React.FC<UnifiedExceptionCenterProps> = ({
                       <td className="py-3 px-4">
                         <span
                           className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
-                            exc.severity === 'ERROR'
+                            exc.severity === 'CRITICAL'
                               ? 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950 dark:text-rose-300'
-                              : exc.severity === 'WARNING'
+                              : exc.severity === 'HIGH'
                               ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-300'
+                              : exc.severity === 'MEDIUM'
+                              ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300'
                               : 'bg-slate-100 text-slate-700 border-slate-200'
                           }`}
                         >

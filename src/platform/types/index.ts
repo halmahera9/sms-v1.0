@@ -53,6 +53,7 @@ export interface ValidationRule<T = unknown> {
 }
 
 // Exception Queue Engine
+export type ExceptionSeverity = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 export type ExceptionStatus = 'OPEN' | 'IN_REVIEW' | 'RESOLVED' | 'DISMISSED';
 
 export interface ExceptionItem {
@@ -60,7 +61,7 @@ export interface ExceptionItem {
   entityType: string;
   entityId: string;
   ruleId: string;
-  severity: ValidationSeverity;
+  severity: ExceptionSeverity;
   status: ExceptionStatus;
   message: string;
   createdAt: string;

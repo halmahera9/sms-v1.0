@@ -215,9 +215,11 @@ export const UnifiedDashboard: React.FC<UnifiedDashboardProps> = ({ onNavigateTa
 
                   <span
                     className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
-                      exc.severity === 'ERROR'
+                      exc.severity === 'CRITICAL'
                         ? 'bg-rose-50 text-rose-700 border-rose-200'
-                        : 'bg-amber-50 text-amber-700 border-amber-200'
+                        : exc.severity === 'HIGH'
+                        ? 'bg-amber-50 text-amber-700 border-amber-200'
+                        : 'bg-slate-100 text-slate-700 border-slate-200'
                     }`}
                   >
                     {exc.severity}

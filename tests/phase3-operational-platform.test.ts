@@ -26,7 +26,7 @@ const exc1 = excQueue.createException({
   entityType: 'AwardProposal',
   entityId: 'prop-emp-101',
   ruleId: 'DOC_COMPLETENESS_RULE',
-  severity: 'ERROR',
+  severity: 'CRITICAL',
   message: 'Berkas wajib SK CPNS belum diunggah.',
 });
 
@@ -34,7 +34,7 @@ const exc2 = excQueue.createException({
   entityType: 'ExtractedItem',
   entityId: 'item-std-202',
   ruleId: 'OCR_CONFIDENCE_RULE',
-  severity: 'ERROR',
+  severity: 'CRITICAL',
   message: 'Akurasi ekstraksi OCR 62% di bawah threshold 70%.',
 });
 
