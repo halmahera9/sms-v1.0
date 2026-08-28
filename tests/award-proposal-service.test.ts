@@ -45,12 +45,12 @@ async function runAwardProposalServiceTests() {
   try {
     // Setup Tenant & Actor
     await adminPrisma.tenant.upsert({
-      where: { code: 'AWARD_TENANT_SVC_A' },
+      where: { id: TENANT_A_ID },
       create: { id: TENANT_A_ID, name: 'Service Tenant A', code: 'AWARD_TENANT_SVC_A', status: 'ACTIVE' },
       update: {},
     });
     await adminPrisma.tenant.upsert({
-      where: { code: 'AWARD_TENANT_SVC_B' },
+      where: { id: TENANT_B_ID },
       create: { id: TENANT_B_ID, name: 'Service Tenant B', code: 'AWARD_TENANT_SVC_B', status: 'ACTIVE' },
       update: {},
     });
@@ -295,19 +295,13 @@ async function runAwardProposalServiceTests() {
     assert(verifyDocumentTxCalled, 'Test 11: verifyDocumentTx delegates persistence strictly to proposalRepo.verifyDocumentTx');
 
   } finally {
-    // Guaranteed Teardown
+    // Guaranteed Teardown of mutable test entities
     try {
       await adminPrisma.awardProposal.deleteMany({
         where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID] } },
       });
       await adminPrisma.employee.deleteMany({
         where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID] } },
-      });
-      await adminPrisma.userActor.deleteMany({
-        where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID] } },
-      });
-      await adminPrisma.tenant.deleteMany({
-        where: { id: { in: [TENANT_A_ID, TENANT_B_ID] } },
       });
     } catch (cleanErr) {
       console.warn('Cleanup warning:', cleanErr);

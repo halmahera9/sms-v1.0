@@ -55,7 +55,8 @@ async function setupFixtures() {
     INSERT INTO tenants (id, code, name, status, created_at, updated_at) VALUES
     ('${TENANT_A_ID}', 'SEC-TENANT-A', 'Security Test Tenant A', 'ACTIVE', NOW(), NOW()),
     ('${TENANT_B_ID}', 'SEC-TENANT-B', 'Security Test Tenant B', 'ACTIVE', NOW(), NOW()),
-    ('${TENANT_C_ID}', 'SEC-TENANT-C', 'Security Test Tenant C', 'SUSPENDED', NOW(), NOW());
+    ('${TENANT_C_ID}', 'SEC-TENANT-C', 'Security Test Tenant C', 'SUSPENDED', NOW(), NOW())
+    ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status, name = EXCLUDED.name;
   `);
 
   // 2. Create Active Actor A in Tenant A, Active Actor B in Tenant B, Inactive Actor C in Tenant C
@@ -63,13 +64,15 @@ async function setupFixtures() {
     INSERT INTO user_actors (id, tenant_id, username, email, full_name, role, status, created_at, updated_at) VALUES
     ('${ACTOR_A_ID}', '${TENANT_A_ID}', 'actor_sec_a', 'actor_sec_a@test.local', 'Actor Security A', 'VERIFIKATOR', 'ACTIVE', NOW(), NOW()),
     ('${ACTOR_B_ID}', '${TENANT_B_ID}', 'actor_sec_b', 'actor_sec_b@test.local', 'Actor Security B', 'VERIFIKATOR', 'ACTIVE', NOW(), NOW()),
-    ('${ACTOR_C_ID}', '${TENANT_C_ID}', 'actor_sec_c', 'actor_sec_c@test.local', 'Actor Security C', 'OPERATOR', 'INACTIVE', NOW(), NOW());
+    ('${ACTOR_C_ID}', '${TENANT_C_ID}', 'actor_sec_c', 'actor_sec_c@test.local', 'Actor Security C', 'OPERATOR', 'INACTIVE', NOW(), NOW())
+    ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status, role = EXCLUDED.role;
   `);
 
   // 3. Create AuditEvent Fixture in Tenant A using actor_user_id column
   await migrationPool.query(`
     INSERT INTO audit_events (id, tenant_id, actor_user_id, action, entity_type, entity_id, payload_json, created_at) VALUES
-    ('${AUDIT_EVENT_A_ID}', '${TENANT_A_ID}', '${ACTOR_A_ID}', 'INITIAL_SECURITY_AUDIT', 'USER_ACTOR', '${ACTOR_A_ID}', '{}'::jsonb, NOW());
+    ('${AUDIT_EVENT_A_ID}', '${TENANT_A_ID}', '${ACTOR_A_ID}', 'INITIAL_SECURITY_AUDIT', 'USER_ACTOR', '${ACTOR_A_ID}', '{}'::jsonb, NOW())
+    ON CONFLICT (id) DO NOTHING;
   `);
 }
 

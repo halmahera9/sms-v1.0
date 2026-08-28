@@ -2,8 +2,8 @@ import { AwardProposal, ProposalStatus, ProposalDocument, VerificationStatus } f
 import { employeeAwardWorkflowEngine, EmployeeAwardWorkflowEvent } from './workflow';
 import { getRequirementsForType } from './rules';
 import { IAwardProposalRepository, PostgresAwardProposalRepository } from '@/platform/repositories/award-proposal';
+import { IAuditEventRepository, PostgresAuditEventRepository } from '@/platform/repositories/audit-event';
 import { PlatformWorkflowEngine } from '@/platform/workflow/engine';
-import { PlatformAuditEngine } from '@/platform/audit/engine';
 import { TenantTransactionClient, runInTenantContext } from '@/platform/db/tenant-context';
 
 export class AwardProposalApplicationService {
@@ -13,7 +13,7 @@ export class AwardProposalApplicationService {
       ProposalStatus,
       EmployeeAwardWorkflowEvent
     > = employeeAwardWorkflowEngine,
-    private readonly auditEngine: PlatformAuditEngine = new PlatformAuditEngine()
+    private readonly auditRepo: IAuditEventRepository = new PostgresAuditEventRepository()
   ) {}
 
   // ==========================================
@@ -50,8 +50,10 @@ export class AwardProposalApplicationService {
 
     const saved = await this.proposalRepo.saveTx(tx, tenantId, updatedProposal);
 
-    this.auditEngine.recordEvent({
+    // Atomic transaction-bound persistent audit log
+    await this.auditRepo.recordTx(tx, tenantId, {
       actor: actorId,
+      actorUserId: actorId,
       action: 'SUBMIT_NOMINATIVE',
       entityType: 'AwardProposal',
       entityId: proposalId,
@@ -89,6 +91,7 @@ export class AwardProposalApplicationService {
     const allMandatoryUploaded = mandatoryReqs.every((r) => uploadedCodes.has(r.code));
 
     let nextStatus = currentProposal.status;
+    let eventDispatched: EmployeeAwardWorkflowEvent | null = null;
 
     // Transition workflow state if applicable
     if (currentProposal.status === 'NOMINATIF' || currentProposal.status === 'BELUM_UPLOAD' || currentProposal.status === 'SEBAGIAN') {
@@ -105,15 +108,7 @@ export class AwardProposalApplicationService {
 
       if (result.success) {
         nextStatus = result.toState;
-        this.auditEngine.recordEvent({
-          actor: actorId,
-          action: eventToDispatch,
-          entityType: 'AwardProposal',
-          entityId: proposalId,
-          beforeState: { status: currentProposal.status },
-          afterState: { status: nextStatus },
-          metadata: { documentCode: document.requirementCode },
-        });
+        eventDispatched = eventToDispatch;
       }
     }
 
@@ -123,7 +118,23 @@ export class AwardProposalApplicationService {
       updatedAt: new Date().toISOString(),
     };
 
-    return await this.proposalRepo.saveTx(tx, tenantId, updatedProposal);
+    const saved = await this.proposalRepo.saveTx(tx, tenantId, updatedProposal);
+
+    // Atomic transaction-bound persistent audit log
+    if (eventDispatched) {
+      await this.auditRepo.recordTx(tx, tenantId, {
+        actor: actorId,
+        actorUserId: actorId,
+        action: eventDispatched,
+        entityType: 'AwardProposal',
+        entityId: proposalId,
+        beforeState: { status: currentProposal.status },
+        afterState: { status: nextStatus },
+        metadata: { documentCode: document.requirementCode },
+      });
+    }
+
+    return saved;
   }
 
   public async verifyDocumentTx(
@@ -158,6 +169,7 @@ export class AwardProposalApplicationService {
     }
 
     let nextStatus = currentProposal.status;
+    let transitionSuccessful = false;
 
     // Transition to DIVERIFIKASI if eligible
     if (currentProposal.status === 'SEBAGIAN' || currentProposal.status === 'LENGKAP') {
@@ -170,15 +182,7 @@ export class AwardProposalApplicationService {
 
       if (result.success) {
         nextStatus = result.toState;
-        this.auditEngine.recordEvent({
-          actor: actorId,
-          action: 'VERIFY_DOCUMENTS',
-          entityType: 'AwardProposal',
-          entityId: proposalId,
-          beforeState: { status: currentProposal.status },
-          afterState: { status: nextStatus },
-          metadata: { requirementCode, verificationStatus: status },
-        });
+        transitionSuccessful = true;
       }
     }
 
@@ -188,7 +192,23 @@ export class AwardProposalApplicationService {
       updatedAt: new Date().toISOString(),
     };
 
-    return await this.proposalRepo.saveTx(tx, tenantId, updatedProposal);
+    const saved = await this.proposalRepo.saveTx(tx, tenantId, updatedProposal);
+
+    // Atomic transaction-bound persistent audit log
+    if (transitionSuccessful) {
+      await this.auditRepo.recordTx(tx, tenantId, {
+        actor: actorId,
+        actorUserId: actorId,
+        action: 'VERIFY_DOCUMENTS',
+        entityType: 'AwardProposal',
+        entityId: proposalId,
+        beforeState: { status: currentProposal.status },
+        afterState: { status: nextStatus },
+        metadata: { requirementCode, verificationStatus: status },
+      });
+    }
+
+    return saved;
   }
 
   public async approveGenerationTx(
@@ -232,8 +252,10 @@ export class AwardProposalApplicationService {
 
     const saved = await this.proposalRepo.saveTx(tx, tenantId, updatedProposal);
 
-    this.auditEngine.recordEvent({
+    // Atomic transaction-bound persistent audit log
+    await this.auditRepo.recordTx(tx, tenantId, {
       actor: actorId,
+      actorUserId: actorId,
       action: 'APPROVE_GENERATION',
       entityType: 'AwardProposal',
       entityId: proposalId,
@@ -275,8 +297,10 @@ export class AwardProposalApplicationService {
 
     const saved = await this.proposalRepo.saveTx(tx, tenantId, updatedProposal);
 
-    this.auditEngine.recordEvent({
+    // Atomic transaction-bound persistent audit log
+    await this.auditRepo.recordTx(tx, tenantId, {
       actor: actorId,
+      actorUserId: actorId,
       action: 'MARK_GENERATED',
       entityType: 'AwardProposal',
       entityId: proposalId,

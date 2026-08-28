@@ -55,14 +55,14 @@ async function runSecurityActionTests() {
   try {
     // Setup Tenants
     await adminPrisma.tenant.upsert({
-      where: { code: 'SEC_TENANT_A' },
+      where: { id: TENANT_A_ID },
       create: { id: TENANT_A_ID, name: 'Security Tenant A', code: 'SEC_TENANT_A', status: 'ACTIVE' },
-      update: {},
+      update: { name: 'Security Tenant A', code: 'SEC_TENANT_A' },
     });
     await adminPrisma.tenant.upsert({
-      where: { code: 'SEC_TENANT_B' },
+      where: { id: TENANT_B_ID },
       create: { id: TENANT_B_ID, name: 'Security Tenant B', code: 'SEC_TENANT_B', status: 'ACTIVE' },
-      update: {},
+      update: { name: 'Security Tenant B', code: 'SEC_TENANT_B' },
     });
 
     // Setup Actors
@@ -426,12 +426,6 @@ async function runSecurityActionTests() {
       });
       await adminPrisma.employee.deleteMany({
         where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID] } },
-      });
-      await adminPrisma.userActor.deleteMany({
-        where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID] } },
-      });
-      await adminPrisma.tenant.deleteMany({
-        where: { id: { in: [TENANT_A_ID, TENANT_B_ID] } },
       });
     } catch (cleanErr) {
       console.warn('Cleanup warning:', cleanErr);

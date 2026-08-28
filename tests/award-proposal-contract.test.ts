@@ -244,14 +244,14 @@ async function runAwardProposalContractTests() {
   try {
     // Setup Tenants
     await adminPrisma.tenant.upsert({
-      where: { code: 'AWARD_TENANT_A' },
+      where: { id: TENANT_A_ID },
       create: { id: TENANT_A_ID, name: 'Award Tenant A', code: 'AWARD_TENANT_A', status: 'ACTIVE' },
-      update: {},
+      update: { name: 'Award Tenant A', code: 'AWARD_TENANT_A' },
     });
     await adminPrisma.tenant.upsert({
-      where: { code: 'AWARD_TENANT_B' },
+      where: { id: TENANT_B_ID },
       create: { id: TENANT_B_ID, name: 'Award Tenant B', code: 'AWARD_TENANT_B', status: 'ACTIVE' },
-      update: {},
+      update: { name: 'Award Tenant B', code: 'AWARD_TENANT_B' },
     });
 
     // Setup Actors
@@ -503,19 +503,13 @@ async function runAwardProposalContractTests() {
     });
 
   } finally {
-    // Guaranteed Teardown
+    // Guaranteed Teardown of mutable test entities
     try {
       await adminPrisma.awardProposal.deleteMany({
         where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID] } },
       });
       await adminPrisma.employee.deleteMany({
         where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID] } },
-      });
-      await adminPrisma.userActor.deleteMany({
-        where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID] } },
-      });
-      await adminPrisma.tenant.deleteMany({
-        where: { id: { in: [TENANT_A_ID, TENANT_B_ID] } },
       });
     } catch (cleanErr) {
       console.warn('Cleanup warning:', cleanErr);

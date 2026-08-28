@@ -1,62 +1,22 @@
 import { AuditEvent } from '../types';
+import {
+  IAuditEventRepository,
+  PostgresAuditEventRepository,
+  AuditEventInput,
+} from '../repositories/audit-event';
 
-export class PlatformAuditEngine {
+/**
+ * Isolated in-memory audit adapter for tests, client mock buffers, or non-persisted contexts.
+ * Explicitly isolated: never silently activated in production database transactions.
+ */
+export class InMemoryAuditAdapter {
   private events: AuditEvent[] = [];
 
   constructor(initialEvents: AuditEvent[] = []) {
     this.events = [...initialEvents];
-    this.syncFromStorage();
   }
 
-  private syncFromStorage() {
-    if (typeof window === 'undefined') return;
-    try {
-      const raw = localStorage.getItem('banyubiru_sms_audit_logs');
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) {
-          const loaded: AuditEvent[] = parsed.map((item: Record<string, unknown>) => ({
-            id: typeof item.id === 'string' ? item.id : `audit-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-            timestamp: typeof item.timestamp === 'string' ? item.timestamp : new Date().toISOString(),
-            actor: typeof item.actor === 'string' ? item.actor : typeof item.operator === 'string' ? item.operator : 'system',
-            action: typeof item.action === 'string' ? item.action : 'UNKNOWN',
-            entityType: typeof item.entityType === 'string' ? item.entityType : typeof item.target === 'string' ? item.target : 'General',
-            entityId: typeof item.entityId === 'string' ? item.entityId : typeof item.target === 'string' ? item.target : 'N/A',
-            metadata: (item.metadata as Record<string, unknown>) || (item.details ? { details: item.details } : undefined),
-          }));
-
-          const existingIds = new Set(this.events.map((e) => e.id));
-          loaded.forEach((e) => {
-            if (!existingIds.has(e.id)) {
-              this.events.push(e);
-              existingIds.add(e.id);
-            }
-          });
-        }
-      }
-    } catch (err) {
-      console.warn('Failed to sync audit logs from localStorage', err);
-    }
-  }
-
-  private saveToStorage() {
-    if (typeof window === 'undefined') return;
-    try {
-      const legacyLogs = this.events.map((e) => ({
-        id: e.id,
-        timestamp: e.timestamp,
-        operator: e.actor,
-        action: e.action,
-        target: e.entityType || e.entityId,
-        details: e.metadata?.details || e.action,
-      }));
-      localStorage.setItem('banyubiru_sms_audit_logs', JSON.stringify(legacyLogs));
-    } catch (err) {
-      console.warn('Failed to save audit logs to localStorage', err);
-    }
-  }
-
-  public recordEvent(params: {
+  public record(params: {
     actor: string;
     action: string;
     entityType: string;
@@ -76,21 +36,21 @@ export class PlatformAuditEngine {
       afterState: params.afterState ? JSON.parse(JSON.stringify(params.afterState)) : undefined,
       metadata: params.metadata,
     };
-
     this.events.unshift(event);
-    this.saveToStorage();
     return event;
   }
 
-  public getEvents(filter?: {
+  public getAll(): AuditEvent[] {
+    return [...this.events];
+  }
+
+  public getFiltered(filter?: {
     entityType?: string;
     entityId?: string;
     actor?: string;
     action?: string;
   }): AuditEvent[] {
-    this.syncFromStorage();
     if (!filter) return [...this.events];
-
     return this.events.filter((e) => {
       if (filter.entityType && e.entityType !== filter.entityType) return false;
       if (filter.entityId && e.entityId !== filter.entityId) return false;
@@ -99,9 +59,109 @@ export class PlatformAuditEngine {
       return true;
     });
   }
+}
+
+/**
+ * PlatformAuditEngine provides the platform-level audit interface.
+ * Production persistence is backed by IAuditEventRepository (PostgreSQL audit_events).
+ */
+export class PlatformAuditEngine {
+  private readonly memoryAdapter: InMemoryAuditAdapter;
+
+  constructor(
+    private readonly auditRepo: IAuditEventRepository = new PostgresAuditEventRepository(),
+    initialEvents: AuditEvent[] = []
+  ) {
+    this.memoryAdapter = new InMemoryAuditAdapter(initialEvents);
+  }
+
+  // --- Synchronous in-memory accessors (for UI / client component buffers) ---
+
+  public recordEvent(params: {
+    actor: string;
+    action: string;
+    entityType: string;
+    entityId: string;
+    beforeState?: unknown;
+    afterState?: unknown;
+    metadata?: Record<string, unknown>;
+  }): AuditEvent {
+    return this.memoryAdapter.record(params);
+  }
+
+  public getEvents(filter?: {
+    entityType?: string;
+    entityId?: string;
+    actor?: string;
+    action?: string;
+  }): AuditEvent[] {
+    return this.memoryAdapter.getFiltered(filter);
+  }
 
   public getAllEvents(): AuditEvent[] {
-    this.syncFromStorage();
-    return [...this.events];
+    return this.memoryAdapter.getAll();
+  }
+
+  // --- Context-bound Persistent Entrypoints (Production database path) ---
+
+  public async recordEventInContext(
+    actorId: string,
+    tenantId: string,
+    params: AuditEventInput
+  ): Promise<AuditEvent> {
+    const recordMethod =
+      'recordInContext' in this.auditRepo && typeof (this.auditRepo as any).recordInContext === 'function'
+        ? (this.auditRepo as PostgresAuditEventRepository).recordInContext.bind(this.auditRepo)
+        : null;
+
+    let recorded: AuditEvent;
+    if (recordMethod) {
+      recorded = await recordMethod(actorId, tenantId, params);
+    } else {
+      throw new Error('IAuditEventRepository implementation does not support context-bound recording');
+    }
+
+    this.memoryAdapter.record({
+      actor: recorded.actor,
+      action: recorded.action,
+      entityType: recorded.entityType,
+      entityId: recorded.entityId,
+      beforeState: recorded.beforeState,
+      afterState: recorded.afterState,
+      metadata: recorded.metadata,
+    });
+    return recorded;
+  }
+
+  public async getRecentEventsInContext(
+    actorId: string,
+    tenantId: string,
+    limit?: number
+  ): Promise<AuditEvent[]> {
+    if ('findRecentInContext' in this.auditRepo && typeof (this.auditRepo as any).findRecentInContext === 'function') {
+      return await (this.auditRepo as PostgresAuditEventRepository).findRecentInContext(
+        actorId,
+        tenantId,
+        limit
+      );
+    }
+    return this.memoryAdapter.getAll().slice(0, limit || 50);
+  }
+
+  public async getEventsByEntityInContext(
+    actorId: string,
+    tenantId: string,
+    entityType: string,
+    entityId: string
+  ): Promise<AuditEvent[]> {
+    if ('findByEntityInContext' in this.auditRepo && typeof (this.auditRepo as any).findByEntityInContext === 'function') {
+      return await (this.auditRepo as PostgresAuditEventRepository).findByEntityInContext(
+        actorId,
+        tenantId,
+        entityType,
+        entityId
+      );
+    }
+    return this.memoryAdapter.getFiltered({ entityType, entityId });
   }
 }
