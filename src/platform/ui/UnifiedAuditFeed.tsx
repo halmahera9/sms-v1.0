@@ -1,18 +1,41 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { AuditEvent } from '../types';
-import { PlatformOperationalService } from '../services/operational';
-import { History, User } from 'lucide-react';
+import { AuditEventRecord } from '../repositories/audit-event';
+import { getRecentAuditEventsAction } from '../actions/audit';
+import { History, User, AlertCircle } from 'lucide-react';
 
 export const UnifiedAuditFeed: React.FC = () => {
-  const [events, setEvents] = useState<AuditEvent[]>([]);
+  const [events, setEvents] = useState<AuditEventRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const service = new PlatformOperationalService();
-    const loaded = service.getAuditEngine().getAllEvents();
-    Promise.resolve().then(() => setEvents(loaded));
+    getRecentAuditEventsAction(50).then((res) => {
+      if (res.success && res.data) {
+        setEvents(res.data);
+        setError(null);
+      } else {
+        setError(res.error?.message || 'Gagal memuat jejak audit platform.');
+      }
+      setLoading(false);
+    });
   }, []);
+
+  if (loading) {
+    return <div className="p-8 text-center text-slate-400 font-mono text-xs">Memuat Jejak Audit...</div>;
+  }
+
+  if (error) {
+    return (
+      <div className="p-6 max-w-5xl mx-auto">
+        <div className="bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800 rounded-xl p-4 flex items-center space-x-3 text-rose-800 dark:text-rose-200 text-xs">
+          <AlertCircle className="w-5 h-5 text-rose-600 dark:text-rose-400 shrink-0" />
+          <span>{error}</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
