@@ -123,8 +123,8 @@ export async function getExceptionsAction(
     }
 
     const items = await executeInAuthenticatedContext(async (context, tx) => {
-      // RBAC check
-      const allowedRoles: string[] = ['ADMIN', 'ADMIN_TENANT', 'VERIFIKATOR', 'OPERATOR', 'AUDITOR'];
+      // RBAC check: ADMIN, ADMIN_TENANT, VERIFIKATOR, AUDITOR
+      const allowedRoles: string[] = ['ADMIN', 'ADMIN_TENANT', 'VERIFIKATOR', 'AUDITOR'];
       if (!allowedRoles.includes(context.role)) {
         throw new AuthorizationError(
           `Akses ditolak: Peran '${context.role}' tidak memiliki wewenang untuk membaca data pengecualian.`

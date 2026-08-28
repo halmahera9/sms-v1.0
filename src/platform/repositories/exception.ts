@@ -61,6 +61,32 @@ const VALID_TRANSITIONS: Record<ExceptionStatus, ExceptionStatus[]> = {
   DISMISSED: [],
 };
 
+export const RULE_MESSAGE_CATALOG: Record<string, string> = {
+  DOC_COMPLETENESS_RULE: 'Berkas persyaratan usulan penghargaan belum lengkap atau belum diunggah.',
+  SE_BKD_22_2026_RULE: 'Pemeriksaan hukuman disiplin berdasarkan SE BKD No. 22/SE/2026.',
+  MASA_KERJA_ELIGIBILITY_RULE: 'Masa kerja belum memenuhi syarat kelayakan jenjang penghargaan.',
+  SATYALANCANA_TIER_RULE: 'Jenjang Satyalancana tidak sesuai dengan riwayat perolehan tanda kehormatan.',
+  OCR_CONFIDENCE_THRESHOLD_RULE: 'Akurasi ekstraksi OCR berada di bawah ambang batas minimum 70%.',
+  OCR_CONFIDENCE_RULE: 'Akurasi ekstraksi OCR berada di bawah ambang batas minimum 70%.',
+  STUDENT_NISN_FORMAT_RULE: 'Format NISN tidak valid (harus 10 digit angka numerik).',
+  ABSENCE_DATE_VALIDITY_RULE: 'Tanggal ketidakhadiran tidak valid atau melampaui tanggal berjalan.',
+  DOC_FORMAT_RULE: 'Format atau ekstensi berkas dokumen tidak memenuhi standar validasi.',
+};
+
+export const EMPLOYEE_ENTITY_TYPES = new Set([
+  'AwardProposal',
+  'Employee',
+  'AwardProposalDocument',
+]);
+
+export const STUDENT_ENTITY_TYPES = new Set([
+  'Student',
+  'ExtractedItem',
+  'OCRExtraction',
+  'AbsenceRecord',
+  'Document',
+]);
+
 export class PostgresExceptionRepository implements IExceptionRepository {
   constructor(
     private readonly auditRepo: IAuditEventRepository = new PostgresAuditEventRepository()
@@ -97,14 +123,18 @@ export class PostgresExceptionRepository implements IExceptionRepository {
         resolvedByUser: true,
         assignedToUser: true,
       },
-      orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }],
+      orderBy: [
+        { updatedAt: 'desc' },
+        { createdAt: 'desc' },
+        { id: 'desc' },
+      ],
       take: effectiveLimit,
     });
 
-    let mapped = records.map((r) => this.mapToDomain(r));
+    const mapped = records.map((r) => this.mapToDomain(r));
 
     if (filter?.domain && filter.domain !== 'ALL') {
-      mapped = mapped.filter((item) => item.domain === filter.domain);
+      return mapped.filter((item) => item.domain === filter.domain);
     }
 
     return mapped;
@@ -119,7 +149,7 @@ export class PostgresExceptionRepository implements IExceptionRepository {
       throw new Error(`SECURITY/SCHEMA ERROR: Tenant id must be a valid UUID. Received: '${tenantId}'`);
     }
     if (!id || !isValidUuid(id)) {
-      throw new Error(`SECURITY/SCHEMA ERROR: Exception id must be a valid UUID. Received: '${id}'`);
+      throw new Error(`Validation Error: Exception id must be a valid UUID. Received: '${id}'`);
     }
 
     const record = await tx.exceptionItem.findFirst({
@@ -134,7 +164,10 @@ export class PostgresExceptionRepository implements IExceptionRepository {
       },
     });
 
-    if (!record) return null;
+    if (!record) {
+      return null;
+    }
+
     return this.mapToDomain(record);
   }
 
@@ -150,42 +183,64 @@ export class PostgresExceptionRepository implements IExceptionRepository {
       throw new Error(`SECURITY/SCHEMA ERROR: Tenant id must be a valid UUID. Received: '${tenantId}'`);
     }
     if (!id || !isValidUuid(id)) {
-      throw new Error(`SECURITY/SCHEMA ERROR: Exception id must be a valid UUID. Received: '${id}'`);
+      throw new Error(`Validation Error: Exception id must be a valid UUID. Received: '${id}'`);
     }
     if (!actorUserId || !isValidUuid(actorUserId)) {
-      throw new Error(`SECURITY/SCHEMA ERROR: Actor user id must be a valid UUID. Received: '${actorUserId}'`);
+      throw new Error(`Validation Error: Actor user id must be a valid UUID. Received: '${actorUserId}'`);
     }
 
+    // 1. Fetch current record
     const existing = await tx.exceptionItem.findFirst({
-      where: { id, tenantId },
-      include: { workflowInstance: true },
+      where: {
+        id,
+        tenantId,
+      },
+      include: {
+        workflowInstance: true,
+      },
     });
 
     if (!existing) {
-      throw new Error(`Validation Error: ExceptionItem with ID '${id}' not found for this tenant.`);
+      throw new Error(`Validation Error: Exception record with id '${id}' not found in tenant '${tenantId}'.`);
     }
 
-    // State machine guard
-    const allowed = VALID_TRANSITIONS[existing.status];
-    if (!allowed || !allowed.includes(status)) {
+    // 2. State Machine Validation
+    const allowedTransitions = VALID_TRANSITIONS[existing.status] || [];
+    if (!allowedTransitions.includes(status)) {
       throw new Error(
-        `Validation Error: Tidak dapat mengubah status dari '${existing.status}' ke '${status}'.`
+        `Validation Error: Transisi status dari '${existing.status}' ke '${status}' tidak diperbolehkan. Status terminal atau transisi ilegal.`
       );
     }
 
-    const isTerminal = status === ExceptionStatus.RESOLVED || status === ExceptionStatus.DISMISSED;
+    // 3. Prepare Update Payload
     const now = new Date();
+    const updateData: Record<string, any> = {
+      status,
+      updatedAt: now,
+    };
 
+    if (resolutionNotes !== undefined) {
+      updateData.resolutionNotes = resolutionNotes;
+    }
+
+    if (status === ExceptionStatus.RESOLVED || status === ExceptionStatus.DISMISSED) {
+      updateData.resolvedByUserId = actorUserId;
+      updateData.resolvedAt = now;
+    } else if (status === ExceptionStatus.IN_REVIEW) {
+      // In review clears resolution details if previously set
+      updateData.resolvedByUserId = null;
+      updateData.resolvedAt = null;
+    }
+
+    // 4. Update Exception Item
     const updated = await tx.exceptionItem.update({
       where: {
-        id: existing.id,
+        tenantId_id: {
+          tenantId,
+          id,
+        },
       },
-      data: {
-        status,
-        resolutionNotes: resolutionNotes !== undefined ? resolutionNotes : existing.resolutionNotes,
-        resolvedByUserId: isTerminal ? actorUserId : null,
-        resolvedAt: isTerminal ? now : null,
-      },
+      data: updateData,
       include: {
         workflowInstance: true,
         resolvedByUser: true,
@@ -193,40 +248,31 @@ export class PostgresExceptionRepository implements IExceptionRepository {
       },
     });
 
-    // Atomic Audit Side Effect within the same transaction
-    const auditAction =
-      status === ExceptionStatus.RESOLVED
-        ? 'RESOLVE_EXCEPTION'
-        : status === ExceptionStatus.DISMISSED
-        ? 'DISMISS_EXCEPTION'
-        : 'REVIEW_EXCEPTION';
+    // 5. Atomic Audit Log Generation (Same Transaction Client)
+    let auditAction: string;
+    if (status === ExceptionStatus.RESOLVED) {
+      auditAction = 'RESOLVE_EXCEPTION';
+    } else if (status === ExceptionStatus.DISMISSED) {
+      auditAction = 'DISMISS_EXCEPTION';
+    } else {
+      auditAction = 'REVIEW_EXCEPTION';
+    }
 
     await this.auditRepo.recordTx(tx, tenantId, {
-      actorUserId,
-      action: auditAction,
       entityType: 'ExceptionItem',
-      entityId: updated.id,
-      beforeState: {
-        status: existing.status,
-        resolutionNotes: existing.resolutionNotes,
-      },
-      afterState: {
-        status: updated.status,
-        resolutionNotes: updated.resolutionNotes,
-        resolvedAt: updated.resolvedAt,
-      },
+      entityId: id,
+      action: auditAction,
+      actorUserId,
       metadata: {
+        previousStatus: existing.status,
+        newStatus: status,
         ruleCode: updated.ruleCode,
-        targetEntityType: updated.workflowInstance?.entityType,
-        targetEntityId: updated.workflowInstance?.entityId,
-        notes: resolutionNotes,
+        resolutionNotes: updateData.resolutionNotes ?? existing.resolutionNotes ?? null,
       },
     });
 
     return this.mapToDomain(updated);
   }
-
-  // --- Context-Bound Helper Methods ---
 
   public async findManyInContext(
     actorId: string,
@@ -252,20 +298,40 @@ export class PostgresExceptionRepository implements IExceptionRepository {
 
   private mapToDomain(record: Record<string, any>): ExceptionItemRecord {
     const wf = record.workflowInstance;
-    const isEmployee =
-      wf?.entityType === 'AwardProposal' ||
-      wf?.entityType === 'Employee' ||
+    const rawEntityType = wf?.entityType;
+
+    let domain: 'EMPLOYEE' | 'STUDENT';
+    if (rawEntityType && EMPLOYEE_ENTITY_TYPES.has(rawEntityType)) {
+      domain = 'EMPLOYEE';
+    } else if (rawEntityType && STUDENT_ENTITY_TYPES.has(rawEntityType)) {
+      domain = 'STUDENT';
+    } else if (
       record.ruleCode.startsWith('EMP_') ||
       record.ruleCode.startsWith('AWARD_') ||
-      record.ruleCode.startsWith('DOC_');
+      record.ruleCode.startsWith('DOC_') ||
+      record.ruleCode.startsWith('SE_BKD_') ||
+      record.ruleCode.startsWith('MASA_KERJA_') ||
+      record.ruleCode.startsWith('SATYALANCANA_')
+    ) {
+      domain = 'EMPLOYEE';
+    } else if (
+      record.ruleCode.startsWith('STUDENT_') ||
+      record.ruleCode.startsWith('OCR_') ||
+      record.ruleCode.startsWith('ABSENCE_')
+    ) {
+      domain = 'STUDENT';
+    } else {
+      throw new Error(
+        `SCHEMA/DOMAIN ERROR: Unable to determine domain for entityType '${rawEntityType}' and ruleCode '${record.ruleCode}'. Unknown entity classification.`
+      );
+    }
 
-    const domain: 'EMPLOYEE' | 'STUDENT' = isEmployee ? 'EMPLOYEE' : 'STUDENT';
-    const entityType = wf?.entityType || (isEmployee ? 'AwardProposal' : 'ExtractedItem');
+    const entityType = rawEntityType || (domain === 'EMPLOYEE' ? 'AwardProposal' : 'ExtractedItem');
     const entityId = wf?.entityId || record.workflowInstanceId;
 
     const message =
-      record.resolutionNotes ||
-      `Pengecualian aturan ${record.ruleCode} pada entitas ${entityType} (${entityId})`;
+      RULE_MESSAGE_CATALOG[record.ruleCode] ||
+      `Pelanggaran aturan validasi: ${record.ruleCode}`;
 
     const resolvedDisplayName =
       record.resolvedByUser?.fullName ||
@@ -283,9 +349,9 @@ export class PostgresExceptionRepository implements IExceptionRepository {
       message,
       resolutionNotes: record.resolutionNotes || null,
       resolvedBy: resolvedDisplayName,
-      resolvedAt: record.resolvedAt ? new Date(record.resolvedAt).toISOString() : null,
-      createdAt: record.createdAt ? new Date(record.createdAt).toISOString() : new Date().toISOString(),
-      updatedAt: record.updatedAt ? new Date(record.updatedAt).toISOString() : new Date().toISOString(),
+      resolvedAt: record.resolvedAt ? record.resolvedAt.toISOString() : null,
+      createdAt: record.createdAt ? record.createdAt.toISOString() : new Date().toISOString(),
+      updatedAt: record.updatedAt ? record.updatedAt.toISOString() : new Date().toISOString(),
     };
   }
 }

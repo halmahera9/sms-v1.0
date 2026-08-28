@@ -1,12 +1,17 @@
 import 'dotenv/config';
 import pg from 'pg';
 import crypto from 'crypto';
-import { PrismaClient, ExceptionStatus, Severity } from '@prisma/client';
+import { PrismaClient, ExceptionStatus, Severity, UserRole } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import {
   getExceptionsAction,
   updateExceptionStatusAction,
 } from '../src/platform/actions/exception';
+import {
+  RULE_MESSAGE_CATALOG,
+  EMPLOYEE_ENTITY_TYPES,
+  STUDENT_ENTITY_TYPES,
+} from '../src/platform/repositories/exception';
 import {
   setSessionProvider,
   resetSessionProvider,
@@ -122,7 +127,7 @@ async function runExceptionServerActionsTests() {
         ruleCode: 'DOC_COMPLETENESS_RULE',
         severity: Severity.CRITICAL,
         status: ExceptionStatus.OPEN,
-        resolutionNotes: 'Berkas SK CPNS belum lengkap',
+        resolutionNotes: 'Catatan awal sebelum verifikasi',
       },
     });
 
@@ -135,7 +140,33 @@ async function runExceptionServerActionsTests() {
         ruleCode: 'DOC_FORMAT_RULE',
         severity: Severity.MEDIUM,
         status: ExceptionStatus.OPEN,
-        resolutionNotes: 'Format file tidak standar',
+        resolutionNotes: 'Catatan format file',
+      },
+    });
+
+    const wfStudentId = crypto.randomUUID();
+    const studentEntityId = crypto.randomUUID();
+    await adminPrisma.workflowInstance.upsert({
+      where: { id: wfStudentId },
+      create: {
+        id: wfStudentId,
+        tenantId: TENANT_A_ID,
+        entityType: 'Student',
+        entityId: studentEntityId,
+        currentState: 'NEEDS_VERIFICATION',
+      },
+      update: {},
+    });
+
+    const excStudentId = crypto.randomUUID();
+    await adminPrisma.exceptionItem.create({
+      data: {
+        id: excStudentId,
+        tenantId: TENANT_A_ID,
+        workflowInstanceId: wfStudentId,
+        ruleCode: 'STUDENT_NISN_FORMAT_RULE',
+        severity: Severity.HIGH,
+        status: ExceptionStatus.OPEN,
       },
     });
 
@@ -196,7 +227,7 @@ async function runExceptionServerActionsTests() {
         actorId: ACTOR_ADMIN_A_ID,
         tenantId: TENANT_A_ID,
         username: 'exc_verif_a',
-        role: 'VERIFIKATOR',
+        role: UserRole.VERIFIKATOR,
         status: 'INACTIVE',
       }),
     });
@@ -214,7 +245,7 @@ async function runExceptionServerActionsTests() {
         actorId: 'non-uuid-actor-id',
         tenantId: TENANT_A_ID,
         username: 'exc_verif_a',
-        role: 'VERIFIKATOR',
+        role: UserRole.VERIFIKATOR,
         status: 'ACTIVE',
       }),
     });
@@ -225,150 +256,214 @@ async function runExceptionServerActionsTests() {
     );
 
     // ---------------------------------------------------------------------------------
-    // TEST 5: OPERATOR Role Cannot Mutate Exception => FORBIDDEN
+    // TEST 5: RBAC - OPERATOR Cannot Read Exception Data => FORBIDDEN
     // ---------------------------------------------------------------------------------
     setSessionProvider({
       getSession: async () => ({
         actorId: ACTOR_OPERATOR_A_ID,
         tenantId: TENANT_A_ID,
         username: 'exc_operator_a',
-        role: 'OPERATOR',
+        role: UserRole.OPERATOR,
         status: 'ACTIVE',
       }),
     });
-    const res5 = await updateExceptionStatusAction({
+    const res5Read = await getExceptionsAction();
+    assert(
+      !res5Read.success && res5Read.error?.code === 'FORBIDDEN',
+      'getExceptionsAction rejects OPERATOR role with FORBIDDEN'
+    );
+
+    // ---------------------------------------------------------------------------------
+    // TEST 6: RBAC - OPERATOR Cannot Mutate Exception => FORBIDDEN
+    // ---------------------------------------------------------------------------------
+    const res6Mutate = await updateExceptionStatusAction({
       exceptionId: excA1Id,
       status: ExceptionStatus.IN_REVIEW,
     });
     assert(
-      !res5.success && res5.error?.code === 'FORBIDDEN',
-      'updateExceptionStatusAction rejects OPERATOR / unprivileged role with FORBIDDEN'
+      !res6Mutate.success && res6Mutate.error?.code === 'FORBIDDEN',
+      'updateExceptionStatusAction rejects OPERATOR role with FORBIDDEN'
     );
 
     // ---------------------------------------------------------------------------------
-    // TEST 6: Authenticated Exception Query (Admin A) => Success & Field Projection
+    // TEST 7: RBAC - PEGAWAI Cannot Read Exception Data => FORBIDDEN
     // ---------------------------------------------------------------------------------
-    const sessionAdminA: AuthenticatedActorContext = {
+    setSessionProvider({
+      getSession: async () => ({
+        actorId: ACTOR_OPERATOR_A_ID,
+        tenantId: TENANT_A_ID,
+        username: 'exc_pegawai_a',
+        role: UserRole.PEGAWAI,
+        status: 'ACTIVE',
+      }),
+    });
+    const res7Pegawai = await getExceptionsAction();
+    assert(
+      !res7Pegawai.success && res7Pegawai.error?.code === 'FORBIDDEN',
+      'getExceptionsAction rejects PEGAWAI role with FORBIDDEN'
+    );
+
+    // ---------------------------------------------------------------------------------
+    // TEST 8: RBAC - AUDITOR Can Read Exception Data => SUCCESS
+    // ---------------------------------------------------------------------------------
+    setSessionProvider({
+      getSession: async () => ({
+        actorId: ACTOR_OPERATOR_A_ID,
+        tenantId: TENANT_A_ID,
+        username: 'exc_auditor_a',
+        role: 'AUDITOR' as any,
+        status: 'ACTIVE',
+      }),
+    });
+    const res8AuditorRead = await getExceptionsAction();
+    assert(
+      res8AuditorRead.success === true && Array.isArray(res8AuditorRead.data),
+      'getExceptionsAction permits AUDITOR role with read access'
+    );
+
+    // ---------------------------------------------------------------------------------
+    // TEST 9: RBAC - AUDITOR Cannot Mutate Exception => FORBIDDEN
+    // ---------------------------------------------------------------------------------
+    const res9AuditorMutate = await updateExceptionStatusAction({
+      exceptionId: excA1Id,
+      status: ExceptionStatus.IN_REVIEW,
+    });
+    assert(
+      !res9AuditorMutate.success && res9AuditorMutate.error?.code === 'FORBIDDEN',
+      'updateExceptionStatusAction rejects AUDITOR mutation with FORBIDDEN'
+    );
+
+    // ---------------------------------------------------------------------------------
+    // TEST 10: Authenticated Exception Query (VERIFIKATOR) => Field Projection & Message Source
+    // ---------------------------------------------------------------------------------
+    const sessionVerifA: AuthenticatedActorContext = {
       actorId: ACTOR_ADMIN_A_ID,
       tenantId: TENANT_A_ID,
       username: 'exc_verif_a',
-      role: 'VERIFIKATOR',
+      role: UserRole.VERIFIKATOR,
       status: 'ACTIVE',
     };
     setSessionProvider({
-      getSession: async () => sessionAdminA,
+      getSession: async () => sessionVerifA,
     });
 
-    const res6 = await getExceptionsAction();
+    const res10 = await getExceptionsAction();
     assert(
-      res6.success === true && Array.isArray(res6.data) && res6.data.length >= 2,
+      res10.success === true && Array.isArray(res10.data) && res10.data.length >= 3,
       'getExceptionsAction returns exception items for authenticated tenant'
     );
 
-    const firstExc = res6.data![0];
+    const docCompletenessExc = res10.data!.find((e) => e.ruleCode === 'DOC_COMPLETENESS_RULE')!;
     assert(
-      typeof firstExc.id === 'string' &&
-      typeof firstExc.ruleCode === 'string' &&
-      (firstExc.domain === 'EMPLOYEE' || firstExc.domain === 'STUDENT') &&
-      typeof firstExc.entityType === 'string' &&
-      typeof firstExc.entityId === 'string' &&
-      ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'].includes(firstExc.severity) &&
-      ['OPEN', 'IN_REVIEW', 'RESOLVED', 'DISMISSED'].includes(firstExc.status) &&
-      typeof firstExc.message === 'string',
-      'ExceptionItemRecord DTO projection contains all required UI-bound fields'
+      docCompletenessExc.message === RULE_MESSAGE_CATALOG['DOC_COMPLETENESS_RULE'] &&
+      docCompletenessExc.resolutionNotes === 'Catatan awal sebelum verifikasi',
+      'Exception message derives from RULE_MESSAGE_CATALOG and does NOT overwrite resolutionNotes'
     );
 
     // ---------------------------------------------------------------------------------
-    // TEST 7: Limit Validation
+    // TEST 11: Domain Mapping Determinism
     // ---------------------------------------------------------------------------------
-    const res7Neg = await getExceptionsAction({ limit: -1 });
-    const res7Zero = await getExceptionsAction({ limit: 0 });
-    const res7Over = await getExceptionsAction({ limit: 500 });
-    const res7Decimal = await getExceptionsAction({ limit: 12.3 as any });
+    const awardExc = res10.data!.find((e) => e.entityType === 'AwardProposal')!;
+    const studentExc = res10.data!.find((e) => e.entityType === 'Student')!;
 
     assert(
-      !res7Neg.success && res7Neg.error?.code === 'VALIDATION_ERROR' &&
-      !res7Zero.success && res7Zero.error?.code === 'VALIDATION_ERROR' &&
-      !res7Over.success && res7Over.error?.code === 'VALIDATION_ERROR' &&
-      !res7Decimal.success && res7Decimal.error?.code === 'VALIDATION_ERROR',
+      awardExc.domain === 'EMPLOYEE' && studentExc.domain === 'STUDENT',
+      'Domain mapping correctly maps AwardProposal to EMPLOYEE and Student to STUDENT'
+    );
+
+    // ---------------------------------------------------------------------------------
+    // TEST 12: Limit Validation
+    // ---------------------------------------------------------------------------------
+    const res12Neg = await getExceptionsAction({ limit: -1 });
+    const res12Zero = await getExceptionsAction({ limit: 0 });
+    const res12Over = await getExceptionsAction({ limit: 500 });
+    const res12Decimal = await getExceptionsAction({ limit: 12.3 as any });
+
+    assert(
+      !res12Neg.success && res12Neg.error?.code === 'VALIDATION_ERROR' &&
+      !res12Zero.success && res12Zero.error?.code === 'VALIDATION_ERROR' &&
+      !res12Over.success && res12Over.error?.code === 'VALIDATION_ERROR' &&
+      !res12Decimal.success && res12Decimal.error?.code === 'VALIDATION_ERROR',
       'getExceptionsAction rejects out-of-bounds limit filter parameters'
     );
 
     // ---------------------------------------------------------------------------------
-    // TEST 8: Severity & Status Filters
+    // TEST 13: Severity & Status Filters
     // ---------------------------------------------------------------------------------
-    const res8Severity = await getExceptionsAction({ severity: Severity.CRITICAL });
+    const res13Severity = await getExceptionsAction({ severity: Severity.CRITICAL });
     assert(
-      res8Severity.success === true &&
-      res8Severity.data!.every((item) => item.severity === Severity.CRITICAL),
+      res13Severity.success === true &&
+      res13Severity.data!.every((item) => item.severity === Severity.CRITICAL),
       'getExceptionsAction filters accurately by Severity'
     );
 
-    const res8Status = await getExceptionsAction({ status: ExceptionStatus.OPEN });
+    const res13Status = await getExceptionsAction({ status: ExceptionStatus.OPEN });
     assert(
-      res8Status.success === true &&
-      res8Status.data!.every((item) => item.status === ExceptionStatus.OPEN),
+      res13Status.success === true &&
+      res13Status.data!.every((item) => item.status === ExceptionStatus.OPEN),
       'getExceptionsAction filters accurately by Status'
     );
 
     // ---------------------------------------------------------------------------------
-    // TEST 9: Cross-Tenant Read Isolation (RLS)
+    // TEST 14: Cross-Tenant Read Isolation (RLS)
     // ---------------------------------------------------------------------------------
     const sessionVerifB: AuthenticatedActorContext = {
       actorId: ACTOR_VERIF_B_ID,
       tenantId: TENANT_B_ID,
       username: 'exc_verif_b',
-      role: 'VERIFIKATOR',
+      role: UserRole.VERIFIKATOR,
       status: 'ACTIVE',
     };
     setSessionProvider({
       getSession: async () => sessionVerifB,
     });
 
-    const res9 = await getExceptionsAction();
+    const res14 = await getExceptionsAction();
     assert(
-      res9.success === true &&
-      res9.data!.every((item) => item.id !== excA1Id && item.id !== excA2Id),
+      res14.success === true &&
+      res14.data!.every((item) => item.id !== excA1Id && item.id !== excA2Id),
       'Tenant B cannot observe any exceptions belonging to Tenant A'
     );
 
     // ---------------------------------------------------------------------------------
-    // TEST 10: State Transition: OPEN -> IN_REVIEW
+    // TEST 15: State Transition: OPEN -> IN_REVIEW (Message Integrity Preserved)
     // ---------------------------------------------------------------------------------
     setSessionProvider({
-      getSession: async () => sessionAdminA,
+      getSession: async () => sessionVerifA,
     });
 
-    const res10 = await updateExceptionStatusAction({
+    const res15 = await updateExceptionStatusAction({
       exceptionId: excA1Id,
       status: ExceptionStatus.IN_REVIEW,
       resolutionNote: 'Sedang ditinjau oleh tim BKD',
     });
 
     assert(
-      res10.success === true &&
-      res10.data?.status === ExceptionStatus.IN_REVIEW &&
-      res10.data.resolvedAt === null &&
-      res10.data.resolutionNotes === 'Sedang ditinjau oleh tim BKD',
-      'Status transition OPEN -> IN_REVIEW succeeds with notes and null resolution timestamp'
+      res15.success === true &&
+      res15.data?.status === ExceptionStatus.IN_REVIEW &&
+      res15.data.resolvedAt === null &&
+      res15.data.message === RULE_MESSAGE_CATALOG['DOC_COMPLETENESS_RULE'] &&
+      res15.data.resolutionNotes === 'Sedang ditinjau oleh tim BKD',
+      'Status transition OPEN -> IN_REVIEW preserves original rule catalog message and stores resolutionNotes'
     );
 
     // ---------------------------------------------------------------------------------
-    // TEST 11: State Transition: IN_REVIEW -> RESOLVED (Atomic Audit & Resolved Fields)
+    // TEST 16: State Transition: IN_REVIEW -> RESOLVED (Message Integrity & Atomic Audit)
     // ---------------------------------------------------------------------------------
-    const res11 = await updateExceptionStatusAction({
+    const res16 = await updateExceptionStatusAction({
       exceptionId: excA1Id,
       status: ExceptionStatus.RESOLVED,
       resolutionNote: 'SK CPNS telah disusulkan dan terverifikasi',
     });
 
     assert(
-      res11.success === true &&
-      res11.data?.status === ExceptionStatus.RESOLVED &&
-      typeof res11.data.resolvedAt === 'string' &&
-      res11.data.resolvedBy === 'Exc Verifikator User A',
-      'Status transition IN_REVIEW -> RESOLVED populates resolvedBy and resolvedAt',
-      JSON.stringify(res11)
+      res16.success === true &&
+      res16.data?.status === ExceptionStatus.RESOLVED &&
+      res16.data.message === RULE_MESSAGE_CATALOG['DOC_COMPLETENESS_RULE'] &&
+      res16.data.resolutionNotes === 'SK CPNS telah disusulkan dan terverifikasi' &&
+      typeof res16.data.resolvedAt === 'string' &&
+      res16.data.resolvedBy === 'Exc Verifikator User A',
+      'Resolved exception preserves original rule catalog message while independently storing resolutionNotes'
     );
 
     // Verify audit event side-effect in database
@@ -389,55 +484,56 @@ async function runExceptionServerActionsTests() {
     );
 
     // ---------------------------------------------------------------------------------
-    // TEST 12: State Transition: OPEN -> DISMISSED
+    // TEST 17: State Transition: OPEN -> DISMISSED
     // ---------------------------------------------------------------------------------
-    const res12 = await updateExceptionStatusAction({
+    const res17 = await updateExceptionStatusAction({
       exceptionId: excA2Id,
       status: ExceptionStatus.DISMISSED,
       resolutionNote: 'Pengecualian dikesampingkan dengan persetujuan kepala dinas',
     });
 
     assert(
-      res12.success === true &&
-      res12.data?.status === ExceptionStatus.DISMISSED &&
-      typeof res12.data.resolvedAt === 'string',
-      'Status transition OPEN -> DISMISSED succeeds'
+      res17.success === true &&
+      res17.data?.status === ExceptionStatus.DISMISSED &&
+      res17.data.message === RULE_MESSAGE_CATALOG['DOC_FORMAT_RULE'] &&
+      typeof res17.data.resolvedAt === 'string',
+      'Status transition OPEN -> DISMISSED succeeds with rule message integrity'
     );
 
     // ---------------------------------------------------------------------------------
-    // TEST 13: Invalid State Transitions Rejected
+    // TEST 18: Invalid State Transitions Rejected
     // ---------------------------------------------------------------------------------
     // Cannot transition from terminal RESOLVED to OPEN
-    const res13ResolvedToOpen = await updateExceptionStatusAction({
+    const res18ResolvedToOpen = await updateExceptionStatusAction({
       exceptionId: excA1Id,
       status: ExceptionStatus.OPEN,
     });
     // Cannot transition from terminal DISMISSED to IN_REVIEW
-    const res13DismissedToReview = await updateExceptionStatusAction({
+    const res18DismissedToReview = await updateExceptionStatusAction({
       exceptionId: excA2Id,
       status: ExceptionStatus.IN_REVIEW,
     });
 
     assert(
-      !res13ResolvedToOpen.success && res13ResolvedToOpen.error?.code === 'VALIDATION_ERROR' &&
-      !res13DismissedToReview.success && res13DismissedToReview.error?.code === 'VALIDATION_ERROR',
+      !res18ResolvedToOpen.success && res18ResolvedToOpen.error?.code === 'VALIDATION_ERROR' &&
+      !res18DismissedToReview.success && res18DismissedToReview.error?.code === 'VALIDATION_ERROR',
       'Invalid lifecycle transitions from terminal states are rejected with VALIDATION_ERROR'
     );
 
     // ---------------------------------------------------------------------------------
-    // TEST 14: Cross-Tenant Mutation Rejection (RLS Enforcement)
+    // TEST 19: Cross-Tenant Mutation Rejection (RLS Enforcement)
     // ---------------------------------------------------------------------------------
     setSessionProvider({
       getSession: async () => sessionVerifB,
     });
 
-    const res14 = await updateExceptionStatusAction({
+    const res19 = await updateExceptionStatusAction({
       exceptionId: excA1Id, // Tenant A exception
       status: ExceptionStatus.OPEN,
     });
 
     assert(
-      !res14.success && (res14.error?.code === 'VALIDATION_ERROR' || res14.error?.code === 'FORBIDDEN'),
+      !res19.success && (res19.error?.code === 'VALIDATION_ERROR' || res19.error?.code === 'FORBIDDEN'),
       'Tenant B cannot mutate an exception belonging to Tenant A'
     );
 
