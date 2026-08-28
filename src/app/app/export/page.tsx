@@ -1,95 +1,128 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { 
   FileSpreadsheet, 
   FileText, 
   CheckCircle2, 
-  Filter
+  Filter,
+  Loader2,
+  AlertCircle
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { getStoredDocuments, addAuditLog } from '@/lib/storage';
-import { OCRDocument, ExtractedItem } from '@/types/sms';
-import { exportStudentAbsenceExcel } from '@/domains/student/export';
+import {
+  getStudentAbsenceExportDataAction,
+  StudentAbsenceExportRowDTO,
+} from '@/platform/actions/student-export';
+import {
+  mapDtoRowsToExportRows,
+  downloadStudentAbsenceExcel,
+} from '@/domains/student/export';
 
 export default function ExportReportsPage() {
-  const [documents, setDocuments] = useState<OCRDocument[]>([]);
+  const [rows, setRows] = useState<StudentAbsenceExportRowDTO[]>([]);
+  const [filename, setFilename] = useState<string>('Rekap_SMS_Ketidakhadiran.xlsx');
   const [selectedClass, setSelectedClass] = useState<string>('Semua');
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isExporting, setIsExporting] = useState<boolean>(false);
 
-  useEffect(() => {
-    Promise.resolve().then(() => setDocuments(getStoredDocuments()));
+  const fetchData = useCallback(async (cls: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await getStudentAbsenceExportDataAction({ selectedClass: cls });
+      if (res.success && res.data) {
+        setRows(res.data.rows);
+        setFilename(res.data.filename);
+      } else {
+        setError(res.error?.message || 'Gagal memuat data rekapitulasi.');
+      }
+    } catch (err) {
+      console.error('Failed to fetch export data:', err);
+      setError('Terjadi kesalahan koneksi saat memuat data rekapitulasi.');
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  // Collect all verified items from all documents
-  const allVerifiedItems: { docName: string; item: ExtractedItem }[] = [];
-  documents.forEach((doc) => {
-    doc.items.forEach((item) => {
-      if (item.verificationStatus === 'verified' || item.verificationStatus === 'edited') {
-        allVerifiedItems.push({ docName: doc.fileName, item });
-      }
-    });
-  });
+  useEffect(() => {
+    fetchData(selectedClass);
+  }, [fetchData, selectedClass]);
 
-  const filteredItems = allVerifiedItems.filter(
-    (row) => selectedClass === 'Semua' || row.item.class === selectedClass
-  );
-
-  const availableClasses = ['Semua', ...Array.from(new Set(allVerifiedItems.map((r) => r.item.class)))];
+  const availableClasses = [
+    'Semua',
+    'X IPA 1',
+    'X IPA 2',
+    'X IPS 1',
+    'XI IPA 1',
+    'XI IPS 1',
+    'XII IPA 1',
+  ];
 
   // Export to Excel (.xlsx)
   const handleExportExcel = () => {
-    const success = exportStudentAbsenceExcel(selectedClass);
-    if (!success) {
+    if (rows.length === 0) {
       alert('Tidak ada data terverifikasi untuk diekspor.');
+      return;
+    }
+
+    setIsExporting(true);
+    try {
+      const exportRows = mapDtoRowsToExportRows(rows);
+      const success = downloadStudentAbsenceExcel(exportRows, filename);
+      if (!success) {
+        alert('Gagal membuat file Excel.');
+      }
+    } finally {
+      setIsExporting(false);
     }
   };
 
   // Export to PDF
   const handleExportPDF = () => {
-    if (filteredItems.length === 0) {
+    if (rows.length === 0) {
       alert('Tidak ada data terverifikasi untuk diekspor.');
       return;
     }
 
-    const doc = new jsPDF();
-    
-    // Header
-    doc.setFontSize(16);
-    doc.text('BANYUBIRU DIGITAL SOLUTION - SMS', 14, 18);
-    doc.setFontSize(11);
-    doc.text('REKAPITULASI KETIDAKHADIRAN SISWA TERVERIFIKASI', 14, 25);
-    doc.setFontSize(9);
-    doc.text(`Tanggal Cetak: ${new Date().toLocaleDateString('id-ID')} | Filter Kelas: ${selectedClass}`, 14, 31);
-    doc.line(14, 34, 196, 34);
+    setIsExporting(true);
+    try {
+      const doc = new jsPDF();
 
-    const tableRows = filteredItems.map((row, idx) => [
-      idx + 1,
-      row.item.date,
-      row.item.matchedNisn || '—',
-      row.item.matchedStudentName || row.item.ocrText,
-      row.item.class,
-      row.item.status,
-      row.item.notes || '—',
-    ]);
+      // Header
+      doc.setFontSize(16);
+      doc.text('BANYUBIRU DIGITAL SOLUTION - SMS', 14, 18);
+      doc.setFontSize(11);
+      doc.text('REKAPITULASI KETIDAKHADIRAN SISWA TERVERIFIKASI', 14, 25);
+      doc.setFontSize(9);
+      doc.text(`Tanggal Cetak: ${new Date().toLocaleDateString('id-ID')} | Filter Kelas: ${selectedClass}`, 14, 31);
+      doc.line(14, 34, 196, 34);
 
-    autoTable(doc, {
-      startY: 38,
-      head: [['No', 'Tanggal', 'NISN', 'Nama Siswa', 'Kelas', 'Status', 'Catatan/Keterangan']],
-      body: tableRows,
-      theme: 'grid',
-      headStyles: { fillColor: [15, 23, 42] },
-    });
+      const tableRows = rows.map((r, idx) => [
+        idx + 1,
+        r.date,
+        r.nisn,
+        r.studentName,
+        r.className,
+        r.status,
+        r.notes,
+      ]);
 
-    const fileName = `Rekap_SMS_Ketidakhadiran_${new Date().toISOString().split('T')[0]}.pdf`;
-    doc.save(fileName);
+      autoTable(doc, {
+        startY: 38,
+        head: [['No', 'Tanggal', 'NISN', 'Nama Siswa', 'Kelas', 'Status', 'Catatan/Keterangan']],
+        body: tableRows,
+        theme: 'grid',
+        headStyles: { fillColor: [15, 23, 42] },
+      });
 
-    addAuditLog(
-      'Operator TU - Budi',
-      'EXPORT_PDF',
-      fileName,
-      `Mengekspor ${filteredItems.length} baris data rekap ketidakhadiran ke format PDF.`
-    );
+      const pdfFilename = filename.replace('.xlsx', '.pdf');
+      doc.save(pdfFilename);
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   return (
@@ -106,20 +139,29 @@ export default function ExportReportsPage() {
         <div className="flex gap-2">
           <button
             onClick={handleExportExcel}
-            className="flex items-center gap-2 bg-emerald-400 hover:bg-emerald-300 text-slate-950 px-4 py-2 text-xs font-bold rounded shadow-md shadow-emerald-500/20 transition-all"
+            disabled={isExporting || loading || rows.length === 0}
+            className="flex items-center gap-2 bg-emerald-400 hover:bg-emerald-300 disabled:opacity-50 text-slate-950 px-4 py-2 text-xs font-bold rounded shadow-md shadow-emerald-500/20 transition-all"
           >
             <FileSpreadsheet className="h-4 w-4" />
             <span>Ekspor Excel (.xlsx)</span>
           </button>
           <button
             onClick={handleExportPDF}
-            className="flex items-center gap-2 bg-sky-400 hover:bg-sky-300 text-slate-950 px-4 py-2 text-xs font-bold rounded shadow-md shadow-sky-500/20 transition-all"
+            disabled={isExporting || loading || rows.length === 0}
+            className="flex items-center gap-2 bg-sky-400 hover:bg-sky-300 disabled:opacity-50 text-slate-950 px-4 py-2 text-xs font-bold rounded shadow-md shadow-sky-500/20 transition-all"
           >
             <FileText className="h-4 w-4" />
             <span>Ekspor PDF</span>
           </button>
         </div>
       </div>
+
+      {error && (
+        <div className="p-3 bg-red-900/30 border border-red-500/30 rounded-lg flex items-center space-x-2 text-red-400 text-xs font-mono">
+          <AlertCircle className="w-4 h-4 flex-shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
 
       {/* Filter Bar */}
       <div className="panel p-4 rounded-xl border border-white/10 flex flex-col sm:flex-row justify-between items-center gap-4">
@@ -129,7 +171,8 @@ export default function ExportReportsPage() {
           <select
             value={selectedClass}
             onChange={(e) => setSelectedClass(e.target.value)}
-            className="bg-slate-900 border border-white/15 px-3 py-1.5 text-xs text-white rounded outline-none focus:border-sky-400"
+            disabled={loading}
+            className="bg-slate-900 border border-white/15 px-3 py-1.5 text-xs text-white rounded outline-none focus:border-sky-400 disabled:opacity-50"
           >
             {availableClasses.map((cls) => (
               <option key={cls} value={cls}>{cls}</option>
@@ -138,7 +181,7 @@ export default function ExportReportsPage() {
         </div>
 
         <div className="text-xs font-mono text-slate-400">
-          Total Terverifikasi: <span className="text-emerald-400 font-bold">{filteredItems.length} Data Siswa</span>
+          Total Terverifikasi: <span className="text-emerald-400 font-bold">{rows.length} Data Siswa</span>
         </div>
       </div>
 
@@ -153,52 +196,59 @@ export default function ExportReportsPage() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-slate-900/90 text-slate-400 font-mono text-[11px] uppercase border-b border-white/10">
-              <tr>
-                <th className="p-3">No</th>
-                <th className="p-3">Tanggal</th>
-                <th className="p-3">NISN</th>
-                <th className="p-3">Nama Siswa</th>
-                <th className="p-3">Kelas</th>
-                <th className="p-3">Status Absen</th>
-                <th className="p-3">Catatan / Alasan</th>
-                <th className="p-3 text-right">Verifikasi</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-white/5 font-mono">
-              {filteredItems.length === 0 ? (
+          {loading ? (
+            <div className="p-12 text-center">
+              <Loader2 className="w-6 h-6 animate-spin text-emerald-400 mx-auto mb-2" />
+              <p className="text-xs text-slate-400 font-mono">Memuat data rekapitulasi terverifikasi...</p>
+            </div>
+          ) : (
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-900/90 text-slate-400 font-mono text-[11px] uppercase border-b border-white/10">
                 <tr>
-                  <td colSpan={8} className="p-8 text-center text-slate-500 font-mono">
-                    Belum ada data terverifikasi. Selesaikan verifikasi di menu Verifikasi Operator terlebih dahulu.
-                  </td>
+                  <th className="p-3">No</th>
+                  <th className="p-3">Tanggal</th>
+                  <th className="p-3">NISN</th>
+                  <th className="p-3">Nama Siswa</th>
+                  <th className="p-3">Kelas</th>
+                  <th className="p-3">Status Absen</th>
+                  <th className="p-3">Catatan / Alasan</th>
+                  <th className="p-3 text-right">Verifikasi</th>
                 </tr>
-              ) : (
-                filteredItems.map((row, idx) => (
-                  <tr key={idx} className="hover:bg-slate-800/40">
-                    <td className="p-3 text-slate-400">{idx + 1}</td>
-                    <td className="p-3 text-slate-300">{row.item.date}</td>
-                    <td className="p-3 text-slate-400">{row.item.matchedNisn || '—'}</td>
-                    <td className="p-3 font-semibold text-white">
-                      {row.item.matchedStudentName || row.item.ocrText}
-                    </td>
-                    <td className="p-3">
-                      <span className="px-2 py-0.5 rounded bg-sky-500/10 text-sky-300 border border-sky-500/20 text-[10px]">
-                        {row.item.class}
-                      </span>
-                    </td>
-                    <td className="p-3 font-bold text-amber-300">{row.item.status}</td>
-                    <td className="p-3 text-slate-400 text-[11px] truncate max-w-xs">{row.item.notes || '—'}</td>
-                    <td className="p-3 text-right">
-                      <span className="px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-[10px]">
-                        Terverifikasi
-                      </span>
+              </thead>
+              <tbody className="divide-y divide-white/5 font-mono">
+                {rows.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="p-8 text-center text-slate-500 font-mono">
+                      Belum ada data terverifikasi untuk kelas yang dipilih.
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ) : (
+                  rows.map((row) => (
+                    <tr key={row.no} className="hover:bg-slate-800/40">
+                      <td className="p-3 text-slate-400">{row.no}</td>
+                      <td className="p-3 text-slate-300">{row.date}</td>
+                      <td className="p-3 text-slate-400">{row.nisn}</td>
+                      <td className="p-3 font-semibold text-white">
+                        {row.studentName}
+                      </td>
+                      <td className="p-3">
+                        <span className="px-2 py-0.5 rounded bg-sky-500/10 text-sky-300 border border-sky-500/20 text-[10px]">
+                          {row.className}
+                        </span>
+                      </td>
+                      <td className="p-3 font-bold text-amber-300">{row.status}</td>
+                      <td className="p-3 text-slate-400 text-[11px] truncate max-w-xs">{row.notes}</td>
+                      <td className="p-3 text-right">
+                        <span className="px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-[10px]">
+                          {row.verificationStatus}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
     </div>

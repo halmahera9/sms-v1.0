@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx';
-import { getStoredDocuments, getStoredStudents, addAuditLog } from '@/lib/storage';
+import { StudentAbsenceExportRowDTO } from '@/platform/actions/student-export';
 
 export interface StudentAbsenceExportRow {
   No: number;
@@ -14,52 +14,29 @@ export interface StudentAbsenceExportRow {
   'Status Verifikasi': string;
 }
 
-export function generateStudentAbsenceExportData(
-  selectedClass: string = 'Semua',
-  verifiedOnly: boolean = true
-): { rows: StudentAbsenceExportRow[]; filename: string; totalVerifiedCount: number } {
-  const docs = getStoredDocuments();
-  const students = getStoredStudents();
-
-  const rows: StudentAbsenceExportRow[] = [];
-
-  docs.forEach((doc) => {
-    (doc.items || []).forEach((item) => {
-      const isVerified = item.verificationStatus === 'verified' || item.verificationStatus === 'edited';
-
-      if (verifiedOnly && !isVerified) {
-        return; // Exclude unverified records per business rule
-      }
-
-      if (selectedClass !== 'Semua' && item.class !== selectedClass) {
-        return;
-      }
-
-      const matchedStudent = students.find(
-        (s) => s.id === item.matchedStudentId || s.nisn === item.matchedNisn
-      );
-
-      rows.push({
-        No: rows.length + 1,
-        Tanggal: item.date,
-        NISN: matchedStudent?.nisn || item.matchedNisn || '—',
-        NIS: matchedStudent?.nis || '—',
-        'Nama Siswa': matchedStudent?.name || item.matchedStudentName || item.ocrText,
-        Kelas: matchedStudent?.class || item.class,
-        'Status Absen': item.status,
-        'Catatan / Alasan': item.notes || '—',
-        'Dokumen Referensi': doc.fileName,
-        'Status Verifikasi': isVerified ? 'Terverifikasi' : 'Belum Verifikasi',
-      });
-    });
-  });
-
-  const dateStr = new Date().toISOString().split('T')[0];
-  const filename = `Rekap_SMS_Ketidakhadiran_${dateStr}.xlsx`;
-
-  return { rows, filename, totalVerifiedCount: rows.length };
+/**
+ * Pure Transformer: Map canonical Server Action DTO rows to Excel sheet row objects.
+ */
+export function mapDtoRowsToExportRows(
+  dtoRows: StudentAbsenceExportRowDTO[]
+): StudentAbsenceExportRow[] {
+  return dtoRows.map((r, index) => ({
+    No: index + 1,
+    Tanggal: r.date,
+    NISN: r.nisn,
+    NIS: r.nis,
+    'Nama Siswa': r.studentName,
+    Kelas: r.className,
+    'Status Absen': r.status,
+    'Catatan / Alasan': r.notes,
+    'Dokumen Referensi': r.documentReference,
+    'Status Verifikasi': r.verificationStatus,
+  }));
 }
 
+/**
+ * Pure XLSX Workbook Generator: Creates formatted XLSX workbook with explicit column widths.
+ */
 export function createStudentAbsenceWorkbook(
   rows: StudentAbsenceExportRow[]
 ): XLSX.WorkBook {
@@ -84,22 +61,20 @@ export function createStudentAbsenceWorkbook(
   return wb;
 }
 
-export function exportStudentAbsenceExcel(selectedClass: string = 'Semua'): boolean {
-  const { rows, filename } = generateStudentAbsenceExportData(selectedClass, true);
-
+/**
+ * Client-Side Helper: Triggers browser download for generated XLSX workbook.
+ */
+export function downloadStudentAbsenceExcel(
+  rows: StudentAbsenceExportRow[],
+  filename: string
+): boolean {
   if (rows.length === 0) {
     return false;
   }
 
   const wb = createStudentAbsenceWorkbook(rows);
   XLSX.writeFile(wb, filename);
-
-  addAuditLog(
-    'Operator Workspace',
-    'EXPORT_EXCEL',
-    filename,
-    `Mengekspor ${rows.length} data rekap ketidakhadiran siswa terverifikasi.`
-  );
-
   return true;
 }
+
+export const exportStudentAbsenceExcel = downloadStudentAbsenceExcel;

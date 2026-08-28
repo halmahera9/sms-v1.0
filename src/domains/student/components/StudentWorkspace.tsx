@@ -31,7 +31,8 @@ import {
   Loader2,
   RefreshCw,
 } from 'lucide-react';
-import { exportStudentAbsenceExcel } from '../export';
+import { getStudentAbsenceExportDataAction } from '@/platform/actions/student-export';
+import { mapDtoRowsToExportRows, downloadStudentAbsenceExcel } from '../export';
 
 export const StudentWorkspace: React.FC = () => {
   const [activeSubTab, setActiveSubTab] = useState<'students' | 'ocr' | 'verify' | 'export'>('students');
@@ -234,10 +235,25 @@ export const StudentWorkspace: React.FC = () => {
     }
   };
 
-  const handleExportExcel = () => {
-    const success = exportStudentAbsenceExcel('Semua');
-    if (!success) {
-      alert('Tidak ada data terverifikasi untuk diekspor. Selesaikan verifikasi manual terlebih dahulu.');
+  const [isExporting, setIsExporting] = useState<boolean>(false);
+
+  const handleExportExcel = async () => {
+    setIsExporting(true);
+    try {
+      const res = await getStudentAbsenceExportDataAction({ selectedClass: 'Semua' });
+      if (res.success && res.data && res.data.rows.length > 0) {
+        const exportRows = mapDtoRowsToExportRows(res.data.rows);
+        const success = downloadStudentAbsenceExcel(exportRows, res.data.filename);
+        if (!success) {
+          alert('Gagal membuat file Excel.');
+        }
+      } else {
+        alert('Tidak ada data terverifikasi untuk diekspor. Selesaikan verifikasi manual terlebih dahulu.');
+      }
+    } catch {
+      alert('Terjadi kesalahan saat mengekspor data Excel.');
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -597,10 +613,11 @@ export const StudentWorkspace: React.FC = () => {
 
           <button
             onClick={handleExportExcel}
-            className="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-2.5 rounded-lg text-xs font-bold shadow-lg flex items-center space-x-2 mx-auto transition-all"
+            disabled={isExporting}
+            className="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-2.5 rounded-lg text-xs font-bold shadow-lg flex items-center space-x-2 mx-auto transition-all disabled:opacity-50"
           >
-            <Download className="w-4 h-4" />
-            <span>Download Rekap Excel</span>
+            {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+            <span>{isExporting ? 'Mengekspor...' : 'Download Rekap Excel'}</span>
           </button>
         </div>
       )}

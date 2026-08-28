@@ -1,8 +1,10 @@
 import * as XLSX from 'xlsx';
 import {
-  generateStudentAbsenceExportData,
+  StudentAbsenceExportRow,
   createStudentAbsenceWorkbook,
+  mapDtoRowsToExportRows,
 } from '../src/domains/student/export';
+import { StudentAbsenceExportRowDTO } from '../src/platform/actions/student-export';
 
 let testCount = 0;
 let passCount = 0;
@@ -22,16 +24,54 @@ console.log('=====================================================');
 console.log('   BANYUBIRU STUDENT EXCEL EXPORT REGRESSION SUITE  ');
 console.log('=====================================================\n');
 
-// 1. Generate export dataset
-console.log('[1] Testing Student Export Data Generation...');
-const { rows, filename } = generateStudentAbsenceExportData('Semua', true);
+// 1. Create sample DTO rows
+console.log('[1] Testing DTO to Export Row Mapping...');
+const sampleDtoRows: StudentAbsenceExportRowDTO[] = [
+  {
+    no: 1,
+    date: '2026-08-28',
+    nisn: '0051234567',
+    nis: '21221001',
+    studentName: 'Ahmad Dahlan',
+    className: 'X IPA 1',
+    status: 'Sakit',
+    notes: 'Demam tinggi 2 hari',
+    documentReference: 'Surat_Dokter_Ahmad.pdf',
+    verificationStatus: 'Terverifikasi',
+  },
+  {
+    no: 2,
+    date: '2026-08-28',
+    nisn: '0051234568',
+    nis: '21221002',
+    studentName: 'Budi Santoso',
+    className: 'X IPA 2',
+    status: 'Izin',
+    notes: 'Urusan keluarga di luar kota',
+    documentReference: 'Surat_Izin_Budi.png',
+    verificationStatus: 'Terverifikasi',
+  },
+  {
+    no: 3,
+    date: '2026-08-28',
+    nisn: '0051234570',
+    nis: '21221004',
+    studentName: 'Doni Pratama',
+    className: 'X IPA 1',
+    status: 'Dispensasi',
+    notes: 'Lomba olimpiade sains nasional',
+    documentReference: 'Surat_Tugas_OSN.pdf',
+    verificationStatus: 'Terverifikasi',
+  },
+];
 
-assert(Array.isArray(rows), 'Export data rows should be an array');
-assert(filename.startsWith('Rekap_SMS_Ketidakhadiran_'), 'Filename should follow naming convention');
+const exportRows: StudentAbsenceExportRow[] = mapDtoRowsToExportRows(sampleDtoRows);
+assert(Array.isArray(exportRows), 'Export data rows should be an array');
+assert(exportRows.length === 3, 'Export rows count should match input DTO count');
 
 // 2. Create XLSX Workbook
 console.log('\n[2] Testing XLSX Workbook Creation...');
-const wb = createStudentAbsenceWorkbook(rows);
+const wb = createStudentAbsenceWorkbook(exportRows);
 assert(wb !== null && typeof wb === 'object', 'Workbook object should be created');
 
 // 3. Verify Sheet Names
@@ -47,9 +87,8 @@ assert(readWb.SheetNames[0] === 'Rekap_Ketidakhadiran', 'Read back sheet name sh
 const sheet = readWb.Sheets[readWb.SheetNames[0]];
 const readRows: Record<string, unknown>[] = XLSX.utils.sheet_to_json(sheet);
 
-console.log('\n[5] Testing Read-Back Row Count & Verified Filter Rules...');
-assert(readRows.length > 0, 'Workbook must contain at least 1 verified record');
-assert(readRows.length === rows.length, 'Read back row count must match generated row count');
+console.log('\n[5] Testing Read-Back Row Count...');
+assert(readRows.length === 3, 'Read back row count must match generated row count (3)');
 
 // 6. Verify Headers and Fields
 console.log('\n[6] Testing Header Row & Field Contracts...');
@@ -73,10 +112,10 @@ assert(firstRow['Nama Siswa'] === 'Ahmad Dahlan', 'Nama Siswa should match sourc
 assert(firstRow['Status Absen'] === 'Sakit', 'Status Absen should match source data (Sakit)');
 assert(firstRow['Status Verifikasi'] === 'Terverifikasi', 'Status Verifikasi should be "Terverifikasi"');
 
-// 8. Verify Unverified Records are Excluded
-console.log('\n[8] Testing Unverified Record Exclusion Rule...');
-const hasUnverified = readRows.some((r) => r['Status Verifikasi'] !== 'Terverifikasi');
-assert(!hasUnverified, 'Unverified records must be excluded from Excel export');
+// 8. Verify Dispensasi Support in Excel output
+console.log('\n[8] Testing Dispensasi Support in Workbook...');
+const thirdRow = readRows[2];
+assert(thirdRow['Status Absen'] === 'Dispensasi', 'Status Absen should support "Dispensasi"');
 
 console.log('\n=====================================================');
 console.log(` SUCCESS: All ${passCount}/${testCount} Student Excel Export tests passed! `);
