@@ -69,10 +69,10 @@ export class PostgresOperationalQueryRepository implements IOperationalQueryRepo
    * 4. pendingApprovals:
    *    - Source: award_proposals WHERE tenant_id = :tenantId AND status = 'SIAP_GENERATE'
    * 5. requiresCorrection:
-   *    - Source: exception_items WHERE tenant_id = :tenantId AND status IN ('OPEN', 'IN_REVIEW') AND severity IN ('ERROR', 'CRITICAL')
+   *    - Source: exception_items WHERE tenant_id = :tenantId AND status IN ('OPEN', 'IN_REVIEW') AND severity = 'CRITICAL'
    * 6. totalEmployees:
-   *    - Source: employees (direct query on active employee registry, NOT inferred from proposals)
-   *    - Filter: tenant_id = :tenantId AND status = 'ACTIVE'
+   *    - Source: employees (direct query on tenant employee registry, NOT inferred from proposals)
+   *    - Filter: tenant_id = :tenantId
    * 7. totalStudents:
    *    - Source: students (direct query on active student registry)
    *    - Filter: tenant_id = :tenantId AND status = 'ACTIVE'
