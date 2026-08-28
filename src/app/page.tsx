@@ -17,7 +17,6 @@ import { SettingsManager } from '@/components/settings/SettingsManager';
 import { StudentWorkspace } from '@/domains/student/components/StudentWorkspace';
 import { OperationalMetrics } from '@/platform/repositories/operational-query';
 import { getOperationalMetricsAction } from '@/platform/actions/operational';
-import { PlatformExceptionQueue } from '@/platform/exceptions/queue';
 
 function WorkspaceContent() {
   const [proposals, setProposals] = useState<AwardProposal[]>([]);
@@ -25,7 +24,6 @@ function WorkspaceContent() {
   const [userRole, setUserRole] = useState<'admin' | 'verifikator' | 'pegawai'>('admin');
   const [selectedCandidate, setSelectedCandidate] = useState<AwardProposal | null>(null);
   const [metrics, setMetrics] = useState<OperationalMetrics | null>(null);
-  const [exceptionQueue] = useState(() => new PlatformExceptionQueue());
 
   const refreshMetrics = () => {
     getOperationalMetricsAction().then((res) => {
@@ -110,10 +108,7 @@ function WorkspaceContent() {
         )}
 
         {activeTab === 'exceptions' && (
-          <UnifiedExceptionCenter
-            exceptionQueue={exceptionQueue}
-            onRefresh={refreshMetrics}
-          />
+          <UnifiedExceptionCenter onRefresh={refreshMetrics} />
         )}
 
         {activeTab === 'kandidat' && (
