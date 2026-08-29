@@ -145,6 +145,6 @@ direct code evidence.
 ## Context Package Metadata
 
 - **Package updated:** 2026-08-30
-- **HEAD SHA at time of update:** `e6c63a8061f9cc16e91882d9f53ad20264b61bc4`
+- **HEAD SHA at time of update:** `9832e1855a6d36c8632d6cdb3ce1b8dd8d435fa3`
 - **Branch:** `main`
 - **Working tree:** Clean

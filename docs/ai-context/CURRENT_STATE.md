@@ -3,16 +3,19 @@
 ## Repository State
 
 ### 1. Committed Baseline
-- **HEAD commit SHA:** `e6c63a8061f9cc16e91882d9f53ad20264b61bc4`
-- **Branch:** `main` (synchronized with `origin/main`)
+- **HEAD commit SHA:** `9832e1855a6d36c8632d6cdb3ce1b8dd8d435fa3`
+- **Branch:** `main`
 - **Schema Anchor:** Phase 4G Canonical Schema Reconciliation with Generic Workflow Instance Management (Prisma 7.10.0)
-- **Working Tree:** Clean (all core domain actions, orchestrators, auth session providers, and test suites committed)
+- **Production Build:** Verified with `npm run build` (Turbopack, 10/10 routes static/SSR built cleanly)
+- **Working Tree:** Clean
 
 ---
 
 ## Recent Commit History (Last 15)
 
 ```
+9832e18 feat: implement unified operational platform with audit engine, centralized dashboard, work queues, and student domain integration.
+92f2b61 docs: update AI context package for Phase 4J and document intelligence orchestrator
 e6c63a8 feat: add live cookie session provider
 7966d20 docs: initialize AI-context documentation and implement Document Intelligence service with orchestration, auditing, and database connectivity test suites.
 3371372 feat: implement award proposal archive complete workflow
@@ -26,8 +29,6 @@ dffbc92 feat: add atomic exception persistence boundary
 96c8c9b feat: define canonical document intelligence orchestration contracts
 0962226 docs: add Banyubiru AI context package
 1a8222d feat: add award import server action boundary
-4c5f751 feat: implement award Excel import service boundary
-0afa042 feat: migrate award client reads to server boundary
 ```
 
 ---
@@ -39,19 +40,14 @@ dffbc92 feat: add atomic exception persistence boundary
 - **Database / ORM:** PostgreSQL, Prisma 7.10.0 with `@prisma/adapter-pg`.
 - **Multi-Tenancy:** Enforced at DB level via `runInTenantContext()` calling `set_tenant_context(actorId::uuid, tenantId::uuid)`.
 - **Server Actions:** All data mutations/reads exposed via `'use server'` entry points returning `ActionResponse<T>`.
+- **Client-Server Boundary:** `server-only` guards enforce server isolation across all database repositories and engines; client components query audit logs via Server Actions.
+- **Production Build:** `npm run build` runs with Turbopack and succeeds with 0 errors across all routes.
 - **Auth Session (Phase 4J):** `CookieSessionProvider` (`src/platform/auth/session.ts`) reads HTTP-only session cookies via Next.js `cookies()`, verifies cryptographic HMAC-SHA256 signatures (`verifySessionToken`), and enforces strict fail-closed behavior when secrets are missing.
 - **Employee Award Workflow:** Complete end-to-end lifecycle implemented (10 states, 9 events: `NOMINATIF` $\to$ `BELUM_UPLOAD` $\to$ `SEBAGIAN` $\to$ `LENGKAP` $\to$ `DIVERIFIKASI` $\to$ `SIAP_GENERATE` $\to$ `GENERATED` $\to$ `DITANDATANGANI` $\to$ `DIKIRIM` $\to$ `SELESAI`) with corresponding server actions (`signProposalAction`, `sendProposalAction`, `archiveCompleteProposalAction`).
 - **Student Absence Workflow:** OCR upload, student identity resolution, human verification, absence record persistence, and export.
 - **Audit Persistence:** `PostgresAuditEventRepository` writes atomically in the same transaction as entity mutations (`recordTx`).
 - **Exception Center:** Full lifecycle implemented with `PostgresExceptionRepository` (`findManyTx`, `findByIdTx`, `createTx`, `updateStatusTx`), server actions (`getExceptionsAction`, `createExceptionAction`, `updateExceptionStatusAction`), and canonical validation bridge (`validateOCRAndCreateExceptions`).
 - **Document Intelligence (Phase 4I):** `DocumentIntelligenceOrchestrator` (`src/platform/services/document-intelligence.ts`) orchestrates document processing, identity matching, validation engine execution, exception creation, and audit logging with terminal status calculation.
-
-### Working Snapshot Observations [COMMITTED]
-- Client component `src/app/app/audit/page.tsx` imports `src/lib/storage.ts` which transitively imports `PostgresAuditEventRepository` $\to$ `pg`, causing Webpack to fail during `next build` client bundle generation due to Node.js `net`/`tls` requirements in browser context.
-
-### Inferred Observations [INFERRED]
-- Decoupling `PlatformAuditEngine` from direct server repository imports or migrating client pages to Server Components / Server Actions will immediately unblock `next build` on Vercel.
-- Physical object storage integration (S3/GCS) remains simulated with stub paths until Phase 4K.
 
 ---
 
@@ -62,6 +58,7 @@ dffbc92 feat: add atomic exception persistence boundary
 | Multi-Tenancy (RLS) | Implemented [COMMITTED] | `src/platform/db/tenant-context.ts` |
 | Server Action Boundary | Implemented [COMMITTED] | `src/platform/actions/`, `src/domains/employee/awards/actions.ts` |
 | Live Cookie Session Auth (Phase 4J) | Implemented [COMMITTED] | `src/platform/auth/session.ts`, `tests/live-session-provider.test.ts` |
+| Production Build Decoupling | Implemented [COMMITTED] | `server-only` guards, `npm run build` (Turbopack) passes |
 | Employee Award Domain | Fully Implemented [COMMITTED] | Complete lifecycle from nomination import to sign, send, and archive |
 | Student OCR Workflow | Implemented [COMMITTED] | `src/platform/actions/student-workflow.ts` |
 | Exception Center (Full Lifecycle) | Implemented [COMMITTED] | `src/platform/repositories/exception.ts`, `src/platform/actions/exception.ts` |

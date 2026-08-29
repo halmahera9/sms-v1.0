@@ -2,10 +2,6 @@
 
 ## Confirmed Gaps [COMMITTED]
 
-### GAP-BUILD: Client-Server Import Leak Causes `next build` Webpack Failure
-- **Evidence:** `src/app/app/audit/page.tsx` (`"use client"`) imports `src/lib/storage.ts` which imports `PlatformAuditEngine` from `src/platform/audit/engine.ts`. `engine.ts` imports `PostgresAuditEventRepository` $\to$ `pg`, causing Webpack to fail when resolving Node.js built-ins (`net`, `tls`, `util/types`) for client browser bundles.
-- **Impact:** Vercel / production `npm run build` fails until server-only repositories are decoupled from client component import graphs.
-
 ### GAP-02: Document Storage & Integrity Values Are Placeholders
 - **Evidence:** `student-workflow.ts` uses simulated checksums (`'simulated_ocr_checksum_' + Date.now()`) and placeholder image paths (`/placeholder-doc.png`). Award proposal document uploads set `fileUrl = '#'`.
 - **Impact:** No binary files are stored in object storage (S3/GCS) or integrity-validated via real SHA-256 hashes.
@@ -29,8 +25,9 @@
 
 ---
 
-## Resolved Gaps (from previous snapshot)
+## Resolved Gaps (from previous snapshots)
 
+- **[RESOLVED] GAP-BUILD (Client-Server Import Boundary Webpack Failure):** Decoupled `src/lib/storage.ts` and `src/lib/award-storage.ts`, added `import 'server-only'` guards on all database repositories and engines, moved pure enum mappers to `src/domains/student/mappers.ts`, and verified 10/10 routes with `npm run build` (`9832e18`).
 - **[RESOLVED] GAP-SESSION (Live Cookie Session Provider):** Implemented `CookieSessionProvider` with cryptographic HMAC-SHA256 token verification, strict fail-closed missing secret handling, and actor claim resolution (`e6c63a8`).
 - **[RESOLVED] GAP-ORCHESTRATOR (Document Intelligence Orchestration):** Implemented concrete `DocumentIntelligenceOrchestrator` in `src/platform/services/document-intelligence.ts` with complete extraction, identity matching, validation, exception creation, and audit logging (`7966d20`).
 - **[RESOLVED] GAP-00 (WorkflowInstance State Management):** Initialized generic `WorkflowInstance` schema and migration for unified state machine persistence (`bc67517`).
