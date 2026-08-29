@@ -4,7 +4,7 @@ import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { AwardProposalApplicationService } from '../src/domains/employee/awards/service';
 import { PostgresAwardProposalRepository } from '../src/platform/repositories/award-proposal';
-import { AwardProposal, ProposalDocument } from '../src/domains/employee/awards/types';
+import { AwardProposal, ProposalDocument, ImportAwardProposalItemDTO } from '../src/domains/employee/awards/types';
 import { runInTenantContext } from '../src/platform/db/tenant-context';
 
 let testCount = 0;
@@ -43,6 +43,14 @@ async function runAwardProposalServiceTests() {
   const service = new AwardProposalApplicationService(proposalRepo);
 
   try {
+    // Initial cleanup of mutable test entities
+    await adminPrisma.awardProposal.deleteMany({
+      where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID] } },
+    });
+    await adminPrisma.employee.deleteMany({
+      where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID] } },
+    });
+
     // Setup Tenant & Actor
     await adminPrisma.tenant.upsert({
       where: { id: TENANT_A_ID },
@@ -301,6 +309,205 @@ async function runAwardProposalServiceTests() {
     assert(verifyDocumentTxCalled, 'Test 11: verifyDocumentTx delegates persistence strictly to proposalRepo.verifyDocumentTx');
     assert(findAllTxCalled && readResults.length === 1, 'Test 12: getAllInContext delegates strictly to proposalRepo.findAllTx');
 
+    // ========================================================
+    // [11] Testing Phase 4H-2J.5.1C Excel Import Application Service
+    // ========================================================
+    console.log('\n[11] Testing Award Excel Import Application Service...');
+
+    // Test 13 & 14: Successful batch import & Fresh Employee + Fresh Proposal creation with initial status NOMINATIF
+    const importBatch1: ImportAwardProposalItemDTO[] = [
+      {
+        nip: '198501012010011001',
+        nrk: '123401',
+        nama: 'Ahmad Pegawai Import 1',
+        gelar: 'S.Kom',
+        jabatan: 'Analis Sistem Informasi',
+        unitKerja: 'Dinas Komunikasi dan Informatika',
+        perangkatDaerah: 'Dinas Kominfotik',
+        ukpd: 'Bidang Sistem Informasi',
+        wilayah: 'Jakarta Pusat',
+        jenisPenghargaan: 'MASA_KERJA',
+        nilaiUsulan: '10',
+        tahunUsulan: 2026,
+        masaKerjaTahun: 10,
+        masaKerjaBulan: 2,
+        catatan: 'Usulan 10 tahun MASA_KERJA',
+      },
+      {
+        nip: '198802022012012002',
+        nrk: '123402',
+        nama: 'Budi Pegawai Import 2',
+        gelar: 'M.M',
+        jabatan: 'Pranata Komputer',
+        unitKerja: 'Dinas Komunikasi dan Informatika',
+        perangkatDaerah: 'Dinas Kominfotik',
+        ukpd: 'Bidang Tata Kelola',
+        wilayah: 'Jakarta Pusat',
+        jenisPenghargaan: 'SATYALANCANA',
+        nilaiUsulan: 'X',
+        tahunUsulan: 2026,
+        masaKerjaTahun: 10,
+        masaKerjaBulan: 0,
+        catatan: 'Usulan 10 tahun SATYALANCANA',
+      },
+    ];
+
+    const importResult1 = await service.importProposalsInContext(ACTOR_A_ID, TENANT_A_ID, importBatch1);
+
+    assert(
+      importResult1.importedCount === 2 && importResult1.createdCount === 2 && importResult1.updatedCount === 0,
+      'Test 13: Batch import creates 2 fresh proposals and reports createdCount: 2'
+    );
+    assert(
+      importResult1.proposals[0].status === 'NOMINATIF' && importResult1.proposals[1].status === 'NOMINATIF',
+      'Test 14: Freshly imported proposals strictly initialize with status NOMINATIF'
+    );
+
+    const savedProposal1 = importResult1.proposals[0];
+
+    // Test 15-17: Re-importing same proposal is idempotent (same ID, updatedCount increases, no duplicates)
+    const reimportBatch: ImportAwardProposalItemDTO[] = [
+      {
+        nip: '198501012010011001',
+        nrk: '123401',
+        nama: 'Ahmad Pegawai Import 1 (Updated)',
+        gelar: 'S.Kom, M.TI',
+        jabatan: 'Analis Sistem Informasi Ahli Muda',
+        unitKerja: 'Dinas Komunikasi dan Informatika',
+        perangkatDaerah: 'Dinas Kominfotik',
+        jenisPenghargaan: 'MASA_KERJA',
+        nilaiUsulan: '10',
+        tahunUsulan: 2026,
+        masaKerjaTahun: 10,
+        masaKerjaBulan: 5,
+        catatan: 'Updated catatan masa kerja',
+      },
+    ];
+
+    const reimportResult = await service.importProposalsInContext(ACTOR_A_ID, TENANT_A_ID, reimportBatch);
+
+    assert(
+      reimportResult.importedCount === 1 && reimportResult.createdCount === 0 && reimportResult.updatedCount === 1,
+      'Test 15: Re-importing existing natural key proposal updates existing record (updatedCount: 1, createdCount: 0)'
+    );
+    assert(
+      reimportResult.proposals[0].id === savedProposal1.id,
+      'Test 16: Idempotent re-import preserves authoritative proposal ID'
+    );
+    assert(
+      reimportResult.proposals[0].employee.nama === 'Ahmad Pegawai Import 1 (Updated)' &&
+      reimportResult.proposals[0].masaKerjaBulan === 5,
+      'Test 17: Re-import updates factual employee and proposal data accurately'
+    );
+
+    // Test 18: Workflow Preservation (existing advanced proposal status is NOT reset to NOMINATIF)
+    await runInTenantContext(ACTOR_A_ID, TENANT_A_ID, async (tx) => {
+      await service.submitNominativeTx(tx, TENANT_A_ID, savedProposal1.id, ACTOR_A_ID);
+    });
+
+    const proposalAfterAdvance = await runInTenantContext(ACTOR_A_ID, TENANT_A_ID, async (tx) => {
+      return await proposalRepo.findByIdTx(tx, savedProposal1.id);
+    });
+    assert(
+      proposalAfterAdvance?.status === 'BELUM_UPLOAD',
+      'Test 18A: Proposal 1 successfully advanced to BELUM_UPLOAD'
+    );
+
+    // Re-import proposal 1 again
+    const workflowPreserveResult = await service.importProposalsInContext(ACTOR_A_ID, TENANT_A_ID, reimportBatch);
+    assert(
+      workflowPreserveResult.proposals[0].status === 'BELUM_UPLOAD',
+      'Test 18B: Re-import preserves advanced workflow status (BELUM_UPLOAD is NOT reset to NOMINATIF)'
+    );
+
+    // Test 19: Identity Collision Rejection
+    const collisionBatch: ImportAwardProposalItemDTO[] = [
+      {
+        nip: '198501012010011001', // belongs to Employee 1
+        nrk: '123402',             // belongs to Employee 2
+        nama: 'Pegawai Konflik Identitas',
+        jabatan: 'Staf',
+        unitKerja: 'Dinas Komunikasi dan Informatika',
+        perangkatDaerah: 'Dinas Kominfotik',
+        jenisPenghargaan: 'MASA_KERJA',
+        tahunUsulan: 2026,
+      },
+    ];
+
+    let collisionErrorMsg = '';
+    try {
+      await service.importProposalsInContext(ACTOR_A_ID, TENANT_A_ID, collisionBatch);
+    } catch (err: any) {
+      collisionErrorMsg = err.message || '';
+    }
+    assert(
+      collisionErrorMsg.includes('IDENTITY_COLLISION'),
+      'Test 19: Identity collision (NIP of Employee A paired with NRK of Employee B) fails with IDENTITY_COLLISION error'
+    );
+
+    // Test 20: Aggregate Audit Event Verification
+    const auditEvents = await adminPrisma.auditEvent.findMany({
+      where: {
+        tenantId: TENANT_A_ID,
+        action: 'IMPORT_AWARD_PROPOSALS',
+      },
+    });
+    assert(
+      auditEvents.length >= 1,
+      'Test 20A: Aggregate audit event IMPORT_AWARD_PROPOSALS is persisted in database'
+    );
+    const lastAuditEvent = auditEvents[auditEvents.length - 1];
+    const payload = lastAuditEvent.payloadJson as any;
+    const meta = payload?.metadata || {};
+    assert(
+      lastAuditEvent.entityType === 'Tenant' &&
+      lastAuditEvent.entityId === TENANT_A_ID &&
+      meta.targetScope === 'AWARD_EXCEL_IMPORT' &&
+      typeof meta.rowCount === 'number',
+      'Test 20B: Audit event accurately records Tenant entityType, entityId, targetScope, and rowCount'
+    );
+
+    // Test 21: Atomicity Requirement (Rollback on failure)
+    const atomicBatch: ImportAwardProposalItemDTO[] = [
+      {
+        nip: '199999992020011999',
+        nrk: '999999',
+        nama: 'Calon Pegawai Batal',
+        jabatan: 'Staf',
+        unitKerja: 'Dinas Komunikasi dan Informatika',
+        perangkatDaerah: 'Dinas Kominfotik',
+        jenisPenghargaan: 'MASA_KERJA',
+        tahunUsulan: 2026,
+      },
+      {
+        nip: '199999992020011888',
+        nrk: '888888',
+        nama: 'Calon Pegawai Gagal Validasi',
+        jabatan: 'Staf',
+        unitKerja: 'Dinas Komunikasi dan Informatika',
+        perangkatDaerah: 'Dinas Kominfotik',
+        jenisPenghargaan: 'MASA_KERJA',
+        tahunUsulan: 2026,
+        masaKerjaBulan: 15, // INVALID: must be 0-11
+      },
+    ];
+
+    let atomicErrorCaught = false;
+    try {
+      await service.importProposalsInContext(ACTOR_A_ID, TENANT_A_ID, atomicBatch);
+    } catch (err: any) {
+      atomicErrorCaught = true;
+    }
+    assert(atomicErrorCaught, 'Test 21A: Batch with invalid second item throws validation error');
+
+    // Verify item 1 was completely rolled back from Employee and AwardProposal tables
+    const rolledBackEmp = await adminPrisma.employee.findFirst({
+      where: { tenantId: TENANT_A_ID, nip: '199999992020011999' },
+    });
+    assert(
+      rolledBackEmp === null,
+      'Test 21B: Atomic failure rolls back entire transaction — Employee 1 was NOT persisted'
+    );
 
   } finally {
     // Guaranteed Teardown of mutable test entities

@@ -411,6 +411,84 @@ async function runEmployeeRepositoryTestSuite() {
       'TEST 13: Transaction-bound repository methods (*Tx) execute cleanly using active TenantTransactionClient',
       `Found in tx: ${txResult.foundInTx?.fullName}`
     );
+
+    // ------------------------------------------------------------------------
+    // TEST 14 — findByNipTx in Correct Tenant
+    // ------------------------------------------------------------------------
+    console.log('\n[14] Testing findByNipTx in Correct Tenant...');
+    const empByNipA = await runInTenantContext(ACTOR_A_ID, TENANT_A_ID, async (tx) => {
+      return await repository.findByNipTx(tx, TENANT_A_ID, '198501012010011001');
+    });
+    assert(
+      empByNipA !== null && empByNipA.id === EMP_1_ID && empByNipA.nip === '198501012010011001',
+      'TEST 14: findByNipTx finds employee in the correct tenant',
+      `Found employee: ${empByNipA?.fullName}, NIP: ${empByNipA?.nip}`
+    );
+
+    // ------------------------------------------------------------------------
+    // TEST 15 — findByNipTx Cross-Tenant Isolation
+    // ------------------------------------------------------------------------
+    console.log('\n[15] Testing findByNipTx Cross-Tenant Isolation...');
+    const empByNipCross = await runInTenantContext(ACTOR_B_ID, TENANT_B_ID, async (tx) => {
+      return await repository.findByNipTx(tx, TENANT_B_ID, '198501012010011001');
+    });
+    assert(
+      empByNipCross === null,
+      'TEST 15: findByNipTx does not return employee belonging to another tenant',
+      `Result for Tenant A NIP in Tenant B: ${empByNipCross}`
+    );
+
+    // ------------------------------------------------------------------------
+    // TEST 16 — findByNipTx Non-Existent NIP
+    // ------------------------------------------------------------------------
+    console.log('\n[16] Testing findByNipTx Non-Existent NIP...');
+    const empByNipNotFound = await runInTenantContext(ACTOR_A_ID, TENANT_A_ID, async (tx) => {
+      return await repository.findByNipTx(tx, TENANT_A_ID, '199999999999999999');
+    });
+    assert(
+      empByNipNotFound === null,
+      'TEST 16: findByNipTx returns null when NIP is not found',
+      `Result for unknown NIP: ${empByNipNotFound}`
+    );
+
+    // ------------------------------------------------------------------------
+    // TEST 17 — findByNrkTx in Correct Tenant
+    // ------------------------------------------------------------------------
+    console.log('\n[17] Testing findByNrkTx in Correct Tenant...');
+    const empByNrkA = await runInTenantContext(ACTOR_A_ID, TENANT_A_ID, async (tx) => {
+      return await repository.findByNrkTx(tx, TENANT_A_ID, '180001');
+    });
+    assert(
+      empByNrkA !== null && empByNrkA.id === EMP_1_ID && empByNrkA.nrk === '180001',
+      'TEST 17: findByNrkTx finds employee in the correct tenant',
+      `Found employee: ${empByNrkA?.fullName}, NRK: ${empByNrkA?.nrk}`
+    );
+
+    // ------------------------------------------------------------------------
+    // TEST 18 — findByNrkTx Cross-Tenant Isolation
+    // ------------------------------------------------------------------------
+    console.log('\n[18] Testing findByNrkTx Cross-Tenant Isolation...');
+    const empByNrkCross = await runInTenantContext(ACTOR_B_ID, TENANT_B_ID, async (tx) => {
+      return await repository.findByNrkTx(tx, TENANT_B_ID, '180001');
+    });
+    assert(
+      empByNrkCross === null,
+      'TEST 18: findByNrkTx does not return employee belonging to another tenant',
+      `Result for Tenant A NRK in Tenant B: ${empByNrkCross}`
+    );
+
+    // ------------------------------------------------------------------------
+    // TEST 19 — findByNrkTx Non-Existent NRK
+    // ------------------------------------------------------------------------
+    console.log('\n[19] Testing findByNrkTx Non-Existent NRK...');
+    const empByNrkNotFound = await runInTenantContext(ACTOR_A_ID, TENANT_A_ID, async (tx) => {
+      return await repository.findByNrkTx(tx, TENANT_A_ID, '999999');
+    });
+    assert(
+      empByNrkNotFound === null,
+      'TEST 19: findByNrkTx returns null when NRK is not found',
+      `Result for unknown NRK: ${empByNrkNotFound}`
+    );
   } finally {
     console.log('\n[Teardown] Cleaning up test fixtures...');
     await cleanupFixtures();

@@ -76,3 +76,35 @@ export interface AwardProposal {
   updatedAt: string;
   documents: ProposalDocument[];
 }
+
+export interface ImportAwardProposalItemDTO {
+  nip: string;
+  nrk: string;
+  nama: string;
+  gelar?: string;
+  jabatan: string;
+  unitKerja: string;
+  perangkatDaerah: string;
+  ukpd?: string;
+  wilayah?: string;
+
+  jenisPenghargaan: AwardType;
+  nilaiUsulan?: AwardValue;
+
+  tahunUsulan: number;
+  masaKerjaTahun?: number;
+  masaKerjaBulan?: number;
+
+  catatan?: string;
+}
+
+export interface ImportAwardProposalsInput {
+  items: ImportAwardProposalItemDTO[];
+}
+
+export interface ImportAwardProposalsResult {
+  importedCount: number;
+  createdCount: number;
+  updatedCount: number;
+  proposals: AwardProposal[];
+}

@@ -9,6 +9,36 @@ export class PostgresEmployeeRepository extends BasePostgresRepository<Employee>
     });
   }
 
+  public async findByNipTx(
+    tx: TenantTransactionClient,
+    tenantId: string,
+    nip: string
+  ): Promise<Employee | null> {
+    return await tx.employee.findUnique({
+      where: {
+        tenantId_nip: {
+          tenantId,
+          nip,
+        },
+      },
+    });
+  }
+
+  public async findByNrkTx(
+    tx: TenantTransactionClient,
+    tenantId: string,
+    nrk: string
+  ): Promise<Employee | null> {
+    return await tx.employee.findUnique({
+      where: {
+        tenantId_nrk: {
+          tenantId,
+          nrk,
+        },
+      },
+    });
+  }
+
   public async findAllTx(tx: TenantTransactionClient): Promise<Employee[]> {
     return await tx.employee.findMany();
   }
