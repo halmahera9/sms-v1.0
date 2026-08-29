@@ -8,13 +8,14 @@ import {
   approveProposalGenerationAction,
   batchMarkGeneratedAction,
   getAwardProposalsAction,
+  importAwardProposalsAction,
 } from '../src/domains/employee/awards/actions';
 import {
   setSessionProvider,
   resetSessionProvider,
   AuthenticatedActorSession,
 } from '../src/platform/auth/session';
-import { AwardProposal } from '../src/domains/employee/awards/types';
+import { AwardProposal, ImportAwardProposalsInput, ImportAwardProposalItemDTO } from '../src/domains/employee/awards/types';
 import { PostgresAwardProposalRepository } from '../src/platform/repositories/award-proposal';
 import { runInTenantContext } from '../src/platform/db/tenant-context';
 import { AwardProposalApplicationService } from '../src/domains/employee/awards/service';
@@ -43,8 +44,10 @@ async function runSecurityActionTests() {
   const TENANT_A_ID = '11111111-1111-7111-8111-111111111111';
   const TENANT_B_ID = '99999999-9999-7999-8999-999999999999';
 
+  const ACTOR_ADMIN = 'a0000000-0000-7000-8000-000000000000';
   const ACTOR_VERIFIKATOR = 'a1111111-1111-7111-8111-111111111111';
   const ACTOR_OPERATOR = 'a2222222-2222-7222-8222-222222222222';
+  const ACTOR_PEGAWAI = 'a3333333-3333-7333-8333-333333333333';
   const ACTOR_INACTIVE = 'a4444444-4444-7444-8444-444444444444';
   const ACTOR_TENANT_B = 'b2222222-2222-7222-8222-222222222222';
 
@@ -105,6 +108,34 @@ async function runSecurityActionTests() {
         fullName: 'Inactive User',
         role: 'VERIFIKATOR',
         status: 'INACTIVE',
+      },
+      update: {},
+    });
+
+    await adminPrisma.userActor.upsert({
+      where: { id: ACTOR_ADMIN },
+      create: {
+        id: ACTOR_ADMIN,
+        tenantId: TENANT_A_ID,
+        username: 'admin_user',
+        email: 'admin@sec.local',
+        fullName: 'Admin User',
+        role: 'ADMIN_TENANT',
+        status: 'ACTIVE',
+      },
+      update: {},
+    });
+
+    await adminPrisma.userActor.upsert({
+      where: { id: ACTOR_PEGAWAI },
+      create: {
+        id: ACTOR_PEGAWAI,
+        tenantId: TENANT_A_ID,
+        username: 'pegawai_user',
+        email: 'pegawai@sec.local',
+        fullName: 'Pegawai User',
+        role: 'PEGAWAI',
+        status: 'ACTIVE',
       },
       update: {},
     });
@@ -466,6 +497,285 @@ async function runSecurityActionTests() {
       resReadTenantB.data?.some((p) => p.id === proposalId) === false,
       'Test 20: Tenant B cannot see Tenant A proposal (RLS isolation strictly enforced)'
     );
+
+    // -------------------------------------------------------------
+    // [13] Testing importAwardProposalsAction Security & RBAC Boundary
+    // -------------------------------------------------------------
+    console.log('\n[13] Testing importAwardProposalsAction Security & RBAC Boundary...');
+
+    // Test 21: Anonymous import request -> UNAUTHENTICATED
+    resetSessionProvider();
+    const resAnonImport = await importAwardProposalsAction({
+      items: [
+        {
+          nip: '199001012015011001',
+          nrk: '190001',
+          nama: 'Pegawai Anon',
+          jabatan: 'Staf',
+          unitKerja: 'BKD',
+          perangkatDaerah: 'BKD',
+          jenisPenghargaan: 'MASA_KERJA',
+          tahunUsulan: 2026,
+        },
+      ],
+    });
+    assert(
+      resAnonImport.success === false && resAnonImport.error?.code === 'UNAUTHENTICATED',
+      'Test 21: Anonymous import request without session is rejected with UNAUTHENTICATED'
+    );
+
+    // Test 22: INACTIVE actor -> UNAUTHENTICATED
+    setSessionProvider({
+      getSession: async () => ({
+        actorId: ACTOR_INACTIVE,
+        tenantId: TENANT_A_ID,
+        username: 'inactive_user',
+        role: 'VERIFIKATOR',
+        status: 'INACTIVE',
+      }),
+    });
+    const resInactiveImport = await importAwardProposalsAction({
+      items: [
+        {
+          nip: '199001012015011001',
+          nrk: '190001',
+          nama: 'Pegawai Inactive',
+          jabatan: 'Staf',
+          unitKerja: 'BKD',
+          perangkatDaerah: 'BKD',
+          jenisPenghargaan: 'MASA_KERJA',
+          tahunUsulan: 2026,
+        },
+      ],
+    });
+    assert(
+      resInactiveImport.success === false && resInactiveImport.error?.code === 'UNAUTHENTICATED',
+      'Test 22: INACTIVE actor is rejected from importing proposals with UNAUTHENTICATED'
+    );
+
+    // Test 23: PEGAWAI role -> FORBIDDEN
+    setSessionProvider({
+      getSession: async () => ({
+        actorId: ACTOR_PEGAWAI,
+        tenantId: TENANT_A_ID,
+        username: 'pegawai_user',
+        role: 'PEGAWAI',
+        status: 'ACTIVE',
+      }),
+    });
+    const resPegawaiImport = await importAwardProposalsAction({
+      items: [
+        {
+          nip: '199001012015011001',
+          nrk: '190001',
+          nama: 'Pegawai Unauthorized',
+          jabatan: 'Staf',
+          unitKerja: 'BKD',
+          perangkatDaerah: 'BKD',
+          jenisPenghargaan: 'MASA_KERJA',
+          tahunUsulan: 2026,
+        },
+      ],
+    });
+    assert(
+      resPegawaiImport.success === false && resPegawaiImport.error?.code === 'FORBIDDEN',
+      'Test 23: PEGAWAI role is forbidden from importing award proposals'
+    );
+
+    // Test 24: Authorized OPERATOR -> Succeeds
+    setSessionProvider({
+      getSession: async () => ({
+        actorId: ACTOR_OPERATOR,
+        tenantId: TENANT_A_ID,
+        username: 'operator_user',
+        role: 'OPERATOR',
+        status: 'ACTIVE',
+      }),
+    });
+    const validBatchOp: ImportAwardProposalsInput = {
+      items: [
+        {
+          nip: '199001012015011001',
+          nrk: '190001',
+          nama: 'Pegawai Operator 1',
+          jabatan: 'Pengadministrasi Umum',
+          unitKerja: 'BKD DKI Jakarta',
+          perangkatDaerah: 'BKD Provinsi DKI Jakarta',
+          jenisPenghargaan: 'MASA_KERJA',
+          nilaiUsulan: '10',
+          tahunUsulan: 2026,
+          masaKerjaTahun: 10,
+          masaKerjaBulan: 0,
+        },
+        {
+          nip: '199002022015022002',
+          nrk: '190002',
+          nama: 'Pegawai Operator 2',
+          jabatan: 'Pranata Komputer',
+          unitKerja: 'Dinas Kominfotik',
+          perangkatDaerah: 'Dinas Komunikasi dan Informatika',
+          jenisPenghargaan: 'SATYALANCANA',
+          nilaiUsulan: 'X',
+          tahunUsulan: 2026,
+          masaKerjaTahun: 10,
+          masaKerjaBulan: 4,
+        },
+      ],
+    };
+    const resOpImport = await importAwardProposalsAction(validBatchOp);
+    assert(
+      resOpImport.success === true &&
+      resOpImport.data?.importedCount === 2 &&
+      resOpImport.data?.createdCount === 2,
+      'Test 24: Authorized OPERATOR successfully imports proposal batch'
+    );
+
+    // Test 25: Authorized VERIFIKATOR -> Succeeds
+    setSessionProvider({
+      getSession: async () => ({
+        actorId: ACTOR_VERIFIKATOR,
+        tenantId: TENANT_A_ID,
+        username: 'verifikator_user',
+        role: 'VERIFIKATOR',
+        status: 'ACTIVE',
+      }),
+    });
+    const validBatchVerif: ImportAwardProposalsInput = {
+      items: [
+        {
+          nip: '199003032015031003',
+          nrk: '190003',
+          nama: 'Pegawai Verifikator 3',
+          jabatan: 'Auditor Kepegawaian',
+          unitKerja: 'Inspektorat',
+          perangkatDaerah: 'Inspektorat Provinsi',
+          jenisPenghargaan: 'MASA_KERJA',
+          nilaiUsulan: '20',
+          tahunUsulan: 2026,
+          masaKerjaTahun: 20,
+          masaKerjaBulan: 0,
+        },
+      ],
+    };
+    const resVerifImport = await importAwardProposalsAction(validBatchVerif);
+    assert(
+      resVerifImport.success === true && resVerifImport.data?.importedCount === 1,
+      'Test 25: Authorized VERIFIKATOR successfully imports proposal batch'
+    );
+
+    // Test 26: Authorized ADMIN -> Succeeds
+    setSessionProvider({
+      getSession: async () => ({
+        actorId: ACTOR_ADMIN,
+        tenantId: TENANT_A_ID,
+        username: 'admin_user',
+        role: 'ADMIN',
+        status: 'ACTIVE',
+      }),
+    });
+    const validBatchAdmin: ImportAwardProposalsInput = {
+      items: [
+        {
+          nip: '199004042015041004',
+          nrk: '190004',
+          nama: 'Pegawai Admin 4',
+          jabatan: 'Kepala Seksi',
+          unitKerja: 'BKD DKI Jakarta',
+          perangkatDaerah: 'BKD Provinsi DKI Jakarta',
+          jenisPenghargaan: 'SATYALANCANA',
+          nilaiUsulan: 'XX',
+          tahunUsulan: 2026,
+          masaKerjaTahun: 20,
+          masaKerjaBulan: 0,
+        },
+      ],
+    };
+    const resAdminImport = await importAwardProposalsAction(validBatchAdmin);
+    assert(
+      resAdminImport.success === true && resAdminImport.data?.importedCount === 1,
+      'Test 26: Authorized ADMIN successfully imports proposal batch'
+    );
+
+    // Test 27: Empty items rejected
+    const resEmptyImport = await importAwardProposalsAction({ items: [] });
+    assert(
+      resEmptyImport.success === false && resEmptyImport.error?.code === 'VALIDATION_ERROR',
+      'Test 27: Empty items array is rejected with VALIDATION_ERROR'
+    );
+
+    // Test 28: Invalid input rejected safely
+    const resInvalidImport = await importAwardProposalsAction(null as any);
+    assert(
+      resInvalidImport.success === false && resInvalidImport.error?.code === 'VALIDATION_ERROR',
+      'Test 28: Malformed null input is rejected with VALIDATION_ERROR'
+    );
+
+    // Test 29: Tenant binding: Tenant A import does not appear in Tenant B
+    setSessionProvider({
+      getSession: async () => ({
+        actorId: ACTOR_TENANT_B,
+        tenantId: TENANT_B_ID,
+        username: 'tenant_b_user',
+        role: 'VERIFIKATOR',
+        status: 'ACTIVE',
+      }),
+    });
+    const resTenantBReadProposals = await getAwardProposalsAction();
+    assert(
+      resTenantBReadProposals.success === true &&
+      !resTenantBReadProposals.data?.some((p) => p.employee.nip === '199001012015011001'),
+      'Test 29: Tenant B cannot observe proposals imported into Tenant A (Tenant isolation enforced)'
+    );
+
+    // Test 30: Identity collision safely returns DOMAIN_ERROR
+    setSessionProvider({
+      getSession: async () => ({
+        actorId: ACTOR_OPERATOR,
+        tenantId: TENANT_A_ID,
+        username: 'operator_user',
+        role: 'OPERATOR',
+        status: 'ACTIVE',
+      }),
+    });
+    const collisionInput: ImportAwardProposalsInput = {
+      items: [
+        {
+          nip: '199001012015011001', // NIP of Pegawai 1
+          nrk: '190002',             // NRK of Pegawai 2
+          nama: 'Pegawai Konflik Identitas',
+          jabatan: 'Staf',
+          unitKerja: 'BKD',
+          perangkatDaerah: 'BKD',
+          jenisPenghargaan: 'MASA_KERJA',
+          tahunUsulan: 2026,
+        },
+      ],
+    };
+    const resCollision = await importAwardProposalsAction(collisionInput);
+    assert(
+      resCollision.success === false &&
+      resCollision.error?.code === 'DOMAIN_ERROR' &&
+      resCollision.error?.message.includes('IDENTITY_COLLISION'),
+      'Test 30: Identity collision safely returns DOMAIN_ERROR without leaking internal error traces'
+    );
+
+    // Test 31: Full JSON serializability
+    const jsonParsed = JSON.parse(JSON.stringify(resOpImport));
+    assert(
+      jsonParsed.success === true &&
+      jsonParsed.data.importedCount === 2 &&
+      Array.isArray(jsonParsed.data.proposals) &&
+      jsonParsed.data.proposals.length === 2,
+      'Test 31: importAwardProposalsAction response is 100% JSON serializable for client consumption'
+    );
+
+    // Test 32: Confirm client cannot supply tenant authority through action input
+    assert(
+      resOpImport.data?.proposals[0].tenantId === TENANT_A_ID &&
+      resOpImport.data?.proposals[1].tenantId === TENANT_A_ID,
+      'Test 32: Imported proposals are strictly bound to authoritative session tenantId (Tenant spoofing impossible)'
+    );
+
 
   } finally {
     // Teardown

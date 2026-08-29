@@ -1,6 +1,12 @@
 'use server';
 
-import { AwardProposal, ProposalDocument, VerificationStatus } from './types';
+import {
+  AwardProposal,
+  ProposalDocument,
+  VerificationStatus,
+  ImportAwardProposalsInput,
+  ImportAwardProposalsResult,
+} from './types';
 import { AwardProposalApplicationService } from './service';
 import { getAuthenticatedSession, AuthenticationError } from '@/platform/auth/session';
 import { assertAuthorizedAction, AuthorizationError } from '@/platform/auth/guards';
@@ -74,7 +80,7 @@ function handleActionError<T>(err: unknown): ActionResponse<T> {
 
   if (err instanceof Error) {
     // Check for validation errors
-    if (err.message.startsWith('Validation Error:')) {
+    if (err.message.startsWith('Validation Error:') || err.message.startsWith('VALIDATION_ERROR:')) {
       return {
         success: false,
         error: {
@@ -84,8 +90,12 @@ function handleActionError<T>(err: unknown): ActionResponse<T> {
       };
     }
 
-    // Check for domain / workflow guard errors
-    if (err.message.startsWith('Workflow transition failed:') || err.message.startsWith('AwardProposal not found')) {
+    // Check for domain / workflow guard errors / identity collisions
+    if (
+      err.message.startsWith('Workflow transition failed:') ||
+      err.message.startsWith('AwardProposal not found') ||
+      err.message.startsWith('IDENTITY_COLLISION:')
+    ) {
       return {
         success: false,
         error: {
@@ -304,6 +314,46 @@ export async function getAwardProposalsAction(): Promise<ActionResponse<AwardPro
     return {
       success: true,
       data: JSON.parse(JSON.stringify(proposals)),
+    };
+  } catch (err: unknown) {
+    return handleActionError(err);
+  }
+}
+
+/**
+ * Server Action: Import Award Proposals from Excel Dataset
+ * Resolves authenticated session server-side, verifies IMPORT_PROPOSALS RBAC policy,
+ * and delegates factual items array to AwardProposalApplicationService.
+ */
+export async function importAwardProposalsAction(
+  input: ImportAwardProposalsInput
+): Promise<ActionResponse<ImportAwardProposalsResult>> {
+  try {
+    // 1. Authenticate Actor Session (Fail-Closed)
+    const session = await getAuthenticatedSession();
+
+    // 2. Authorize RBAC Policy (Only ADMIN, VERIFIKATOR, OPERATOR)
+    assertAuthorizedAction(session, 'IMPORT_PROPOSALS');
+
+    // 3. Validate Inbound Boundary
+    if (!input || typeof input !== 'object') {
+      throw new Error('Validation Error: Input must be a valid object.');
+    }
+    if (!input.items || !Array.isArray(input.items) || input.items.length === 0) {
+      throw new Error('Validation Error: items must be a non-empty array of proposal data.');
+    }
+
+    // 4. Execute in authenticated tenant context via application service
+    const service = new AwardProposalApplicationService();
+    const result = await service.importProposalsInContext(
+      session.actorId,
+      session.tenantId,
+      input.items
+    );
+
+    return {
+      success: true,
+      data: JSON.parse(JSON.stringify(result)),
     };
   } catch (err: unknown) {
     return handleActionError(err);
