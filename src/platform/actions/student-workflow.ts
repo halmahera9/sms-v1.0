@@ -20,6 +20,7 @@ import { IExceptionRepository, PostgresExceptionRepository } from '@/platform/re
 import { ocrItemValidationEngine } from '@/domains/student/rules';
 import { ExtractedItem as DomainExtractedItem } from '@/domains/student/types';
 import { randomUUID } from 'crypto';
+import { getObjectStorageProvider, IObjectStorageProvider, buildDocumentStoragePath } from '@/platform/storage';
 import type { ActionErrorCode, ActionError, ActionResponse } from '@/platform/types';
 
 export type { ActionErrorCode, ActionError, ActionResponse };
@@ -69,6 +70,13 @@ export interface UploadOCRDocumentDTO {
   fileSize?: number;
   imageUrl?: string;
   items: UploadOCRItemDTO[];
+  /**
+   * Optional real binary payload (Base64 encoded string or raw Buffer/Uint8Array).
+   * When provided, bytes are uploaded to IObjectStorageProvider, and real SHA-256 is persisted.
+   */
+  fileBase64?: string;
+  fileBuffer?: Buffer | Uint8Array;
+  mimeType?: string;
 }
 
 export interface VerifyExtractedItemDTO {
@@ -243,7 +251,8 @@ export async function getOCRDocumentsAction(): Promise<ActionResponse<OCRDocumen
  */
 export async function uploadOCRDocumentAction(
   dto: UploadOCRDocumentDTO,
-  exceptionRepo: IExceptionRepository = new PostgresExceptionRepository(auditRepo)
+  exceptionRepo: IExceptionRepository = new PostgresExceptionRepository(auditRepo),
+  storageProvider: IObjectStorageProvider = getObjectStorageProvider()
 ): Promise<ActionResponse<OCRDocumentDTO>> {
   try {
     if (!dto || typeof dto !== 'object' || !dto.fileName || dto.fileName.trim().length === 0) {
@@ -262,6 +271,34 @@ export async function uploadOCRDocumentAction(
       const versionId = randomUUID();
       const extractionId = randomUUID();
       const tenantId = context.tenantId;
+
+      // Determine file storage and real checksum
+      let resolvedFilePath = dto.imageUrl || '/placeholder-doc.png';
+      let resolvedFileSizeBytes = BigInt(dto.fileSize || 0);
+      let resolvedMimeType = dto.mimeType || 'image/png';
+      let resolvedChecksumSha256: string | null = null;
+
+      const hasBinaryContent = Boolean(dto.fileBuffer || (dto.fileBase64 && dto.fileBase64.trim().length > 0));
+      if (hasBinaryContent) {
+        const binaryBuffer = dto.fileBuffer
+          ? Buffer.from(dto.fileBuffer)
+          : Buffer.from(dto.fileBase64!.trim(), 'base64');
+
+        const storagePath = buildDocumentStoragePath(tenantId, documentId, 1, dto.fileName);
+        const uploadResult = await storageProvider.upload({
+          tenantId,
+          storagePath,
+          content: binaryBuffer,
+          mimeType: dto.mimeType || 'image/png',
+        });
+
+        resolvedFilePath = uploadResult.storagePath;
+        resolvedFileSizeBytes = BigInt(uploadResult.sizeBytes);
+        resolvedChecksumSha256 = uploadResult.checksumSha256;
+        if (uploadResult.mimeType) {
+          resolvedMimeType = uploadResult.mimeType;
+        }
+      }
 
       // 1. Create Document
       const doc = await tx.document.create({
@@ -282,10 +319,10 @@ export async function uploadOCRDocumentAction(
           tenantId,
           documentId: doc.id,
           versionNumber: 1,
-          filePath: dto.imageUrl || '/placeholder-doc.png',
-          fileSizeBytes: BigInt(dto.fileSize || 520000),
-          mimeType: 'image/png',
-          checksumSha256: 'simulated_ocr_checksum_' + Date.now(),
+          filePath: resolvedFilePath,
+          fileSizeBytes: resolvedFileSizeBytes,
+          mimeType: resolvedMimeType,
+          checksumSha256: resolvedChecksumSha256,
         },
       });
 

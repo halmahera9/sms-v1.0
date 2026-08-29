@@ -16,6 +16,11 @@ import {
   resetSessionProvider,
   AuthenticatedActorContext,
 } from '../src/platform/auth';
+import {
+  calculateSha256,
+  getObjectStorageProvider,
+  resetObjectStorageProvider,
+} from '../src/platform/storage';
 
 let testCount = 0;
 let passCount = 0;
@@ -280,6 +285,15 @@ async function runStudentOCRServerActionsTests() {
     const docId = uploadRes.data!.id;
     const item1Id = uploadRes.data!.items[0].id;
     const item2Id = uploadRes.data!.items[1].id;
+
+    // Verify metadata-only upload has null checksumSha256 (no fake SHA-256 or synthetic timestamp)
+    const legacyDocVersion = await adminPrisma.documentVersion.findFirst({
+      where: { documentId: docId, tenantId: TENANT_A_ID },
+    });
+    assert(
+      legacyDocVersion !== null && legacyDocVersion.checksumSha256 === null,
+      'TEST 6D: Metadata-only upload without binary sets checksumSha256 to null (no fake SHA-256, no synthetic timestamp)'
+    );
 
     // =========================================================================
     // TEST 7 — Invariant: Pending ExtractedItem has absenceRecordId === null
@@ -692,6 +706,139 @@ async function runStudentOCRServerActionsTests() {
       where: { title: 'dokumen_rollback_test.png' },
     });
     assert(rolledBackDoc === null, 'TEST 21B: Document rolled back atomically on exception bridge failure');
+
+    // =========================================================================
+    // TEST 22 — Real Binary Upload (Buffer) → Object Storage → SHA-256 → DocumentVersion
+    // =========================================================================
+    console.log('\n[22] Testing Real Binary Upload via Buffer to Object Storage & DocumentVersion...');
+    resetObjectStorageProvider();
+    const rawPdfBinary = Buffer.from('%PDF-1.4 Mock OCR Certificate Binary Content For Testing 12345', 'utf-8');
+    const expectedSha256 = calculateSha256(rawPdfBinary);
+
+    const binaryUploadRes = await uploadOCRDocumentAction({
+      fileName: 'Surat_Izin_Real_Binary.pdf',
+      fileBuffer: rawPdfBinary,
+      mimeType: 'application/pdf',
+      items: [
+        {
+          ocrText: 'Citra Dewi - Sakit Surat Dokter',
+          matchedStudentName: 'Citra Dewi',
+          matchedNisn: '0051234569',
+          confidence: 99,
+          date: '2026-08-28',
+          status: 'Sakit',
+        },
+      ],
+    });
+
+    assert(
+      binaryUploadRes.success && binaryUploadRes.data !== undefined,
+      'TEST 22A: uploadOCRDocumentAction succeeds with real binary Buffer'
+    );
+
+    const binaryDocId = binaryUploadRes.data!.id;
+    const docVersionDb = await adminPrisma.documentVersion.findFirst({
+      where: { documentId: binaryDocId, tenantId: TENANT_A_ID },
+    });
+
+    assert(docVersionDb !== null, 'TEST 22B: DocumentVersion record created in database');
+    assert(
+      docVersionDb!.checksumSha256 === expectedSha256,
+      `TEST 22C: DocumentVersion.checksumSha256 matches exact real binary SHA-256 digest (${expectedSha256})`
+    );
+    assert(
+      docVersionDb!.checksumSha256 !== null && !docVersionDb!.checksumSha256.startsWith('simulated_ocr_checksum_'),
+      'TEST 22D: Synthetic timestamp checksum is eliminated from real binary path'
+    );
+    assert(
+      docVersionDb!.fileSizeBytes === BigInt(rawPdfBinary.byteLength),
+      'TEST 22E: DocumentVersion.fileSizeBytes matches exact binary byte size'
+    );
+    assert(
+      docVersionDb!.filePath.startsWith(`tenants/${TENANT_A_ID}/documents/${binaryDocId}/v1-`),
+      'TEST 22F: DocumentVersion.filePath is canonical tenant-isolated storage path'
+    );
+
+    // Verify stored binary in IObjectStorageProvider matches original bytes
+    const storageProvider = getObjectStorageProvider();
+    const downloadedStoredBinary = await storageProvider.download(TENANT_A_ID, docVersionDb!.filePath);
+    assert(
+      Buffer.compare(downloadedStoredBinary, rawPdfBinary) === 0,
+      'TEST 22G: Downloaded binary from IObjectStorageProvider equals original uploaded bytes'
+    );
+
+    // =========================================================================
+    // TEST 23 — Real Binary Upload via Base64 Payload
+    // =========================================================================
+    console.log('\n[23] Testing Real Binary Upload via Base64 Payload...');
+    const rawImageBinary = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d]);
+    const base64Payload = rawImageBinary.toString('base64');
+    const expectedBase64Sha = calculateSha256(rawImageBinary);
+
+    const base64UploadRes = await uploadOCRDocumentAction({
+      fileName: 'Scan_Surat_Base64.png',
+      fileBase64: base64Payload,
+      mimeType: 'image/png',
+      items: [
+        {
+          ocrText: 'Budi Santoso - Sakit Surat Base64',
+          matchedStudentName: 'Budi Santoso',
+          matchedNisn: '0059876543',
+          confidence: 90,
+          date: '2026-08-28',
+          status: 'Sakit',
+        },
+      ],
+    });
+
+    assert(
+      base64UploadRes.success && base64UploadRes.data !== undefined,
+      'TEST 23A: uploadOCRDocumentAction succeeds with real Base64 binary payload'
+    );
+
+    const base64DocId = base64UploadRes.data!.id;
+    const base64VersionDb = await adminPrisma.documentVersion.findFirst({
+      where: { documentId: base64DocId, tenantId: TENANT_A_ID },
+    });
+
+    assert(
+      base64VersionDb!.checksumSha256 === expectedBase64Sha,
+      'TEST 23B: Base64 payload is converted to binary and real SHA-256 is stored in DocumentVersion'
+    );
+    assert(
+      base64VersionDb!.fileSizeBytes === BigInt(rawImageBinary.byteLength),
+      'TEST 23C: Base64 upload sets exact binary byte size'
+    );
+
+    // =========================================================================
+    // TEST 24 — SHA-256 Invariance & Tenant Storage Isolation in Action Context
+    // =========================================================================
+    console.log('\n[24] Testing Binary Integrity Invariance & Cross-Tenant Rejection...');
+    // Upload identical binary under a second document in Tenant A
+    const secondUploadRes = await uploadOCRDocumentAction({
+      fileName: 'Surat_Izin_Identical_Binary.pdf',
+      fileBuffer: rawPdfBinary,
+      items: [{ ocrText: 'Citra Dewi Item 2', confidence: 95 }],
+    });
+    const secondVersionDb = await adminPrisma.documentVersion.findFirst({
+      where: { documentId: secondUploadRes.data!.id, tenantId: TENANT_A_ID },
+    });
+    assert(
+      secondVersionDb!.checksumSha256 === expectedSha256,
+      'TEST 24A: Same binary content uploaded in different document produces identical SHA-256'
+    );
+
+    // Cross-tenant storage isolation: Tenant B cannot download Tenant A's document file from storage
+    let crossTenantStorageFailed = false;
+    try {
+      await storageProvider.download(TENANT_B_ID, docVersionDb!.filePath);
+    } catch {
+      crossTenantStorageFailed = true;
+    }
+    assert(
+      crossTenantStorageFailed,
+      'TEST 24B: Tenant B cannot access Tenant A document binary via storage provider'
+    );
 
     console.log('\n=====================================================');
     console.log(` RESULT: All ${passCount}/${testCount} Student OCR Server Action tests PASSED `);

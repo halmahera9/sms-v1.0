@@ -404,7 +404,7 @@ model DocumentVersion {
   filePath       String   @map("file_path") @db.VarChar(500)
   fileSizeBytes  BigInt   @map("file_size_bytes")
   mimeType       String   @map("mime_type") @db.VarChar(100)
-  checksumSha256 String   @map("checksum_sha256") @db.VarChar(64)
+  checksumSha256 String?  @map("checksum_sha256") @db.VarChar(64)
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
