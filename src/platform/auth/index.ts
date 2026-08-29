@@ -2,10 +2,14 @@ export type {
   AuthenticatedActorContext,
   AuthenticatedActorSession,
   ISessionProvider,
+  SessionTokenClaims,
 } from './session';
 
 export {
   AuthenticationError,
+  CookieSessionProvider,
+  createSessionToken,
+  verifySessionToken,
   getAuthenticatedActorContext,
   getAuthenticatedSession,
   executeInAuthenticatedContext,
