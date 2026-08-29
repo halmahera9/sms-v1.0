@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { TenantTransactionClient, runInTenantContext } from '../db/tenant-context';
 import { ExceptionStatus, Severity } from '@prisma/client';
 import { IAuditEventRepository, PostgresAuditEventRepository } from './audit-event';
@@ -31,6 +32,17 @@ export interface ExceptionFilterOptions {
   limit?: number;
 }
 
+export interface CreateExceptionItemParams {
+  id?: string;
+  entityType: string;
+  entityId: string;
+  ruleCode: string;
+  severity: Severity;
+  actorUserId?: string | null;
+  resolutionNotes?: string | null;
+  initialWorkflowState?: string;
+}
+
 export interface IExceptionRepository {
   findManyTx(
     tx: TenantTransactionClient,
@@ -51,6 +63,12 @@ export interface IExceptionRepository {
     status: ExceptionStatus,
     actorUserId: string,
     resolutionNotes?: string
+  ): Promise<ExceptionItemRecord>;
+
+  createTx(
+    tx: TenantTransactionClient,
+    tenantId: string,
+    params: CreateExceptionItemParams
   ): Promise<ExceptionItemRecord>;
 }
 
@@ -274,6 +292,99 @@ export class PostgresExceptionRepository implements IExceptionRepository {
     return this.mapToDomain(updated);
   }
 
+  public async createTx(
+    tx: TenantTransactionClient,
+    tenantId: string,
+    params: CreateExceptionItemParams
+  ): Promise<ExceptionItemRecord> {
+    if (!tenantId || !isValidUuid(tenantId)) {
+      throw new Error(`SECURITY/SCHEMA ERROR: Tenant id must be a valid UUID. Received: '${tenantId}'`);
+    }
+    if (!params.entityId || !isValidUuid(params.entityId)) {
+      throw new Error(`Validation Error: Entity id must be a valid UUID. Received: '${params.entityId}'`);
+    }
+    if (!params.entityType || typeof params.entityType !== 'string' || !params.entityType.trim()) {
+      throw new Error('Validation Error: entityType is required and must be a non-empty string.');
+    }
+    if (!params.ruleCode || typeof params.ruleCode !== 'string' || !params.ruleCode.trim()) {
+      throw new Error('Validation Error: ruleCode is required and must be a non-empty string.');
+    }
+    if (!params.severity || !Object.values(Severity).includes(params.severity)) {
+      throw new Error(`Validation Error: Invalid severity '${params.severity}'.`);
+    }
+    if (params.id !== undefined && params.id !== null && !isValidUuid(params.id)) {
+      throw new Error(`Validation Error: Exception id must be a valid UUID. Received: '${params.id}'`);
+    }
+    if (params.actorUserId !== undefined && params.actorUserId !== null && !isValidUuid(params.actorUserId)) {
+      throw new Error(`Validation Error: Actor user id must be a valid UUID. Received: '${params.actorUserId}'`);
+    }
+
+    // 1. Idempotently resolve or create WorkflowInstance for [tenantId, entityType, entityId]
+    let workflowInstance = await tx.workflowInstance.findFirst({
+      where: {
+        tenantId,
+        entityType: params.entityType,
+        entityId: params.entityId,
+      },
+    });
+
+    if (!workflowInstance) {
+      const initialWorkflowState =
+        params.initialWorkflowState ||
+        (params.entityType === 'AwardProposal' ? 'NOMINATIF' : 'NEEDS_VERIFICATION');
+
+      workflowInstance = await tx.workflowInstance.create({
+        data: {
+          id: crypto.randomUUID(),
+          tenantId,
+          entityType: params.entityType,
+          entityId: params.entityId,
+          currentState: initialWorkflowState,
+        },
+      });
+    }
+
+    // 2. Insert ExceptionItem referencing workflowInstance.id
+    const exceptionId = params.id && isValidUuid(params.id) ? params.id : crypto.randomUUID();
+    const now = new Date();
+
+    const created = await tx.exceptionItem.create({
+      data: {
+        id: exceptionId,
+        tenantId,
+        workflowInstanceId: workflowInstance.id,
+        ruleCode: params.ruleCode,
+        severity: params.severity,
+        status: ExceptionStatus.OPEN,
+        resolutionNotes: params.resolutionNotes ?? null,
+        createdAt: now,
+        updatedAt: now,
+      },
+      include: {
+        workflowInstance: true,
+        resolvedByUser: true,
+        assignedToUser: true,
+      },
+    });
+
+    // 3. Atomic Audit Log Generation
+    await this.auditRepo.recordTx(tx, tenantId, {
+      entityType: 'ExceptionItem',
+      entityId: exceptionId,
+      action: 'CREATE_EXCEPTION',
+      actorUserId: params.actorUserId ?? null,
+      metadata: {
+        ruleCode: params.ruleCode,
+        severity: params.severity,
+        entityType: params.entityType,
+        entityId: params.entityId,
+        workflowInstanceId: workflowInstance.id,
+      },
+    });
+
+    return this.mapToDomain(created);
+  }
+
   public async findManyInContext(
     actorId: string,
     tenantId: string,
@@ -293,6 +404,19 @@ export class PostgresExceptionRepository implements IExceptionRepository {
   ): Promise<ExceptionItemRecord> {
     return await runInTenantContext(actorId, tenantId, async (tx) => {
       return await this.updateStatusTx(tx, tenantId, id, status, actorId, resolutionNotes);
+    });
+  }
+
+  public async createInContext(
+    actorId: string,
+    tenantId: string,
+    params: CreateExceptionItemParams
+  ): Promise<ExceptionItemRecord> {
+    return await runInTenantContext(actorId, tenantId, async (tx) => {
+      return await this.createTx(tx, tenantId, {
+        ...params,
+        actorUserId: params.actorUserId !== undefined ? params.actorUserId : actorId,
+      });
     });
   }
 
