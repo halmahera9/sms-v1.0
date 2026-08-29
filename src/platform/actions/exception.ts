@@ -40,6 +40,16 @@ export interface UpdateExceptionStatusDTO {
   resolutionNote?: string;
 }
 
+export interface CreateExceptionDTO {
+  id?: string;
+  entityType: string;
+  entityId: string;
+  ruleCode: string;
+  severity: Severity;
+  resolutionNotes?: string;
+  initialWorkflowState?: string;
+}
+
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function isValidUuid(val?: string | null): boolean {
@@ -195,6 +205,83 @@ export async function updateExceptionStatusAction(
     return {
       success: true,
       data: JSON.parse(JSON.stringify(updated)),
+    };
+  } catch (err: unknown) {
+    return handleActionError(err);
+  }
+}
+
+/**
+ * Server Action: Create Exception
+ * Atomically creates an exception item and idempotently ensures workflow instance for authenticated tenant.
+ * Allowed roles: ADMIN, ADMIN_TENANT, VERIFIKATOR.
+ */
+export async function createExceptionAction(
+  dto: CreateExceptionDTO,
+  repo: IExceptionRepository = new PostgresExceptionRepository()
+): Promise<ActionResponse<ExceptionItemRecord>> {
+  try {
+    if (!dto || typeof dto !== 'object') {
+      throw new Error('Validation Error: Payload data pengecualian tidak valid.');
+    }
+
+    if (dto.id !== undefined && dto.id !== null && !isValidUuid(dto.id)) {
+      throw new Error('Validation Error: id must be a valid UUID.');
+    }
+
+    if (!dto.entityId || !isValidUuid(dto.entityId)) {
+      throw new Error('Validation Error: entityId must be a valid UUID.');
+    }
+
+    if (!dto.entityType || typeof dto.entityType !== 'string' || !dto.entityType.trim()) {
+      throw new Error('Validation Error: entityType is required and must be a non-empty string.');
+    }
+
+    if (!dto.ruleCode || typeof dto.ruleCode !== 'string' || !dto.ruleCode.trim()) {
+      throw new Error('Validation Error: ruleCode is required and must be a non-empty string.');
+    }
+
+    const validSeverities = Object.values(Severity);
+    if (!dto.severity || !validSeverities.includes(dto.severity)) {
+      throw new Error(`Validation Error: Severity '${dto.severity}' bukan tingkat keparahan yang valid.`);
+    }
+
+    if (dto.resolutionNotes !== undefined && dto.resolutionNotes !== null && typeof dto.resolutionNotes !== 'string') {
+      throw new Error('Validation Error: resolutionNotes must be a string.');
+    }
+
+    if (
+      dto.initialWorkflowState !== undefined &&
+      dto.initialWorkflowState !== null &&
+      typeof dto.initialWorkflowState !== 'string'
+    ) {
+      throw new Error('Validation Error: initialWorkflowState must be a string.');
+    }
+
+    const created = await executeInAuthenticatedContext(async (context, tx) => {
+      // RBAC check: ADMIN, ADMIN_TENANT, VERIFIKATOR
+      const allowedRoles: string[] = ['ADMIN', 'ADMIN_TENANT', 'VERIFIKATOR'];
+      if (!allowedRoles.includes(context.role)) {
+        throw new AuthorizationError(
+          `Akses ditolak: Peran '${context.role}' tidak memiliki wewenang untuk membuat data pengecualian.`
+        );
+      }
+
+      return await repo.createTx(tx, context.tenantId, {
+        id: dto.id,
+        entityType: dto.entityType.trim(),
+        entityId: dto.entityId,
+        ruleCode: dto.ruleCode.trim(),
+        severity: dto.severity,
+        actorUserId: context.actorId,
+        resolutionNotes: dto.resolutionNotes?.trim(),
+        initialWorkflowState: dto.initialWorkflowState?.trim(),
+      });
+    });
+
+    return {
+      success: true,
+      data: JSON.parse(JSON.stringify(created)),
     };
   } catch (err: unknown) {
     return handleActionError(err);

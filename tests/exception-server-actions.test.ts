@@ -6,6 +6,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import {
   getExceptionsAction,
   updateExceptionStatusAction,
+  createExceptionAction,
 } from '../src/platform/actions/exception';
 import {
   RULE_MESSAGE_CATALOG,
@@ -46,6 +47,10 @@ async function runExceptionServerActionsTests() {
   const ACTOR_ADMIN_A_ID = 'a1111111-1111-7111-8111-111111111111';
   const ACTOR_OPERATOR_A_ID = 'a3333333-3333-7333-8333-333333333333';
   const ACTOR_VERIF_B_ID = 'b2222222-2222-7222-8222-222222222222';
+  const ACTOR_SUPERADMIN_A_ID = 'a4444444-4444-7444-8444-444444444444';
+  const ACTOR_ADMINTENANT_A_ID = 'a5555555-5555-7555-8555-555555555555';
+  const ACTOR_AUDITOR_A_ID = 'a6666666-6666-7666-8666-666666666666';
+  const ACTOR_PEGAWAI_A_ID = 'a7777777-7777-7777-8777-777777777777';
 
   try {
     // 1. Setup tenants
@@ -101,6 +106,62 @@ async function runExceptionServerActionsTests() {
         status: 'ACTIVE',
       },
       update: { status: 'ACTIVE', role: 'VERIFIKATOR', fullName: 'Exc Verifikator User B', username: 'exc_verif_b' },
+    });
+
+    await adminPrisma.userActor.upsert({
+      where: { id: ACTOR_SUPERADMIN_A_ID },
+      create: {
+        id: ACTOR_SUPERADMIN_A_ID,
+        tenantId: TENANT_A_ID,
+        username: 'exc_superadmin_a',
+        email: 'exc_superadmin_a@sec.local',
+        fullName: 'Exc Superadmin User A',
+        role: 'ADMIN_TENANT',
+        status: 'ACTIVE',
+      },
+      update: { status: 'ACTIVE', role: 'ADMIN_TENANT', fullName: 'Exc Superadmin User A', username: 'exc_superadmin_a' },
+    });
+
+    await adminPrisma.userActor.upsert({
+      where: { id: ACTOR_ADMINTENANT_A_ID },
+      create: {
+        id: ACTOR_ADMINTENANT_A_ID,
+        tenantId: TENANT_A_ID,
+        username: 'exc_admintenant_a',
+        email: 'exc_admintenant_a@sec.local',
+        fullName: 'Exc Admin Tenant User A',
+        role: 'ADMIN_TENANT',
+        status: 'ACTIVE',
+      },
+      update: { status: 'ACTIVE', role: 'ADMIN_TENANT', fullName: 'Exc Admin Tenant User A', username: 'exc_admintenant_a' },
+    });
+
+    await adminPrisma.userActor.upsert({
+      where: { id: ACTOR_AUDITOR_A_ID },
+      create: {
+        id: ACTOR_AUDITOR_A_ID,
+        tenantId: TENANT_A_ID,
+        username: 'exc_auditor_a',
+        email: 'exc_auditor_a@sec.local',
+        fullName: 'Exc Auditor User A',
+        role: 'AUDITOR',
+        status: 'ACTIVE',
+      },
+      update: { status: 'ACTIVE', role: 'AUDITOR', fullName: 'Exc Auditor User A', username: 'exc_auditor_a' },
+    });
+
+    await adminPrisma.userActor.upsert({
+      where: { id: ACTOR_PEGAWAI_A_ID },
+      create: {
+        id: ACTOR_PEGAWAI_A_ID,
+        tenantId: TENANT_A_ID,
+        username: 'exc_pegawai_a',
+        email: 'exc_pegawai_a@sec.local',
+        fullName: 'Exc Pegawai User A',
+        role: 'OPERATOR',
+        status: 'ACTIVE',
+      },
+      update: { status: 'ACTIVE', role: 'OPERATOR', fullName: 'Exc Pegawai User A', username: 'exc_pegawai_a' },
     });
 
     // 3. Setup workflow instances and exceptions
@@ -535,6 +596,318 @@ async function runExceptionServerActionsTests() {
     assert(
       !res19.success && (res19.error?.code === 'VALIDATION_ERROR' || res19.error?.code === 'FORBIDDEN'),
       'Tenant B cannot mutate an exception belonging to Tenant A'
+    );
+
+    // ---------------------------------------------------------------------------------
+    // TEST 20: Unauthenticated createExceptionAction => Fail-Closed
+    // ---------------------------------------------------------------------------------
+    resetSessionProvider();
+    const res20 = await createExceptionAction({
+      entityType: 'AwardProposal',
+      entityId: crypto.randomUUID(),
+      ruleCode: 'DOC_COMPLETENESS_RULE',
+      severity: Severity.CRITICAL,
+    });
+    assert(
+      !res20.success && res20.error?.code === 'UNAUTHENTICATED',
+      'createExceptionAction fails closed with UNAUTHENTICATED when unauthenticated'
+    );
+
+    // ---------------------------------------------------------------------------------
+    // TEST 21: Authorized ADMIN Access => SUCCESS
+    // ---------------------------------------------------------------------------------
+    const sessionSuperAdminA: AuthenticatedActorContext = {
+      actorId: ACTOR_SUPERADMIN_A_ID,
+      tenantId: TENANT_A_ID,
+      username: 'exc_superadmin_a',
+      role: UserRole.ADMIN,
+      status: 'ACTIVE',
+    };
+    setSessionProvider({
+      getSession: async () => sessionSuperAdminA,
+    });
+
+    const entityAdminId = crypto.randomUUID();
+    const res21 = await createExceptionAction({
+      entityType: 'AwardProposal',
+      entityId: entityAdminId,
+      ruleCode: 'DOC_COMPLETENESS_RULE',
+      severity: Severity.CRITICAL,
+      resolutionNotes: 'Dibuat oleh Superadmin',
+    });
+
+    assert(
+      res21.success === true &&
+      res21.data?.ruleCode === 'DOC_COMPLETENESS_RULE' &&
+      res21.data?.status === ExceptionStatus.OPEN &&
+      res21.data?.severity === Severity.CRITICAL &&
+      res21.data?.resolutionNotes === 'Dibuat oleh Superadmin',
+      'createExceptionAction permits ADMIN role and persists exception'
+    );
+
+    // ---------------------------------------------------------------------------------
+    // TEST 22: Authorized ADMIN_TENANT Access => SUCCESS
+    // ---------------------------------------------------------------------------------
+    const sessionAdminTenantA: AuthenticatedActorContext = {
+      actorId: ACTOR_ADMINTENANT_A_ID,
+      tenantId: TENANT_A_ID,
+      username: 'exc_admintenant_a',
+      role: UserRole.ADMIN_TENANT,
+      status: 'ACTIVE',
+    };
+    setSessionProvider({
+      getSession: async () => sessionAdminTenantA,
+    });
+
+    const entityAdminTenantId = crypto.randomUUID();
+    const res22 = await createExceptionAction({
+      entityType: 'Student',
+      entityId: entityAdminTenantId,
+      ruleCode: 'STUDENT_NISN_FORMAT_RULE',
+      severity: Severity.HIGH,
+    });
+
+    assert(
+      res22.success === true &&
+      res22.data?.domain === 'STUDENT' &&
+      res22.data?.status === ExceptionStatus.OPEN &&
+      res22.data?.severity === Severity.HIGH,
+      'createExceptionAction permits ADMIN_TENANT role and persists student exception'
+    );
+
+    // ---------------------------------------------------------------------------------
+    // TEST 23: Authorized VERIFIKATOR Access => SUCCESS
+    // ---------------------------------------------------------------------------------
+    setSessionProvider({
+      getSession: async () => sessionVerifA,
+    });
+
+    const entityVerifId = crypto.randomUUID();
+    const res23 = await createExceptionAction({
+      entityType: 'AwardProposal',
+      entityId: entityVerifId,
+      ruleCode: 'SE_BKD_22_2026_RULE',
+      severity: Severity.MEDIUM,
+      resolutionNotes: 'Temuan hukuman disiplin oleh Verifikator',
+    });
+
+    assert(
+      res23.success === true &&
+      res23.data?.ruleCode === 'SE_BKD_22_2026_RULE' &&
+      res23.data?.status === ExceptionStatus.OPEN &&
+      res23.data?.severity === Severity.MEDIUM,
+      'createExceptionAction permits VERIFIKATOR role and persists exception'
+    );
+
+    // ---------------------------------------------------------------------------------
+    // TEST 24: RBAC Rejection - OPERATOR Cannot Create Exception => FORBIDDEN
+    // ---------------------------------------------------------------------------------
+    const sessionOperatorA: AuthenticatedActorContext = {
+      actorId: ACTOR_OPERATOR_A_ID,
+      tenantId: TENANT_A_ID,
+      username: 'exc_operator_a',
+      role: UserRole.OPERATOR,
+      status: 'ACTIVE',
+    };
+    setSessionProvider({
+      getSession: async () => sessionOperatorA,
+    });
+
+    const res24 = await createExceptionAction({
+      entityType: 'AwardProposal',
+      entityId: crypto.randomUUID(),
+      ruleCode: 'DOC_COMPLETENESS_RULE',
+      severity: Severity.CRITICAL,
+    });
+
+    assert(
+      !res24.success && res24.error?.code === 'FORBIDDEN',
+      'createExceptionAction rejects OPERATOR role with FORBIDDEN'
+    );
+
+    // ---------------------------------------------------------------------------------
+    // TEST 25: RBAC Rejection - AUDITOR Cannot Create Exception => FORBIDDEN
+    // ---------------------------------------------------------------------------------
+    const sessionAuditorA: AuthenticatedActorContext = {
+      actorId: ACTOR_AUDITOR_A_ID,
+      tenantId: TENANT_A_ID,
+      username: 'exc_auditor_a',
+      role: UserRole.AUDITOR,
+      status: 'ACTIVE',
+    };
+    setSessionProvider({
+      getSession: async () => sessionAuditorA,
+    });
+
+    const res25 = await createExceptionAction({
+      entityType: 'AwardProposal',
+      entityId: crypto.randomUUID(),
+      ruleCode: 'DOC_COMPLETENESS_RULE',
+      severity: Severity.CRITICAL,
+    });
+
+    assert(
+      !res25.success && res25.error?.code === 'FORBIDDEN',
+      'createExceptionAction rejects AUDITOR role with FORBIDDEN'
+    );
+
+    // ---------------------------------------------------------------------------------
+    // TEST 26: RBAC Rejection - PEGAWAI Cannot Create Exception => FORBIDDEN
+    // ---------------------------------------------------------------------------------
+    const sessionPegawaiA: AuthenticatedActorContext = {
+      actorId: ACTOR_PEGAWAI_A_ID,
+      tenantId: TENANT_A_ID,
+      username: 'exc_pegawai_a',
+      role: UserRole.PEGAWAI,
+      status: 'ACTIVE',
+    };
+    setSessionProvider({
+      getSession: async () => sessionPegawaiA,
+    });
+
+    const res26 = await createExceptionAction({
+      entityType: 'AwardProposal',
+      entityId: crypto.randomUUID(),
+      ruleCode: 'DOC_COMPLETENESS_RULE',
+      severity: Severity.CRITICAL,
+    });
+
+    assert(
+      !res26.success && res26.error?.code === 'FORBIDDEN',
+      'createExceptionAction rejects PEGAWAI role with FORBIDDEN'
+    );
+
+    // ---------------------------------------------------------------------------------
+    // TEST 27: Tenant Isolation - Created Item Belongs to Caller's Tenant
+    // ---------------------------------------------------------------------------------
+    setSessionProvider({
+      getSession: async () => sessionVerifA, // Tenant A
+    });
+
+    const isolatedEntityId = crypto.randomUUID();
+    const res27Create = await createExceptionAction({
+      entityType: 'AwardProposal',
+      entityId: isolatedEntityId,
+      ruleCode: 'MASA_KERJA_ELIGIBILITY_RULE',
+      severity: Severity.HIGH,
+    });
+
+    assert(res27Create.success === true, 'Tenant A creates exception successfully');
+    const createdAId = res27Create.data!.id;
+
+    // Switch to Tenant B session
+    setSessionProvider({
+      getSession: async () => sessionVerifB, // Tenant B
+    });
+
+    const res27TenantBRead = await getExceptionsAction();
+    assert(
+      res27TenantBRead.success === true &&
+      !res27TenantBRead.data!.some((item) => item.id === createdAId),
+      'Tenant B cannot observe exception created by Tenant A'
+    );
+
+    // ---------------------------------------------------------------------------------
+    // TEST 28: Input Validation Rejections
+    // ---------------------------------------------------------------------------------
+    setSessionProvider({
+      getSession: async () => sessionVerifA,
+    });
+
+    const res28NullDto = await createExceptionAction(null as any);
+    const res28BadEntityId = await createExceptionAction({
+      entityType: 'AwardProposal',
+      entityId: 'not-a-valid-uuid',
+      ruleCode: 'DOC_COMPLETENESS_RULE',
+      severity: Severity.CRITICAL,
+    });
+    const res28EmptyEntityType = await createExceptionAction({
+      entityType: '   ',
+      entityId: crypto.randomUUID(),
+      ruleCode: 'DOC_COMPLETENESS_RULE',
+      severity: Severity.CRITICAL,
+    });
+    const res28EmptyRuleCode = await createExceptionAction({
+      entityType: 'AwardProposal',
+      entityId: crypto.randomUUID(),
+      ruleCode: '',
+      severity: Severity.CRITICAL,
+    });
+    const res28BadSeverity = await createExceptionAction({
+      entityType: 'AwardProposal',
+      entityId: crypto.randomUUID(),
+      ruleCode: 'DOC_COMPLETENESS_RULE',
+      severity: 'SUPER_CRITICAL' as any,
+    });
+    const res28BadId = await createExceptionAction({
+      id: 'invalid-id-uuid',
+      entityType: 'AwardProposal',
+      entityId: crypto.randomUUID(),
+      ruleCode: 'DOC_COMPLETENESS_RULE',
+      severity: Severity.CRITICAL,
+    });
+
+    assert(
+      !res28NullDto.success && res28NullDto.error?.code === 'VALIDATION_ERROR' &&
+      !res28BadEntityId.success && res28BadEntityId.error?.code === 'VALIDATION_ERROR' &&
+      !res28EmptyEntityType.success && res28EmptyEntityType.error?.code === 'VALIDATION_ERROR' &&
+      !res28EmptyRuleCode.success && res28EmptyRuleCode.error?.code === 'VALIDATION_ERROR' &&
+      !res28BadSeverity.success && res28BadSeverity.error?.code === 'VALIDATION_ERROR' &&
+      !res28BadId.success && res28BadId.error?.code === 'VALIDATION_ERROR',
+      'createExceptionAction validates all input fields and rejects invalid parameters'
+    );
+
+    // ---------------------------------------------------------------------------------
+    // TEST 29: Existing WorkflowInstance Reuse
+    // ---------------------------------------------------------------------------------
+    const sharedEntityId = crypto.randomUUID();
+    const res29First = await createExceptionAction({
+      entityType: 'AwardProposal',
+      entityId: sharedEntityId,
+      ruleCode: 'DOC_COMPLETENESS_RULE',
+      severity: Severity.CRITICAL,
+    });
+    const res29Second = await createExceptionAction({
+      entityType: 'AwardProposal',
+      entityId: sharedEntityId,
+      ruleCode: 'DOC_FORMAT_RULE',
+      severity: Severity.LOW,
+    });
+
+    assert(
+      res29First.success === true &&
+      res29Second.success === true &&
+      res29First.data!.id !== res29Second.data!.id,
+      'createExceptionAction reuses existing WorkflowInstance for duplicate (tenantId, entityType, entityId)'
+    );
+
+    // ---------------------------------------------------------------------------------
+    // TEST 30: Repository Error Propagation
+    // ---------------------------------------------------------------------------------
+    const mockFailingRepo = {
+      findManyTx: async () => [],
+      findByIdTx: async () => null,
+      updateStatusTx: async () => { throw new Error('Unreachable'); },
+      createTx: async () => {
+        throw new Error('Validation Error: Simulated repository domain validation failure.');
+      },
+    };
+
+    const res30 = await createExceptionAction(
+      {
+        entityType: 'AwardProposal',
+        entityId: crypto.randomUUID(),
+        ruleCode: 'DOC_COMPLETENESS_RULE',
+        severity: Severity.CRITICAL,
+      },
+      mockFailingRepo
+    );
+
+    assert(
+      !res30.success &&
+      res30.error?.code === 'VALIDATION_ERROR' &&
+      res30.error.message.includes('Simulated repository domain validation failure'),
+      'createExceptionAction cleanly propagates repository Validation Errors'
     );
 
     console.log(`\n=====================================================`);
