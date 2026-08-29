@@ -4,6 +4,7 @@ import crypto from 'crypto';
 import { Severity, ExceptionStatus } from '@prisma/client';
 import { PostgresExceptionRepository } from '../src/platform/repositories/exception';
 import { runInTenantContext } from '../src/platform/db/tenant-context';
+import { ValidationResult } from '../src/platform/types';
 
 const migrationUrl = process.env.MIGRATION_DATABASE_URL;
 if (!migrationUrl) {
@@ -223,6 +224,211 @@ async function runExceptionRepositoryTests() {
       }
     }
     assert(invalidEntityCaught, 'createTx rejects non-UUID entityId');
+
+    // ----------------------------------------------------
+    // Test 7: createFromValidationResultsTx with single failure
+    // ----------------------------------------------------
+    console.log('\n[7] Testing createFromValidationResultsTx with single failure...');
+    const entity3Id = crypto.randomUUID();
+    const mockValidationFailure1: ValidationResult[] = [
+      {
+        valid: false,
+        ruleId: 'DOC_COMPLETENESS_RULE',
+        severity: 'ERROR',
+        message: 'Berkas wajib SK CPNS belum diunggah',
+      },
+    ];
+
+    const results7 = await runInTenantContext(ACTOR_A_ID, TENANT_A_ID, async (tx) => {
+      return await repository.createFromValidationResultsTx(
+        tx,
+        TENANT_A_ID,
+        'AwardProposal',
+        entity3Id,
+        mockValidationFailure1,
+        ACTOR_A_ID
+      );
+    });
+
+    assert(results7.length === 1, 'createFromValidationResultsTx returns 1 created exception');
+    assert(results7[0].ruleCode === 'DOC_COMPLETENESS_RULE', 'Rule code matches validation failure');
+    assert(results7[0].severity === Severity.HIGH, 'ValidationSeverity ERROR mapped canonically to Severity.HIGH');
+    assert(results7[0].status === ExceptionStatus.OPEN, 'Exception created with OPEN status');
+    assert(results7[0].resolutionNotes === null, 'Automated validation exception has empty/null resolutionNotes');
+    assert(
+      results7[0].message === 'Berkas persyaratan usulan penghargaan belum lengkap atau belum diunggah.',
+      'Message derives from canonical RULE_MESSAGE_CATALOG rather than raw validation result message'
+    );
+
+    // ----------------------------------------------------
+    // Test 8: createFromValidationResultsTx with valid and invalid INFO results
+    // ----------------------------------------------------
+    console.log('\n[8] Testing createFromValidationResultsTx ignores valid results and invalid INFO...');
+    const entity4Id = crypto.randomUUID();
+    const mockValidationSuccessAndInfo: ValidationResult[] = [
+      {
+        valid: true,
+        ruleId: 'DOC_COMPLETENESS_RULE',
+        severity: 'INFO',
+        message: 'Semua berkas lengkap',
+      },
+      {
+        valid: false,
+        ruleId: 'DOC_FORMAT_RULE',
+        severity: 'INFO',
+        message: 'Informasi format dokumen (tidak boleh membuat exception)',
+      },
+    ];
+
+    const results8 = await runInTenantContext(ACTOR_A_ID, TENANT_A_ID, async (tx) => {
+      return await repository.createFromValidationResultsTx(
+        tx,
+        TENANT_A_ID,
+        'AwardProposal',
+        entity4Id,
+        mockValidationSuccessAndInfo,
+        ACTOR_A_ID
+      );
+    });
+
+    assert(results8.length === 0, 'createFromValidationResultsTx ignores valid results and invalid INFO (0 created)');
+
+    // ----------------------------------------------------
+    // Test 9: Multiple failures, severity mapping, and null resolutionNotes
+    // ----------------------------------------------------
+    console.log('\n[9] Testing multiple failures, canonical severity mappings, and null resolutionNotes...');
+    const entity5Id = crypto.randomUUID();
+    const mockMultipleFailures: ValidationResult[] = [
+      {
+        valid: false,
+        ruleId: 'DOC_COMPLETENESS_RULE',
+        severity: 'ERROR',
+        message: 'Error level rule failure',
+      },
+      {
+        valid: false,
+        ruleId: 'STUDENT_NISN_FORMAT_RULE',
+        severity: 'WARNING',
+        message: 'Warning level rule failure',
+      },
+      {
+        valid: false,
+        ruleId: 'OCR_CONFIDENCE_THRESHOLD_RULE',
+        severity: 'ERROR',
+        message: 'Explicit CRITICAL severity override in metadata',
+        metadata: { severity: Severity.CRITICAL },
+      },
+      {
+        valid: false,
+        ruleId: 'DOC_FORMAT_RULE',
+        severity: 'INFO',
+        message: 'Invalid INFO rule strictly ignored',
+      },
+      {
+        valid: true,
+        ruleId: 'SE_BKD_22_2026_RULE',
+        severity: 'INFO',
+        message: 'Passing rule ignored',
+      },
+    ];
+
+    const results9 = await runInTenantContext(ACTOR_A_ID, TENANT_A_ID, async (tx) => {
+      return await repository.createFromValidationResultsTx(
+        tx,
+        TENANT_A_ID,
+        'ExtractedItem',
+        entity5Id,
+        mockMultipleFailures,
+        ACTOR_A_ID
+      );
+    });
+
+    assert(results9.length === 3, 'Created exactly 3 exceptions for ERROR/WARNING failures (INFO excluded)');
+    const docComp = results9.find((r) => r.ruleCode === 'DOC_COMPLETENESS_RULE');
+    const nisnFormat = results9.find((r) => r.ruleCode === 'STUDENT_NISN_FORMAT_RULE');
+    const ocrConf = results9.find((r) => r.ruleCode === 'OCR_CONFIDENCE_THRESHOLD_RULE');
+
+    assert(docComp?.severity === Severity.HIGH, 'ERROR severity mapped to HIGH');
+    assert(nisnFormat?.severity === Severity.MEDIUM, 'WARNING severity mapped to MEDIUM');
+    assert(ocrConf?.severity === Severity.CRITICAL, 'Metadata explicit CRITICAL severity honored');
+    assert(
+      results9.every((r) => r.resolutionNotes === null),
+      'All automated validation exceptions have null resolutionNotes'
+    );
+
+    // ----------------------------------------------------
+    // Test 10: Duplicate active exception prevention (Idempotency)
+    // ----------------------------------------------------
+    console.log('\n[10] Testing duplicate active exception prevention (idempotency)...');
+    const duplicateRunResults = await runInTenantContext(ACTOR_A_ID, TENANT_A_ID, async (tx) => {
+      return await repository.createFromValidationResultsTx(
+        tx,
+        TENANT_A_ID,
+        'ExtractedItem',
+        entity5Id,
+        mockMultipleFailures,
+        ACTOR_A_ID
+      );
+    });
+
+    assert(duplicateRunResults.length === 3, 'Returns 3 active exception records on re-run');
+    assert(
+      duplicateRunResults[0].id === results9[0].id &&
+      duplicateRunResults[1].id === results9[1].id &&
+      duplicateRunResults[2].id === results9[2].id,
+      'Duplicate active exceptions avoided; existing open records returned'
+    );
+
+    // Verify DB count did not increase
+    const countCheck = await migrationPool.query(
+      `SELECT count(*) FROM exception_items WHERE workflow_instance_id IN (
+        SELECT id FROM workflow_instances WHERE entity_id = '${entity5Id}'
+      );`
+    );
+    assert(countCheck.rows[0].count === '3', 'Database contains exactly 3 records without duplicates');
+
+    // ----------------------------------------------------
+    // Test 11: Transaction rollback atomicity
+    // ----------------------------------------------------
+    console.log('\n[11] Testing bridge transaction rollback atomicity...');
+    const rollbackEntity2Id = crypto.randomUUID();
+    let bridgeRollbackCaught = false;
+
+    try {
+      await runInTenantContext(ACTOR_A_ID, TENANT_A_ID, async (tx) => {
+        await repository.createFromValidationResultsTx(
+          tx,
+          TENANT_A_ID,
+          'AwardProposal',
+          rollbackEntity2Id,
+          mockValidationFailure1,
+          ACTOR_A_ID
+        );
+        throw new Error('SIMULATED_BRIDGE_FAILURE');
+      });
+    } catch (err: any) {
+      if (err.message === 'SIMULATED_BRIDGE_FAILURE') {
+        bridgeRollbackCaught = true;
+      }
+    }
+
+    assert(bridgeRollbackCaught, 'Simulated bridge error caught');
+    const bridgeWfCheck = await migrationPool.query(
+      `SELECT count(*) FROM workflow_instances WHERE entity_id = '${rollbackEntity2Id}';`
+    );
+    assert(bridgeWfCheck.rows[0].count === '0', 'WorkflowInstance rolled back cleanly on bridge error');
+
+    // ----------------------------------------------------
+    // Test 12: Tenant isolation
+    // ----------------------------------------------------
+    console.log('\n[12] Testing tenant isolation in bridge...');
+    const tenantBQuery = await runInTenantContext(ACTOR_B_ID, TENANT_B_ID, async (tx) => {
+      return await repository.findManyTx(tx, TENANT_B_ID);
+    });
+    assert(
+      !tenantBQuery.some((e) => e.entityId === entity3Id || e.entityId === entity5Id),
+      'Tenant B cannot observe exceptions generated in Tenant A by validation bridge'
+    );
 
   } catch (err) {
     console.error('Test runner fatal error:', err);

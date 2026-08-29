@@ -891,6 +891,7 @@ async function runExceptionServerActionsTests() {
       createTx: async () => {
         throw new Error('Validation Error: Simulated repository domain validation failure.');
       },
+      createFromValidationResultsTx: async () => [],
     };
 
     const res30 = await createExceptionAction(
@@ -950,6 +951,7 @@ async function runExceptionServerActionsTests() {
         throw new Error('Validation Error: Simulated repository domain update failure.');
       },
       createTx: async () => { throw new Error('Unreachable'); },
+      createFromValidationResultsTx: async () => [],
     };
 
     const res32 = await updateExceptionStatusAction(

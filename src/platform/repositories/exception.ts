@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import { TenantTransactionClient, runInTenantContext } from '../db/tenant-context';
 import { ExceptionStatus, Severity } from '@prisma/client';
 import { IAuditEventRepository, PostgresAuditEventRepository } from './audit-event';
+import { ValidationResult } from '../types';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -70,6 +71,15 @@ export interface IExceptionRepository {
     tenantId: string,
     params: CreateExceptionItemParams
   ): Promise<ExceptionItemRecord>;
+
+  createFromValidationResultsTx(
+    tx: TenantTransactionClient,
+    tenantId: string,
+    entityType: string,
+    entityId: string,
+    results: ValidationResult[],
+    actorUserId?: string | null
+  ): Promise<ExceptionItemRecord[]>;
 }
 
 const VALID_TRANSITIONS: Record<ExceptionStatus, ExceptionStatus[]> = {
@@ -417,6 +427,115 @@ export class PostgresExceptionRepository implements IExceptionRepository {
         ...params,
         actorUserId: params.actorUserId !== undefined ? params.actorUserId : actorId,
       });
+    });
+  }
+
+  public async createFromValidationResultsTx(
+    tx: TenantTransactionClient,
+    tenantId: string,
+    entityType: string,
+    entityId: string,
+    results: ValidationResult[],
+    actorUserId?: string | null
+  ): Promise<ExceptionItemRecord[]> {
+    if (!tenantId || !isValidUuid(tenantId)) {
+      throw new Error(`SECURITY/SCHEMA ERROR: Tenant id must be a valid UUID. Received: '${tenantId}'`);
+    }
+    if (!entityId || !isValidUuid(entityId)) {
+      throw new Error(`Validation Error: Entity id must be a valid UUID. Received: '${entityId}'`);
+    }
+    if (!entityType || typeof entityType !== 'string' || !entityType.trim()) {
+      throw new Error('Validation Error: entityType is required and must be a non-empty string.');
+    }
+    if (!Array.isArray(results)) {
+      throw new Error('Validation Error: results must be an array of ValidationResult.');
+    }
+
+    const invalidResults = results.filter(
+      (r) => r && r.valid === false && (r.severity === 'ERROR' || r.severity === 'WARNING')
+    );
+    if (invalidResults.length === 0) {
+      return [];
+    }
+
+    // Query existing active exceptions for this entity to prevent duplicate active items
+    const existingWf = await tx.workflowInstance.findFirst({
+      where: {
+        tenantId,
+        entityType,
+        entityId,
+      },
+      include: {
+        exceptionItems: {
+          where: {
+            status: {
+              in: [ExceptionStatus.OPEN, ExceptionStatus.IN_REVIEW],
+            },
+          },
+          include: {
+            workflowInstance: true,
+            resolvedByUser: true,
+            assignedToUser: true,
+          },
+        },
+      },
+    });
+
+    const activeExceptionsByRule = new Map<string, ExceptionItemRecord>();
+    if (existingWf?.exceptionItems) {
+      for (const exc of existingWf.exceptionItems) {
+        activeExceptionsByRule.set(exc.ruleCode, this.mapToDomain(exc));
+      }
+    }
+
+    const output: ExceptionItemRecord[] = [];
+
+    for (const res of invalidResults) {
+      const ruleCode = res.ruleId?.trim();
+      if (!ruleCode) continue;
+
+      // Deduplication: If an active (OPEN or IN_REVIEW) exception exists for this rule, reuse it
+      if (activeExceptionsByRule.has(ruleCode)) {
+        output.push(activeExceptionsByRule.get(ruleCode)!);
+        continue;
+      }
+
+      // Canonical severity mapping: ERROR -> HIGH, WARNING -> MEDIUM
+      // If metadata provides an explicit valid Severity, respect it
+      let severity: Severity;
+      if (res.metadata?.severity && Object.values(Severity).includes(res.metadata.severity as Severity)) {
+        severity = res.metadata.severity as Severity;
+      } else if (res.severity === 'ERROR') {
+        severity = Severity.HIGH;
+      } else {
+        severity = Severity.MEDIUM;
+      }
+
+      const created = await this.createTx(tx, tenantId, {
+        entityType,
+        entityId,
+        ruleCode,
+        severity,
+        actorUserId: actorUserId !== undefined ? actorUserId : null,
+        resolutionNotes: null,
+      });
+
+      activeExceptionsByRule.set(ruleCode, created);
+      output.push(created);
+    }
+
+    return output;
+  }
+
+  public async createFromValidationResultsInContext(
+    actorId: string,
+    tenantId: string,
+    entityType: string,
+    entityId: string,
+    results: ValidationResult[]
+  ): Promise<ExceptionItemRecord[]> {
+    return await runInTenantContext(actorId, tenantId, async (tx) => {
+      return await this.createFromValidationResultsTx(tx, tenantId, entityType, entityId, results, actorId);
     });
   }
 
