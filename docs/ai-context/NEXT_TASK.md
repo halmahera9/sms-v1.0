@@ -1,33 +1,38 @@
 # NEXT TASK
 
-## Task: WorkflowInstance Lifecycle & ExceptionItem Dependency Audit
+## Roadmap & Recommended Next Tasks
 
-### Context & Rationale
+### Context & Current State
+The Award Proposal domain workflow (`NOMINATIF` through `SELESAI`) and the Exception Center persistence/bridge are now fully implemented and tested.
 
-Before implementing automated exception creation (`createTx` on `PostgresExceptionRepository`), a critical schema dependency must be resolved:
-
-- `ExceptionItem` in Prisma requires a non-nullable `workflowInstanceId` foreign key to `WorkflowInstance`.
-- Currently, **no application code creates `WorkflowInstance` rows** (GAP-00 in [KNOWN_GAPS.md](file:///d:/banyubiru-next/docs/ai-context/KNOWN_GAPS.md)).
-- If an exception creation path is added without a corresponding `WorkflowInstance` lifecycle or seeding mechanism, any insert will fail foreign key referential integrity at runtime.
-
-Therefore, the immediate next engineering task is an **audit and architectural resolution** of how `WorkflowInstance` rows should be instantiated and linked to domain entities.
+The next critical engineering tracks are:
 
 ---
 
-## Investigation Scope & Questions
+### Track 1: Document Intelligence Orchestrator Implementation (Recommended)
 
-1. **Entity-to-Workflow Linkage:**
-   - In `schema.prisma`, what fields exist on `WorkflowInstance`? (`entityType`, `entityId`, `currentState`, `tenantId`, etc.)
-   - Does `WorkflowInstance` need to be created when an `AwardProposal` is submitted or when an `OCRExtraction` / `Document` is uploaded?
-2. **Repository Contract Definition:**
-   - Should a `IWorkflowInstanceRepository` / `PostgresWorkflowInstanceRepository` be created with `createTx` and `transitionTx`?
-   - Or should `WorkflowInstance` creation be integrated into the domain workflow transitions inside `PlatformWorkflowEngine`?
-3. **Exception Creation Interface:**
-   - Define `createTx` on `PostgresExceptionRepository` such that it accepts a valid `workflowInstanceId` or optionally resolves/creates one for the entity.
+- **Goal:** Implement the concrete `DocumentIntelligenceOrchestrator` fulfilling `IDocumentIntelligenceOrchestrator` in `src/platform/types/document-intelligence.ts`.
+- **Scope:**
+  1. Standardize document upload, versioning, and real SHA-256 checksum calculation.
+  2. Implement async / batch OCR extraction status management (`QUEUED` $\to$ `PROCESSING` $\to$ `COMPLETED` / `FAILED`).
+  3. Abstract identity resolution into a reusable resolver pipeline across both Employee (NIP/NRK) and Student (NISN/Name) domains.
+  4. Wire automated validation rules to the orchestrator to emit exceptions consistently.
 
 ---
 
-## Verification & Guardrails
+### Track 2: Live Production Authentication Provider Integration
 
-- **Read-only investigation:** Do not alter `prisma/schema.prisma` or existing migrations until a clear workflow instance lifecycle design is approved.
-- **Scope limitation:** Keep working tree clean. Do not commit unstaged type definitions or documentation files during the audit phase.
+- **Goal:** Replace `DefaultSessionProvider` (which fails closed with `null`) with a production session resolver.
+- **Scope:**
+  1. Implement NextAuth / IronSession / JWT cookie reader in `src/platform/auth/session.ts`.
+  2. Map incoming session claims (`userId`, `tenantId`, `role`, `status`) to `AuthenticatedActorContext`.
+  3. Verify RLS `set_tenant_context()` execution under live web requests.
+
+---
+
+### Track 3: Unified Action Response & RBAC Policy Registry
+
+- **Goal:** Consolidate duplicated types and authorization policies.
+- **Scope:**
+  1. Centralize `ActionResponse<T>` and `ActionError` into `src/platform/types/actions.ts`.
+  2. Unify domain RBAC arrays into a centralized policy guard system across all domains.

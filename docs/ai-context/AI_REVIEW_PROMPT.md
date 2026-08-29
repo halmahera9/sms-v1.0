@@ -38,7 +38,7 @@ git log --oneline -5
 
 Confirm:
 - HEAD SHA matches the SHA recorded in `CURRENT_STATE.md`
-- Working tree status is understood (unstaged changes are documented in `CURRENT_STATE.md`)
+- Working tree status is understood
 
 If HEAD SHA does not match, note the discrepancy and treat the context package as
 potentially stale for areas that differ.
@@ -58,8 +58,8 @@ about files you have not read. Do NOT infer implementation from type names alone
 | Audit immutability | `src/platform/repositories/audit-event.ts` |
 | Workflow contract | `src/platform/workflow/engine.ts`, `src/domains/employee/awards/workflow.ts`, `src/domains/student/workflow.ts` |
 | Student verification | `src/platform/actions/student-workflow.ts` |
-| Award import | `src/domains/employee/awards/service.ts`, `src/domains/employee/awards/actions.ts` |
-| Document Intelligence contracts | `src/platform/types/document-intelligence.ts` (if present — may be unstaged) |
+| Award workflow & import | `src/domains/employee/awards/service.ts`, `src/domains/employee/awards/actions.ts` |
+| Document Intelligence contracts | `src/platform/types/document-intelligence.ts` |
 | Schema | `prisma/schema.prisma` |
 | Operational queries | `src/platform/repositories/operational-query.ts` |
 
@@ -99,10 +99,8 @@ Examine:
 #### Category D: Broken or Unclear Contracts
 
 Examine:
-- Is there any code path that creates an `ExceptionItem` in the database? (Expected: NO — confirm)
 - Is there any code path that writes a `ValidationResult` row to the database? (Expected: NO — confirm)
 - Does `AwardProposalDocument` verification create a `HumanVerification` row? (Expected: NO — confirm inconsistency with student path)
-- Does `verifyExtractedItemAction` advance the `WorkflowInstance.currentState`? (Expected: NO — confirm gap)
 
 #### Category E: Technical Debt
 
@@ -115,8 +113,8 @@ Examine:
 
 #### Category F: Missing Orchestration
 
-Examine the unstaged `src/platform/types/document-intelligence.ts` (if present):
-- Does `IDocumentIntelligenceOrchestrator.process()` have any implementation in the codebase?
+Examine `src/platform/types/document-intelligence.ts`:
+- Does `IDocumentIntelligenceOrchestrator.process()` have a concrete application orchestrator implementation in the codebase?
 - Can the current `ExtractedItem` schema (student-specific fields) support a generic pipeline?
 - What schema changes would be required to generalize the pipeline for employee documents?
 
@@ -139,14 +137,14 @@ direct code evidence.
 - Do NOT comment on Indonesian language variable/comment conventions
 - Do NOT present inferences from type names as code evidence
 - Do NOT reference files not confirmed to exist in the repository
-- Do NOT conflate the unstaged working tree items with committed HEAD behavior without
+- Do NOT conflate unstaged working tree items with committed HEAD behavior without
   explicitly noting the distinction
 
 ---
 
 ## Context Package Metadata
 
-- **Package generated:** 2026-08-29
-- **HEAD SHA at time of generation:** `1a8222da584d27913ec0d5522c9e3e6a9b3cee29`
+- **Package updated:** 2026-08-30
+- **HEAD SHA at time of update:** `3371372d88a5583e0723dc5b33a9a038acfa24ed`
 - **Branch:** `main`
-- **Working tree at generation:** NOT CLEAN (2 unstaged items — see `CURRENT_STATE.md`)
+- **Working tree:** Clean

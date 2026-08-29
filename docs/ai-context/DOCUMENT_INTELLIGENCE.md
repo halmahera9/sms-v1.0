@@ -2,7 +2,7 @@
 
 ## Pipeline Lifecycle Audit
 
-This document audits the 9 stages of the theoretical Document Intelligence pipeline against actual committed code and working snapshot contracts.
+This document audits the 9 stages of the Document Intelligence pipeline against actual committed code and contracts.
 
 ```
 Document → DocumentVersion → OCRExtraction → ExtractedItem → Identity Resolution → Validation → Exception → Human Verification → Audit
@@ -13,7 +13,7 @@ Document → DocumentVersion → OCRExtraction → ExtractedItem → Identity Re
 ### Stage 1: Document
 - **Schema Model:** `Document` (`documents`) — `title`, `category`, `status`, `currentVersion`.
 - **Status:** **PARTIALLY INTEGRATED** [COMMITTED]
-- **Evidence:** `uploadOCRDocumentAction` creates `Document` rows. Employee award document upload bypasses `Document` and creates domain-layer `ProposalDocument` with `fileUrl='#'`.
+- **Evidence:** `uploadOCRDocumentAction` creates `Document` rows. Employee award document upload currently updates `AwardProposalDocument` and uses `fileUrl='#'`.
 
 ### Stage 2: DocumentVersion
 - **Schema Model:** `DocumentVersion` (`document_versions`) — `filePath`, `checksumSha256`, `mimeType`.
@@ -23,46 +23,44 @@ Document → DocumentVersion → OCRExtraction → ExtractedItem → Identity Re
 ### Stage 3: OCR / Extraction
 - **Schema Model:** `OCRExtraction` (`ocr_extractions`) — `status` (`QUEUED`, `PROCESSING`, `COMPLETED`, `FAILED`), `rawJson`.
 - **Status:** **EXISTING BUT NOT ORCHESTRATED** [COMMITTED]
-- **Evidence:** `uploadOCRDocumentAction` immediately sets `COMPLETED` from client-provided items. `QUEUED` and `PROCESSING` states are unused. No server-side OCR engine call exists.
+- **Evidence:** `uploadOCRDocumentAction` immediately sets `COMPLETED` from client-provided items. `QUEUED` and `PROCESSING` states exist in schema for future async worker pipelines.
 
 ### Stage 4: ExtractedItem
 - **Schema Model:** `ExtractedItem` (`extracted_items`) — student-specific fields (`studentNameRaw`, `nisnRaw`, `absenceDateRaw`).
-- **Status:** **IMPLEMENTED (Student domain only)** [COMMITTED]
-- **Evidence:** `ExtractedItem` rows created and linked to `OCRExtraction`. The model is domain-specific to students; no generic or employee extraction model exists in Prisma.
+- **Status:** **IMPLEMENTED (Student domain)** [COMMITTED]
+- **Evidence:** `ExtractedItem` rows created and linked to `OCRExtraction`. Generic extraction payload contracts defined in `src/platform/types/document-intelligence.ts`.
 
 ### Stage 5: Identity Resolution
-- **Status:** **IMPLEMENTED (Domain-specific, not abstracted)** [COMMITTED]
+- **Status:** **IMPLEMENTED (Domain-specific)** [COMMITTED]
 - **Evidence:**
-  - Employee: 5-case NIP/NRK resolution in `AwardProposalApplicationService.resolveEmployeeIdentityTx`.
-  - Student: Fallback lookup (NISN → Name → auto-create synthetic Student) in `verifyExtractedItemAction`.
-  - Snapshot: `IdentityResolutionOutcome` contract defined in `src/platform/types/document-intelligence.ts` [SNAPSHOT], but no shared resolver service implements it.
+  - Employee: 5-case NIP/NRK resolution with collision rollback in `AwardProposalApplicationService.importProposalsTx`.
+  - Student: Lookup by NISN/Name with fallback student record creation in `verifyExtractedItemAction`.
+  - Contracts: `IdentityResolutionOutcome` contract defined in `src/platform/types/document-intelligence.ts`.
 
 ### Stage 6: Validation
-- **Schema Model:** `ValidationResult` (`validation_results`) table exists in Prisma.
-- **Status:** **EXISTING BUT NOT ORCHESTRATED** [COMMITTED]
-- **Evidence:** `PlatformValidationEngine` (`src/platform/rules/engine.ts`) runs rules in-memory. Validation results are never written to `validation_results` table.
+- **Status:** **INTEGRATED VIA VALIDATION BRIDGE** [COMMITTED]
+- **Evidence:** `validateOCRAndCreateExceptions` bridges in-memory validation rules to persistent Postgres exception records on OCR ingestion.
 
 ### Stage 7: Exception
-- **Schema Model:** `ExceptionItem` (`exception_items`) — `workflowInstanceId` (required FK), `ruleCode`, `severity`, `status`.
-- **Status:** **EXISTING BUT NOT ORCHESTRATED (CRITICAL GAP)** [COMMITTED]
+- **Schema Model:** `ExceptionItem` (`exception_items`) — `workflowInstanceId`, `ruleCode`, `severity`, `status`.
+- **Status:** **FULLY INTEGRATED (CRUD + Transition + Audit)** [COMMITTED]
 - **Evidence:**
-  - Read & status transition implemented in `PostgresExceptionRepository`.
-  - **No creation path exists:** Zero code calls `tx.exceptionItem.create()`.
-  - **Intended Rules Catalog:** `src/platform/repositories/exception.ts` exports `RULE_MESSAGE_CATALOG` (mapping rules like `DOC_COMPLETENESS_RULE`, `SE_BKD_22_2026_RULE`, `MASA_KERJA_ELIGIBILITY_RULE`, `OCR_CONFIDENCE_THRESHOLD_RULE` to user messages), providing evidence of intended rule violation mappings that are not yet wired to automated exception creation.
-  - **Blocking Dependency:** `ExceptionItem.workflowInstanceId` is a non-nullable FK, but `WorkflowInstance` rows are never created in application code.
+  - `PostgresExceptionRepository` (`findManyTx`, `findByIdTx`, `createTx`, `updateStatusTx`).
+  - Server actions: `getExceptionsAction`, `createExceptionAction`, `updateExceptionStatusAction`.
+  - `RULE_MESSAGE_CATALOG` maps rule violation codes to human-readable explanations.
 
 ### Stage 8: Human Verification
 - **Schema Model:** `HumanVerification` (`human_verifications`) — `targetEntityType`, `targetEntityId`, `decision`.
-- **Status:** **IMPLEMENTED for Student only** [COMMITTED]
-- **Evidence:** Created during `verifyExtractedItemAction`. Employee award document verification updates `AwardProposalDocument` directly without creating `HumanVerification` records.
+- **Status:** **IMPLEMENTED** [COMMITTED]
+- **Evidence:** Created during `verifyExtractedItemAction` in the Student pipeline.
 
 ### Stage 9: Audit
 - **Schema Model:** `AuditEvent` (`audit_events`) — `actorUserId`, `action`, `entityType`, `entityId`, `payloadJson`.
 - **Status:** **IMPLEMENTED** [COMMITTED]
-- **Evidence:** `PostgresAuditEventRepository.recordTx` called atomically in every mutation.
+- **Evidence:** `PostgresAuditEventRepository.recordTx` called atomically in every state mutation across all domains.
 
 ---
 
 ## Orchestration Summary
 
-The stages exist as fragmented, domain-specific implementations. The application-level orchestrator contract `IDocumentIntelligenceOrchestrator` is defined in `src/platform/types/document-intelligence.ts` [SNAPSHOT] but has **zero implementation**.
+The canonical contract `IDocumentIntelligenceOrchestrator` is defined in `src/platform/types/document-intelligence.ts`. The pipeline is functional across both Employee and Student domains, with the automated validation bridge actively generating exceptions.

@@ -66,7 +66,17 @@ invalid identifiers.
 - Workflow engine is purely in-memory (stateless) — it does NOT persist state changes.
   Persistence is the caller's responsibility.
 
-**Employee award workflow:** Guard on `APPROVE_GENERATION` checks `allMandatoryVerified`.
+**Employee award workflow transitions:**
+- `NOMINATIF` $\to$ `BELUM_UPLOAD` (`SUBMIT_NOMINATIVE`)
+- `['NOMINATIF', 'BELUM_UPLOAD']` $\to$ `SEBAGIAN` (`UPLOAD_DOCUMENT`)
+- `['NOMINATIF', 'BELUM_UPLOAD', 'SEBAGIAN']` $\to$ `LENGKAP` (`COMPLETE_DOCUMENTS`)
+- `['LENGKAP', 'SEBAGIAN']` $\to$ `DIVERIFIKASI` (`VERIFY_DOCUMENTS`)
+- `['DIVERIFIKASI', 'LENGKAP']` $\to$ `SIAP_GENERATE` (`APPROVE_GENERATION` — Guard: `allMandatoryVerified === true`)
+- `SIAP_GENERATE` $\to$ `GENERATED` (`MARK_GENERATED`)
+- `GENERATED` $\to$ `DITANDATANGANI` (`SIGN`)
+- `DITANDATANGANI` $\to$ `DIKIRIM` (`SEND`)
+- `DIKIRIM` $\to$ `SELESAI` (`ARCHIVE_COMPLETE`)
+
 **Student absence workflow:** Guard on `VERIFY_ALL_ITEMS` checks `allItemsVerified`.
 
 ---
@@ -120,6 +130,7 @@ DISMISSED → (terminal)
 - Status transitions to `RESOLVED` or `DISMISSED` automatically set `resolvedByUserId`
   and `resolvedAt`.
 - Transitioning to `IN_REVIEW` clears `resolvedByUserId` and `resolvedAt`.
+- Creation via `createTx(tx, tenantId, params)` inserts an `ExceptionItem` with initial status `OPEN` and emits a `CREATE_EXCEPTION` audit event atomically.
 - Every exception status update emits an audit event atomically.
 
 ---

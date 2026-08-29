@@ -29,7 +29,7 @@ Excel rows (client-parsed)
 
 ---
 
-## Pipeline 2: Employee Award Verification Lifecycle
+## Pipeline 2: Employee Award Complete Lifecycle
 
 Triggered by sequence of server actions in `src/domains/employee/awards/actions.ts`:
 
@@ -44,9 +44,12 @@ AwardProposal (status: NOMINATIF)
                     enforces allMandatoryVerified guard → transitions to SIAP_GENERATE
     [IMPLEMENTED] ↓ batchMarkGeneratedAction (RBAC: MARK_GENERATED)
                     transitions to GENERATED
-    [TARGET]      ↓ SIGN → DITANDATANGANI (workflow event exists, no action implemented)
-    [TARGET]      ↓ SEND → DIKIRIM (workflow event exists, no action implemented)
-    [TARGET]      ↓ ARCHIVE_COMPLETE → SELESAI (workflow event exists, no action implemented)
+    [IMPLEMENTED] ↓ signProposalAction (RBAC: SIGN_PROPOSAL)
+                    transitions to DITANDATANGANI + atomic audit log ('SIGN')
+    [IMPLEMENTED] ↓ sendProposalAction (RBAC: SEND_PROPOSAL)
+                    transitions to DIKIRIM + atomic audit log ('SEND')
+    [IMPLEMENTED] ↓ archiveCompleteProposalAction (RBAC: ARCHIVE_COMPLETE_PROPOSAL)
+                    transitions to SELESAI + atomic audit log ('ARCHIVE_COMPLETE')
 ```
 
 ---
@@ -60,6 +63,7 @@ Document + extracted items (client-provided OCR payload)
     [IMPLEMENTED] ↓ uploadOCRDocumentAction (RBAC: ADMIN, ADMIN_TENANT, OPERATOR, VERIFIKATOR)
     [IMPLEMENTED] ↓ Document.create + DocumentVersion.create (checksum is synthetic)
     [IMPLEMENTED] ↓ OCRExtraction.create (status: COMPLETED) + ExtractedItem.create
+    [IMPLEMENTED] ↓ Automated Validation Bridge: validateOCRAndCreateExceptions (creates ExceptionItem rows on rule breach)
     [IMPLEMENTED] ↓ AuditEvent ('UPLOAD_OCR')
 
     [Human Review in UI]
@@ -70,18 +74,18 @@ Document + extracted items (client-provided OCR payload)
     [IMPLEMENTED] ↓ HumanVerification.create (PASSED / FLAGGED / REJECTED)
     [IMPLEMENTED] ↓ AuditEvent ('VERIFY_ITEM')
     [IMPLEMENTED] ↓ When all items verified: Document.update(status: VERIFIED)
-    [CRITICAL GAP] Note: WorkflowInstance.currentState is NEVER advanced or updated.
 ```
 
 ---
 
-## Pipeline 4: Exception Resolution
+## Pipeline 4: Exception Lifecycle & Resolution
 
-Triggered in `src/platform/actions/exception.ts`:
+Triggered in `src/platform/actions/exception.ts` and automated rules:
 
 ```
-[CRITICAL GAP] Exception creation in DB: No automated path exists (no createTx in repo).
-
+[IMPLEMENTED]  ↓ Automated Creation: validateOCRAndCreateExceptions / createExceptionAction
+                 writes ExceptionItem rows atomically via PostgresExceptionRepository.createTx()
+                 records transaction-bound AuditEvent ('CREATE_EXCEPTION')
 [IMPLEMENTED]  ↓ getExceptionsAction (RBAC: ADMIN, ADMIN_TENANT, VERIFIKATOR, AUDITOR)
                  queries PostgresExceptionRepository under RLS
 [IMPLEMENTED]  ↓ updateExceptionStatusAction (RBAC: ADMIN, ADMIN_TENANT, VERIFIKATOR)
