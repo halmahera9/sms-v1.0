@@ -10,23 +10,16 @@
 - **Evidence:** `uploadProposalDocumentAction` constructs an ephemeral `ProposalDocument` domain object and updates `AwardProposalDocument`, creating no rows in `documents` or `document_versions`.
 - **Impact:** Document metadata and version history for employee awards are decoupled from the platform document store.
 
-### GAP-04: getRecentAuditEventsAction Has No RBAC Role Restriction
-- **Evidence:** In `src/platform/actions/audit.ts`, `getRecentAuditEventsAction` calls `executeInAuthenticatedContext` without any role authorization check (unlike other actions that assert roles).
-- **Impact:** Any authenticated user with any role (e.g. `OPERATOR`) can read all tenant audit events.
-
 ### GAP-05: Student Fallback Identity Resolution Generates Synthetic Identifiers
 - **Evidence:** Unmatched students in `verifyExtractedItemAction` are auto-created with generated NISN (`'005' + Date.now()`) and hardcoded class (`'X IPA 1'`).
-
-### GAP-06: ActionResponse / ActionError Duplicated Across Action Files
-- **Evidence:** `ActionResponse<T>` and `ActionError` interfaces are redeclared independently in several action files rather than consolidated into a shared platform types module.
-
-### GAP-07: RBAC Policy Fragmentation
-- **Evidence:** Employee award actions use `assertAuthorizedAction` with `AWARD_PROPOSAL_RBAC_POLICY` (`src/platform/auth/guards.ts`), while student, exception, and operational actions use ad-hoc inline role arrays.
 
 ---
 
 ## Resolved Gaps (from previous snapshots)
 
+- **[RESOLVED] GAP-04 (Audit Action RBAC Role Restriction):** Added explicit `assertAuthorizedAction(context, 'AUDIT_EVENT_READ')` to `getRecentAuditEventsAction` allowing only `ADMIN`, `ADMIN_TENANT`, `AUDITOR`, and `VERIFIKATOR` roles (`8743c74`).
+- **[RESOLVED] GAP-06 (ActionResponse / ActionError Duplication):** Created canonical `src/platform/types/actions.ts` and replaced all duplicate declarations across 7 server action files (`8743c74`).
+- **[RESOLVED] GAP-07 (RBAC Policy Fragmentation):** Created centralized declarative `PLATFORM_RBAC_REGISTRY` in `src/platform/auth/guards.ts` and unified all server action checks into `assertAuthorizedAction(context, actionPermission)` (`8743c74`).
 - **[RESOLVED] GAP-BUILD (Client-Server Import Boundary Webpack Failure):** Decoupled `src/lib/storage.ts` and `src/lib/award-storage.ts`, added `import 'server-only'` guards on all database repositories and engines, moved pure enum mappers to `src/domains/student/mappers.ts`, and verified 10/10 routes with `npm run build` (`9832e18`).
 - **[RESOLVED] GAP-SESSION (Live Cookie Session Provider):** Implemented `CookieSessionProvider` with cryptographic HMAC-SHA256 token verification, strict fail-closed missing secret handling, and actor claim resolution (`e6c63a8`).
 - **[RESOLVED] GAP-ORCHESTRATOR (Document Intelligence Orchestration):** Implemented concrete `DocumentIntelligenceOrchestrator` in `src/platform/services/document-intelligence.ts` with complete extraction, identity matching, validation, exception creation, and audit logging (`7966d20`).

@@ -7,6 +7,7 @@
 - **Phase 4I (Completed in `7966d20`):** `DocumentIntelligenceOrchestrator` implemented and verified with 43/43 integration tests.
 - **Phase 4J (Completed in `e6c63a8`):** `CookieSessionProvider` with cryptographic HMAC-SHA256 token verification and strict fail-closed security committed and tested.
 - **Client-Server Production Build Boundary (Completed in `9832e18`):** Decoupled client storage, added `server-only` guards, moved student mappers, and verified 10/10 routes passing `npm run build`.
+- **Phase 4L (Completed in `8743c74`):** Consolidated Action DTOs in `src/platform/types/actions.ts`, unified RBAC policy registry in `src/platform/auth/guards.ts`, and enforced audit trail RBAC authorization (`GAP-04`, `GAP-06`, `GAP-07` resolved).
 
 The next recommended engineering tracks are:
 
@@ -22,17 +23,7 @@ The next recommended engineering tracks are:
 
 ---
 
-### Track 2: Phase 4L — Action Boundary Hardening & Unified RBAC Policy Registry
-
-- **Goal:** Consolidate duplicated types and authorization policies across domains.
-- **Scope:**
-  1. Centralize `ActionResponse<T>` and `ActionError` into `src/platform/types/actions.ts`.
-  2. Unify domain RBAC arrays into a centralized policy guard system across all domains.
-  3. Add RBAC role assertions to `getRecentAuditEventsAction`.
-
----
-
-### Track 3: Phase 5 — UI Wiring, Production Deployment & Field Verification
+### Track 2: Phase 5 — UI Wiring, Production Deployment & Field Verification
 
 - **Goal:** Bind all production server actions and orchestrator flows to the frontend interface.
 - **Scope:**

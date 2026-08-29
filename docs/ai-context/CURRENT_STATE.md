@@ -3,10 +3,11 @@
 ## Repository State
 
 ### 1. Committed Baseline
-- **HEAD commit SHA:** `9832e1855a6d36c8632d6cdb3ce1b8dd8d435fa3`
+- **HEAD commit SHA:** `8743c74c3ce71b9ce2001c228cbf9471713d27b0`
 - **Branch:** `main`
 - **Schema Anchor:** Phase 4G Canonical Schema Reconciliation with Generic Workflow Instance Management (Prisma 7.10.0)
 - **Production Build:** Verified with `npm run build` (Turbopack, 10/10 routes static/SSR built cleanly)
+- **Automated Tests:** Verified with `npm test` (218 / 218 tests passing across 8 test suites)
 - **Working Tree:** Clean
 
 ---
@@ -14,6 +15,8 @@
 ## Recent Commit History (Last 15)
 
 ```
+8743c74 feat: implement server action framework with RBAC, audit logging, and core operational workflows
+d88cd55 docs: synchronize AI context package with GAP-BUILD resolution and verified production build
 9832e18 feat: implement unified operational platform with audit engine, centralized dashboard, work queues, and student domain integration.
 92f2b61 docs: update AI context package for Phase 4J and document intelligence orchestrator
 e6c63a8 feat: add live cookie session provider
@@ -27,8 +30,6 @@ f02a4e9 test: harden exception status action boundary
 bc67517 feat: initialize Prisma schema and add migration for generic workflow instance state management
 dffbc92 feat: add atomic exception persistence boundary
 96c8c9b feat: define canonical document intelligence orchestration contracts
-0962226 docs: add Banyubiru AI context package
-1a8222d feat: add award import server action boundary
 ```
 
 ---
@@ -39,9 +40,11 @@ dffbc92 feat: add atomic exception persistence boundary
 - **Framework:** Next.js 16.3.1 (App Router), React 19.2.8.
 - **Database / ORM:** PostgreSQL, Prisma 7.10.0 with `@prisma/adapter-pg`.
 - **Multi-Tenancy:** Enforced at DB level via `runInTenantContext()` calling `set_tenant_context(actorId::uuid, tenantId::uuid)`.
-- **Server Actions:** All data mutations/reads exposed via `'use server'` entry points returning `ActionResponse<T>`.
+- **Canonical Action DTOs (Phase 4L):** `src/platform/types/actions.ts` provides single canonical definitions for `ActionErrorCode`, `ActionError`, and `ActionResponse<T>`.
+- **Unified RBAC Policy Registry (Phase 4L):** `PLATFORM_RBAC_REGISTRY` in `src/platform/auth/guards.ts` maps all server actions to explicit allowed `UserRole` lists and enforces access via `assertAuthorizedAction(sessionContext, actionKey)`.
+- **Audit Action Guard (GAP-04):** `getRecentAuditEventsAction` enforces `AUDIT_EVENT_READ` role checks, rejecting unauthorized users (`PEGAWAI`) with `FORBIDDEN`.
 - **Client-Server Boundary:** `server-only` guards enforce server isolation across all database repositories and engines; client components query audit logs via Server Actions.
-- **Production Build:** `npm run build` runs with Turbopack and succeeds with 0 errors across all routes.
+- **Production Build:** `npm run build` runs with Turbopack and succeeds with 0 errors across all 10 routes.
 - **Auth Session (Phase 4J):** `CookieSessionProvider` (`src/platform/auth/session.ts`) reads HTTP-only session cookies via Next.js `cookies()`, verifies cryptographic HMAC-SHA256 signatures (`verifySessionToken`), and enforces strict fail-closed behavior when secrets are missing.
 - **Employee Award Workflow:** Complete end-to-end lifecycle implemented (10 states, 9 events: `NOMINATIF` $\to$ `BELUM_UPLOAD` $\to$ `SEBAGIAN` $\to$ `LENGKAP` $\to$ `DIVERIFIKASI` $\to$ `SIAP_GENERATE` $\to$ `GENERATED` $\to$ `DITANDATANGANI` $\to$ `DIKIRIM` $\to$ `SELESAI`) with corresponding server actions (`signProposalAction`, `sendProposalAction`, `archiveCompleteProposalAction`).
 - **Student Absence Workflow:** OCR upload, student identity resolution, human verification, absence record persistence, and export.
@@ -56,7 +59,8 @@ dffbc92 feat: add atomic exception persistence boundary
 | Capability | Status | Evidence |
 |------------|--------|----------|
 | Multi-Tenancy (RLS) | Implemented [COMMITTED] | `src/platform/db/tenant-context.ts` |
-| Server Action Boundary | Implemented [COMMITTED] | `src/platform/actions/`, `src/domains/employee/awards/actions.ts` |
+| Server Action Boundary & DTOs (Phase 4L) | Fully Consolidated [COMMITTED] | `src/platform/types/actions.ts`, all server actions |
+| Unified RBAC Policy Registry (Phase 4L) | Implemented [COMMITTED] | `src/platform/auth/guards.ts` (`PLATFORM_RBAC_REGISTRY`) |
 | Live Cookie Session Auth (Phase 4J) | Implemented [COMMITTED] | `src/platform/auth/session.ts`, `tests/live-session-provider.test.ts` |
 | Production Build Decoupling | Implemented [COMMITTED] | `server-only` guards, `npm run build` (Turbopack) passes |
 | Employee Award Domain | Fully Implemented [COMMITTED] | Complete lifecycle from nomination import to sign, send, and archive |
@@ -64,6 +68,6 @@ dffbc92 feat: add atomic exception persistence boundary
 | Exception Center (Full Lifecycle) | Implemented [COMMITTED] | `src/platform/repositories/exception.ts`, `src/platform/actions/exception.ts` |
 | Exception Auto-Creation & Bridge | Implemented [COMMITTED] | `createTx`, `createExceptionAction`, `validateOCRAndCreateExceptions` |
 | Workflow State Engine | Implemented [COMMITTED] | `PlatformWorkflowEngine` (generic FSM with guards) |
-| Audit Trail (Persistent) | Implemented [COMMITTED] | `src/platform/repositories/audit-event.ts` |
-| Operational Dashboard | Implemented [COMMITTED] | `src/platform/repositories/operational-query.ts` |
+| Audit Trail (Persistent & Guarded) | Implemented [COMMITTED] | `src/platform/repositories/audit-event.ts`, `getRecentAuditEventsAction` |
+| Operational Dashboard | Implemented [COMMITTED] | `src/platform/repositories/operational-query.ts`, `src/platform/actions/operational.ts` |
 | Document Intelligence Orchestrator (Phase 4I) | Fully Implemented [COMMITTED] | `src/platform/services/document-intelligence.ts`, `tests/document-intelligence-orchestrator.test.ts` |

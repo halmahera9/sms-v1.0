@@ -18,15 +18,14 @@ PostgreSQL level (the stored procedure validates actor membership in `user_actor
 
 ---
 
-## Contract 2: Server Action Boundary Pattern
+## Contract 2: Server Action Boundary & Canonical DTOs (Phase 4L)
 
-**Locations:** All `'use server'` files in `src/platform/actions/` and `src/domains/`
+**Locations:** `src/platform/types/actions.ts`, All `'use server'` files in `src/platform/actions/` and `src/domains/`
 
 **Contract:**
 - All server actions return `ActionResponse<T> = { success: boolean; data?: T; error?: ActionError }`.
+- `ActionErrorCode` is strictly typed: `'UNAUTHENTICATED' | 'FORBIDDEN' | 'VALIDATION_ERROR' | 'DOMAIN_ERROR' | 'INTERNAL_ERROR'`.
 - All server actions call `handleActionError()` in their catch block — never expose raw errors.
-- Error types map to canonical codes: `UNAUTHENTICATED`, `FORBIDDEN`, `VALIDATION_ERROR`,
-  `DOMAIN_ERROR`, `INTERNAL_ERROR`.
 - Sensitive errors (RLS violations matching `SECURITY ERROR:` prefix) are masked to clients.
 - The client NEVER sends `actorId` or `tenantId` — these are always resolved server-side.
 - Serialization via `JSON.parse(JSON.stringify(...))` before returning — prevents Prisma type leakage.
@@ -36,9 +35,9 @@ from client code violates this contract.
 
 ---
 
-## Contract 3: Audit Immutability
+## Contract 3: Audit Immutability & Access Control
 
-**Location:** `src/platform/repositories/audit-event.ts`
+**Location:** `src/platform/repositories/audit-event.ts`, `src/platform/actions/audit.ts`
 
 **Contract:**
 - `AuditEvent` rows are APPEND-ONLY. No UPDATE or DELETE operations exist in the repository.
@@ -47,9 +46,11 @@ from client code violates this contract.
   a separate transaction.
 - `beforeState` and `afterState` are serialized via `JSON.parse(JSON.stringify())` before
   storage — no circular references or Prisma objects.
+- Reading audit logs via `getRecentAuditEventsAction` requires explicit `AUDIT_EVENT_READ` RBAC
+  authorization (`ADMIN`, `ADMIN_TENANT`, `AUDITOR`, `VERIFIKATOR`).
 
 **Enforcement:** UUID validation guards in `recordTx()` throw `SECURITY/SCHEMA ERROR` on
-invalid identifiers.
+invalid identifiers; database triggers reject deletes/updates on `audit_events`.
 
 ---
 
@@ -135,20 +136,18 @@ invalid identifiers.
 
 ---
 
-## Contract 9: RBAC Policy Ownership
+## Contract 9: Canonical Platform RBAC Registry (Phase 4L)
 
-**Two separate RBAC enforcement mechanisms exist:**
+**Location:** `src/platform/auth/guards.ts`, `src/platform/auth/index.ts`
 
-**Mechanism A** — Used by employee award actions (`src/domains/employee/awards/actions.ts`):
-- Calls `assertAuthorizedAction(session, actionKey)` from `src/platform/auth/guards.ts`.
-- Policy defined in `AWARD_PROPOSAL_RBAC_POLICY` dictionary.
-
-**Mechanism B** — Used by student/exception/audit/operational actions:
-- Inline role array checks: `if (!allowedRoles.includes(context.role)) throw AuthorizationError(...)`.
-- Policy defined ad-hoc per action file.
-
-**There is no unified RBAC policy registry.** These two mechanisms are not interchangeable
-and have no shared enforcement path.
+**Contract:**
+- All authorization decisions across all domains are declarative and centralized in `PLATFORM_RBAC_REGISTRY`.
+- Canonical enforcement pattern across all Server Actions:
+  ```typescript
+  assertAuthorizedAction(sessionContext, actionPermission);
+  ```
+- Allowed roles derive strictly from the `UserRole` Prisma enum (`ADMIN`, `ADMIN_TENANT`, `VERIFIKATOR`, `OPERATOR`, `AUDITOR`, `PEGAWAI`).
+- Missing or unauthorized roles fail-closed by throwing `AuthorizationError` with code `FORBIDDEN`.
 
 ---
 
