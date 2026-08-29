@@ -53,6 +53,10 @@ export interface BatchMarkGeneratedDTO {
   proposalIds: string[];
 }
 
+export interface SignProposalDTO {
+  proposalId: string;
+}
+
 /**
  * Sanitizes and maps server-side errors to client-safe ActionResponse structures.
  * Internal database errors and raw stack traces are logged server-side and masked from clients.
@@ -292,6 +296,45 @@ export async function batchMarkGeneratedAction(
     return {
       success: true,
       data: JSON.parse(JSON.stringify(updatedProposals)),
+    };
+  } catch (err: unknown) {
+    return handleActionError(err);
+  }
+}
+
+/**
+ * Server Action: Sign Proposal
+ * Enforces AuthN + AuthZ (SIGN_PROPOSAL) ➔ triggers formal workflow transition SIGN (GENERATED -> DITANDATANGANI).
+ */
+export async function signProposalAction(
+  dto: SignProposalDTO
+): Promise<ActionResponse<AwardProposal>> {
+  try {
+    // 1. Authenticate Actor Session (Fail-Closed)
+    const session = await getAuthenticatedSession();
+
+    // 2. Authorize RBAC Policy (Only ADMIN, VERIFIKATOR)
+    assertAuthorizedAction(session, 'SIGN_PROPOSAL');
+
+    // 3. Validate Input DTO
+    if (!dto || typeof dto !== 'object') {
+      throw new Error('Validation Error: Input must be a valid object.');
+    }
+    if (!dto.proposalId || typeof dto.proposalId !== 'string') {
+      throw new Error('Validation Error: proposalId is required and must be a string.');
+    }
+
+    // 4. Execute in authenticated tenant context
+    const service = new AwardProposalApplicationService();
+    const signedProposal = await service.signProposalInContext(
+      session.actorId,
+      session.tenantId,
+      dto.proposalId
+    );
+
+    return {
+      success: true,
+      data: JSON.parse(JSON.stringify(signedProposal)),
     };
   } catch (err: unknown) {
     return handleActionError(err);

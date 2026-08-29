@@ -337,6 +337,51 @@ export class AwardProposalApplicationService {
     return updatedList;
   }
 
+  public async signProposalTx(
+    tx: TenantTransactionClient,
+    tenantId: string,
+    proposalId: string,
+    actorId: string
+  ): Promise<AwardProposal> {
+    const proposal = await this.proposalRepo.findByIdTx(tx, proposalId);
+    if (!proposal) {
+      throw new Error(`AwardProposal not found: ${proposalId}`);
+    }
+
+    const result = this.workflowEngine.transition(
+      proposal.status,
+      'SIGN',
+      {},
+      actorId
+    );
+
+    if (!result.success) {
+      throw new Error(`Workflow transition failed: ${result.reason || 'Invalid transition'}`);
+    }
+
+    const updatedProposal: AwardProposal = {
+      ...proposal,
+      status: result.toState,
+      updatedAt: new Date().toISOString(),
+    };
+
+    const saved = await this.proposalRepo.saveTx(tx, tenantId, updatedProposal);
+
+    // Atomic transaction-bound persistent audit log
+    await this.auditRepo.recordTx(tx, tenantId, {
+      actor: actorId,
+      actorUserId: actorId,
+      action: 'SIGN',
+      entityType: 'AwardProposal',
+      entityId: proposalId,
+      beforeState: { status: proposal.status },
+      afterState: { status: saved.status },
+      metadata: { transitionResult: result },
+    });
+
+    return saved;
+  }
+
   public async importProposalsTx(
     tx: TenantTransactionClient,
     tenantId: string,
@@ -616,6 +661,16 @@ export class AwardProposalApplicationService {
   ): Promise<AwardProposal[]> {
     return await runInTenantContext(actorId, tenantId, async (tx) => {
       return await this.batchMarkGeneratedTx(tx, tenantId, proposalIds, actorId);
+    });
+  }
+
+  public async signProposalInContext(
+    actorId: string,
+    tenantId: string,
+    proposalId: string
+  ): Promise<AwardProposal> {
+    return await runInTenantContext(actorId, tenantId, async (tx) => {
+      return await this.signProposalTx(tx, tenantId, proposalId, actorId);
     });
   }
 
