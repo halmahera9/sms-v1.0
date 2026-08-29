@@ -92,3 +92,5 @@ export interface IRepository<T, ID = string> {
   saveAll(entities: T[]): Promise<T[]>;
   delete(id: ID): Promise<boolean>;
 }
+// Document Intelligence Orchestration Contracts
+export * from './document-intelligence';
