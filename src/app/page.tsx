@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { AwardProposal } from '@/types/award';
-import { loadProposals, saveProposals } from '@/lib/award-storage';
+import { getAwardProposalsAction } from '@/domains/employee/awards/actions';
 import { UnifiedNavigation } from '@/platform/ui/UnifiedNavigation';
 import { UnifiedDashboard } from '@/platform/ui/UnifiedDashboard';
 import { UnifiedExceptionCenter } from '@/platform/ui/UnifiedExceptionCenter';
@@ -34,15 +34,17 @@ function WorkspaceContent() {
   };
 
   useEffect(() => {
-    const loaded = loadProposals();
-    setProposals(loaded);
+    getAwardProposalsAction().then((res) => {
+      if (res.success && res.data) {
+        setProposals(res.data);
+      }
+    });
     refreshMetrics();
   }, []);
 
   const handleUpdateCandidate = (updated: AwardProposal) => {
     const updatedList = proposals.map((p) => (p.id === updated.id ? updated : p));
     setProposals(updatedList);
-    saveProposals(updatedList);
     setSelectedCandidate(updated);
     refreshMetrics();
   };
@@ -50,7 +52,6 @@ function WorkspaceContent() {
   const handleImportComplete = (newProposals: AwardProposal[]) => {
     const combined = [...newProposals, ...proposals];
     setProposals(combined);
-    saveProposals(combined);
     setActiveTab('kandidat');
     refreshMetrics();
   };
@@ -59,7 +60,6 @@ function WorkspaceContent() {
     const updatedMap = new Map(updatedProposals.map((p) => [p.id, p]));
     const nextList = proposals.map((p) => updatedMap.get(p.id) || p);
     setProposals(nextList);
-    saveProposals(nextList);
     refreshMetrics();
   };
 
