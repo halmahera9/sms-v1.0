@@ -10,6 +10,9 @@ import {
   VerificationDecision,
 } from '@prisma/client';
 import { PostgresAuditEventRepository } from '@/platform/repositories/audit-event';
+import { IExceptionRepository, PostgresExceptionRepository } from '@/platform/repositories/exception';
+import { ocrItemValidationEngine } from '@/domains/student/rules';
+import { ExtractedItem as DomainExtractedItem } from '@/domains/student/types';
 import { randomUUID } from 'crypto';
 
 export type ActionErrorCode =
@@ -267,7 +270,8 @@ export async function getOCRDocumentsAction(): Promise<ActionResponse<OCRDocumen
  * Atomically persists Document, DocumentVersion, OCRExtraction, and ExtractedItems in PostgreSQL under RLS.
  */
 export async function uploadOCRDocumentAction(
-  dto: UploadOCRDocumentDTO
+  dto: UploadOCRDocumentDTO,
+  exceptionRepo: IExceptionRepository = new PostgresExceptionRepository(auditRepo)
 ): Promise<ActionResponse<OCRDocumentDTO>> {
   try {
     if (!dto || typeof dto !== 'object' || !dto.fileName || dto.fileName.trim().length === 0) {
@@ -327,7 +331,7 @@ export async function uploadOCRDocumentAction(
         },
       });
 
-      // 4. Create ExtractedItems
+      // 4. Create ExtractedItems and wire automated Exception generation
       const createdItems: ExtractedItemDTO[] = [];
 
       for (const item of dto.items) {
@@ -362,6 +366,31 @@ export async function uploadOCRDocumentAction(
             matchedStudent: true,
           },
         });
+
+        const domainItem: DomainExtractedItem = {
+          id: createdItem.id,
+          ocrText: createdItem.studentNameRaw,
+          matchedStudentId: createdItem.matchedStudentId || undefined,
+          matchedStudentName: createdItem.matchedStudent?.fullName || createdItem.studentNameRaw,
+          matchedNisn: createdItem.matchedStudent?.nisn || createdItem.nisnRaw || undefined,
+          confidence: Number(createdItem.confidenceScore),
+          class: createdItem.matchedStudent?.className || item.class || 'X IPA 1',
+          date: rawAbsenceDate,
+          status: mapToDtoAbsenceStatus(rawAbsenceType),
+          notes: item.notes,
+          verificationStatus: 'pending',
+        };
+
+        // Platform automated exception generation bridge
+        const validationResults = ocrItemValidationEngine.validateEntity(domainItem);
+        await exceptionRepo.createFromValidationResultsTx(
+          tx,
+          tenantId,
+          'ExtractedItem',
+          createdItem.id,
+          validationResults,
+          context.actorId
+        );
 
         createdItems.push({
           id: createdItem.id,

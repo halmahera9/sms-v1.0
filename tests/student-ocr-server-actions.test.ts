@@ -556,6 +556,141 @@ async function runStudentOCRServerActionsTests() {
       'TEST 17: Returned OCRDocumentDTO array is completely JSON serializable'
     );
 
+    // =========================================================================
+    // TEST 18 & 19 & 20 — Automated OCR Validation Exception Bridge
+    // =========================================================================
+    console.log('\n[18-20] Testing Automated OCR Validation Exception Bridge...');
+    setSessionProvider({
+      getSession: async () => ({
+        actorId: ACTOR_OPERATOR_A_ID,
+        tenantId: TENANT_A_ID,
+        username: 'ocr_op_a',
+        role: UserRole.OPERATOR,
+        status: UserStatus.ACTIVE,
+      }),
+    });
+
+    const ocrUploadRes = await uploadOCRDocumentAction({
+      fileName: 'daftar_hadir_kelas_x_mixed.png',
+      fileSize: 450000,
+      items: [
+        {
+          // Valid item: matched student and high confidence (85%)
+          ocrText: 'Citra Dewi',
+          matchedNisn: '0051234569',
+          confidence: 85,
+          class: 'X IPA 1',
+          date: '2026-03-01',
+          status: 'Hadir',
+        },
+        {
+          // Failed item: low confidence (55%) even if matched
+          ocrText: 'Citra Dewi (Buram)',
+          matchedNisn: '0051234569',
+          confidence: 55,
+          class: 'X IPA 1',
+          date: '2026-03-01',
+          status: 'Sakit',
+        },
+        {
+          // Failed item: unmatched student
+          ocrText: 'Nama Tidak Dikenal',
+          confidence: 90,
+          class: 'X IPA 1',
+          date: '2026-03-01',
+          status: 'Alpha',
+        },
+      ],
+    });
+
+    assert(ocrUploadRes.success && ocrUploadRes.data?.items.length === 3, 'TEST 18A: Upload with mixed items succeeded');
+    const validItemId = ocrUploadRes.data!.items[0].id;
+    const lowConfItemId = ocrUploadRes.data!.items[1].id;
+    const unmatchedItemId = ocrUploadRes.data!.items[2].id;
+
+    // Verify ExceptionItem generation in database
+    const validItemExceptions = await adminPrisma.exceptionItem.findMany({
+      where: {
+        tenantId: TENANT_A_ID,
+        workflowInstance: {
+          entityType: 'ExtractedItem',
+          entityId: validItemId,
+        },
+      },
+    });
+    assert(validItemExceptions.length === 0, 'TEST 19: Valid OCR result creates 0 ExceptionItems');
+
+    const lowConfExceptions = await adminPrisma.exceptionItem.findMany({
+      where: {
+        tenantId: TENANT_A_ID,
+        workflowInstance: {
+          entityType: 'ExtractedItem',
+          entityId: lowConfItemId,
+        },
+      },
+      include: {
+        workflowInstance: true,
+      },
+    });
+    assert(lowConfExceptions.length === 1, 'TEST 18B: Failed low-confidence OCR item creates exactly 1 ExceptionItem');
+    assert(lowConfExceptions[0].ruleCode === 'OCR_CONFIDENCE_RULE', 'TEST 20A: Exception ruleCode is OCR_CONFIDENCE_RULE');
+    assert(lowConfExceptions[0].severity === 'HIGH', 'TEST 20B: Severity ERROR mapped canonically to HIGH');
+    assert(lowConfExceptions[0].status === 'OPEN', 'TEST 20C: Exception initial status is OPEN');
+    assert(lowConfExceptions[0].resolutionNotes === null, 'TEST 20D: Automated exception has null resolutionNotes');
+    assert(
+      lowConfExceptions[0].workflowInstance.entityId === lowConfItemId,
+      'TEST 20E: Exception is correctly linked to createdItem.id'
+    );
+
+    const unmatchedExceptions = await adminPrisma.exceptionItem.findMany({
+      where: {
+        tenantId: TENANT_A_ID,
+        workflowInstance: {
+          entityType: 'ExtractedItem',
+          entityId: unmatchedItemId,
+        },
+      },
+    });
+    assert(unmatchedExceptions.length === 1, 'TEST 18C: Unmatched student OCR item creates exactly 1 ExceptionItem');
+
+    // =========================================================================
+    // TEST 21 — Atomic Rollback on Downstream Failure
+    // =========================================================================
+    console.log('\n[21] Testing Atomic Transaction Rollback...');
+    const failingExceptionRepo = {
+      findManyTx: async () => [],
+      findByIdTx: async () => null,
+      updateStatusTx: async () => { throw new Error('Unreachable'); },
+      createTx: async () => { throw new Error('Unreachable'); },
+      createFromValidationResultsTx: async () => {
+        throw new Error('SIMULATED_DOWNSTREAM_EXCEPTION_BRIDGE_FAILURE');
+      },
+    };
+
+    const rollbackUploadRes = await uploadOCRDocumentAction(
+      {
+        fileName: 'dokumen_rollback_test.png',
+        fileSize: 320000,
+        items: [
+          {
+            ocrText: 'Siswa Rollback',
+            confidence: 40,
+          },
+        ],
+      },
+      failingExceptionRepo
+    );
+
+    assert(
+      !rollbackUploadRes.success && rollbackUploadRes.error?.code === 'INTERNAL_ERROR',
+      'TEST 21A: Downstream exception bridge failure fails closed'
+    );
+
+    const rolledBackDoc = await adminPrisma.document.findFirst({
+      where: { title: 'dokumen_rollback_test.png' },
+    });
+    assert(rolledBackDoc === null, 'TEST 21B: Document rolled back atomically on exception bridge failure');
+
     console.log('\n=====================================================');
     console.log(` RESULT: All ${passCount}/${testCount} Student OCR Server Action tests PASSED `);
     console.log('=====================================================\n');
@@ -563,6 +698,12 @@ async function runStudentOCRServerActionsTests() {
     resetSessionProvider();
     // Cleanup fixtures
     try {
+      await adminPrisma.exceptionItem.deleteMany({
+        where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID] } },
+      });
+      await adminPrisma.workflowInstance.deleteMany({
+        where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID] } },
+      });
       await adminPrisma.humanVerification.deleteMany({
         where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID] } },
       });
