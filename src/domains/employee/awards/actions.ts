@@ -57,6 +57,14 @@ export interface SignProposalDTO {
   proposalId: string;
 }
 
+export interface SendProposalDTO {
+  proposalId: string;
+}
+
+export interface ArchiveCompleteProposalDTO {
+  proposalId: string;
+}
+
 /**
  * Sanitizes and maps server-side errors to client-safe ActionResponse structures.
  * Internal database errors and raw stack traces are logged server-side and masked from clients.
@@ -335,6 +343,84 @@ export async function signProposalAction(
     return {
       success: true,
       data: JSON.parse(JSON.stringify(signedProposal)),
+    };
+  } catch (err: unknown) {
+    return handleActionError(err);
+  }
+}
+
+/**
+ * Server Action: Send Proposal
+ * Enforces AuthN + AuthZ (SEND_PROPOSAL) ➔ triggers formal workflow transition SEND (DITANDATANGANI -> DIKIRIM).
+ */
+export async function sendProposalAction(
+  dto: SendProposalDTO
+): Promise<ActionResponse<AwardProposal>> {
+  try {
+    // 1. Authenticate Actor Session (Fail-Closed)
+    const session = await getAuthenticatedSession();
+
+    // 2. Authorize RBAC Policy (Only ADMIN, VERIFIKATOR, OPERATOR)
+    assertAuthorizedAction(session, 'SEND_PROPOSAL');
+
+    // 3. Validate Input DTO
+    if (!dto || typeof dto !== 'object') {
+      throw new Error('Validation Error: Input must be a valid object.');
+    }
+    if (!dto.proposalId || typeof dto.proposalId !== 'string') {
+      throw new Error('Validation Error: proposalId is required and must be a string.');
+    }
+
+    // 4. Execute in authenticated tenant context
+    const service = new AwardProposalApplicationService();
+    const sentProposal = await service.sendProposalInContext(
+      session.actorId,
+      session.tenantId,
+      dto.proposalId
+    );
+
+    return {
+      success: true,
+      data: JSON.parse(JSON.stringify(sentProposal)),
+    };
+  } catch (err: unknown) {
+    return handleActionError(err);
+  }
+}
+
+/**
+ * Server Action: Archive & Complete Proposal
+ * Enforces AuthN + AuthZ (ARCHIVE_COMPLETE_PROPOSAL) ➔ triggers formal workflow transition ARCHIVE_COMPLETE (DIKIRIM -> SELESAI).
+ */
+export async function archiveCompleteProposalAction(
+  dto: ArchiveCompleteProposalDTO
+): Promise<ActionResponse<AwardProposal>> {
+  try {
+    // 1. Authenticate Actor Session (Fail-Closed)
+    const session = await getAuthenticatedSession();
+
+    // 2. Authorize RBAC Policy (ADMIN, VERIFIKATOR, OPERATOR)
+    assertAuthorizedAction(session, 'ARCHIVE_COMPLETE_PROPOSAL');
+
+    // 3. Validate Input DTO
+    if (!dto || typeof dto !== 'object') {
+      throw new Error('Validation Error: Input must be a valid object.');
+    }
+    if (!dto.proposalId || typeof dto.proposalId !== 'string') {
+      throw new Error('Validation Error: proposalId is required and must be a string.');
+    }
+
+    // 4. Execute in authenticated tenant context
+    const service = new AwardProposalApplicationService();
+    const completedProposal = await service.archiveCompleteProposalInContext(
+      session.actorId,
+      session.tenantId,
+      dto.proposalId
+    );
+
+    return {
+      success: true,
+      data: JSON.parse(JSON.stringify(completedProposal)),
     };
   } catch (err: unknown) {
     return handleActionError(err);
