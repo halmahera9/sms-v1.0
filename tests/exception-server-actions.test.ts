@@ -910,6 +910,117 @@ async function runExceptionServerActionsTests() {
       'createExceptionAction cleanly propagates repository Validation Errors'
     );
 
+    // ---------------------------------------------------------------------------------
+    // TEST 31: updateExceptionStatusAction Input Validation Rejections
+    // ---------------------------------------------------------------------------------
+    setSessionProvider({
+      getSession: async () => sessionVerifA,
+    });
+
+    const res31NullDto = await updateExceptionStatusAction(null as any);
+    const res31BadUuid = await updateExceptionStatusAction({
+      exceptionId: 'invalid-uuid-format',
+      status: ExceptionStatus.IN_REVIEW,
+    });
+    const res31BadStatus = await updateExceptionStatusAction({
+      exceptionId: crypto.randomUUID(),
+      status: 'INVALID_STATUS' as any,
+    });
+    const res31BadNote = await updateExceptionStatusAction({
+      exceptionId: crypto.randomUUID(),
+      status: ExceptionStatus.IN_REVIEW,
+      resolutionNote: 12345 as any,
+    });
+
+    assert(
+      !res31NullDto.success && res31NullDto.error?.code === 'VALIDATION_ERROR' &&
+      !res31BadUuid.success && res31BadUuid.error?.code === 'VALIDATION_ERROR' &&
+      !res31BadStatus.success && res31BadStatus.error?.code === 'VALIDATION_ERROR' &&
+      !res31BadNote.success && res31BadNote.error?.code === 'VALIDATION_ERROR',
+      'updateExceptionStatusAction validates all input parameters and rejects invalid values'
+    );
+
+    // ---------------------------------------------------------------------------------
+    // TEST 32: updateExceptionStatusAction Repository Error Propagation
+    // ---------------------------------------------------------------------------------
+    const mockFailingUpdateRepo = {
+      findManyTx: async () => [],
+      findByIdTx: async () => null,
+      updateStatusTx: async () => {
+        throw new Error('Validation Error: Simulated repository domain update failure.');
+      },
+      createTx: async () => { throw new Error('Unreachable'); },
+    };
+
+    const res32 = await updateExceptionStatusAction(
+      {
+        exceptionId: crypto.randomUUID(),
+        status: ExceptionStatus.RESOLVED,
+        resolutionNote: 'Penyelesaian simulasi',
+      },
+      mockFailingUpdateRepo
+    );
+
+    assert(
+      !res32.success &&
+      res32.error?.code === 'VALIDATION_ERROR' &&
+      res32.error.message.includes('Simulated repository domain update failure'),
+      'updateExceptionStatusAction cleanly propagates repository Validation Errors'
+    );
+
+    // ---------------------------------------------------------------------------------
+    // TEST 33: updateExceptionStatusAction Authorized Roles (ADMIN & ADMIN_TENANT)
+    // ---------------------------------------------------------------------------------
+    // Create fresh exception for ADMIN test
+    setSessionProvider({
+      getSession: async () => sessionSuperAdminA,
+    });
+
+    const excAdminTarget = await createExceptionAction({
+      entityType: 'AwardProposal',
+      entityId: crypto.randomUUID(),
+      ruleCode: 'DOC_COMPLETENESS_RULE',
+      severity: Severity.HIGH,
+    });
+
+    const res33Admin = await updateExceptionStatusAction({
+      exceptionId: excAdminTarget.data!.id,
+      status: ExceptionStatus.RESOLVED,
+      resolutionNote: 'Diselesaikan oleh ADMIN',
+    });
+
+    assert(
+      res33Admin.success === true &&
+      res33Admin.data?.status === ExceptionStatus.RESOLVED &&
+      res33Admin.data.resolutionNotes === 'Diselesaikan oleh ADMIN',
+      'updateExceptionStatusAction permits ADMIN role to resolve exceptions'
+    );
+
+    // Create fresh exception for ADMIN_TENANT test
+    setSessionProvider({
+      getSession: async () => sessionAdminTenantA,
+    });
+
+    const excAdminTenantTarget = await createExceptionAction({
+      entityType: 'Student',
+      entityId: crypto.randomUUID(),
+      ruleCode: 'STUDENT_NISN_FORMAT_RULE',
+      severity: Severity.LOW,
+    });
+
+    const res33AdminTenant = await updateExceptionStatusAction({
+      exceptionId: excAdminTenantTarget.data!.id,
+      status: ExceptionStatus.DISMISSED,
+      resolutionNote: 'Dikesampingkan oleh ADMIN_TENANT',
+    });
+
+    assert(
+      res33AdminTenant.success === true &&
+      res33AdminTenant.data?.status === ExceptionStatus.DISMISSED &&
+      res33AdminTenant.data.resolutionNotes === 'Dikesampingkan oleh ADMIN_TENANT',
+      'updateExceptionStatusAction permits ADMIN_TENANT role to dismiss exceptions'
+    );
+
     console.log(`\n=====================================================`);
     console.log(` RESULT: ${passCount}/${testCount} Exception Server Action tests PASSED `);
     console.log(`=====================================================\n`);
