@@ -434,15 +434,15 @@ model HumanVerification {
 }
 
 model WorkflowInstance {
-  id             String                      @id @db.Uuid
-  tenantId       String                      @map("tenant_id") @db.Uuid
-  entityType     String                      @map("entity_type") @db.VarChar(50)
-  entityId       String                      @map("entity_id") @db.Uuid
-  currentState   StudentAbsenceWorkflowState @map("current_state")
-  lockedByUserId String?                     @map("locked_by_user_id") @db.Uuid
-  lockedUntil    DateTime?                   @map("locked_until") @db.Timestamptz
-  createdAt      DateTime                    @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt      DateTime                    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  id             String               @id @db.Uuid
+  tenantId       String               @map("tenant_id") @db.Uuid
+  entityType     String               @map("entity_type") @db.VarChar(50)
+  entityId       String               @map("entity_id") @db.Uuid
+  currentState   String               @map("current_state") @db.VarChar(50)
+  lockedByUserId String?              @map("locked_by_user_id") @db.Uuid
+  lockedUntil    DateTime?            @map("locked_until") @db.Timestamptz
+  createdAt      DateTime             @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   tenant         Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   lockedByUser   UserActor?           @relation(fields: [tenantId, lockedByUserId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade)
@@ -456,14 +456,14 @@ model WorkflowInstance {
 }
 
 model WorkflowTransition {
-  id                 String                      @id @db.Uuid
-  tenantId           String                      @map("tenant_id") @db.Uuid
-  workflowInstanceId String                      @map("workflow_instance_id") @db.Uuid
-  fromState          StudentAbsenceWorkflowState @map("from_state")
-  toState            StudentAbsenceWorkflowState @map("to_state")
-  triggeredByUserId  String                      @map("triggered_by_user_id") @db.Uuid
-  reason             String?                     @db.Text
-  createdAt          DateTime                    @default(now()) @map("created_at") @db.Timestamptz
+  id                 String           @id @db.Uuid
+  tenantId           String           @map("tenant_id") @db.Uuid
+  workflowInstanceId String           @map("workflow_instance_id") @db.Uuid
+  fromState          String           @map("from_state") @db.VarChar(50)
+  toState            String           @map("to_state") @db.VarChar(50)
+  triggeredByUserId  String           @map("triggered_by_user_id") @db.Uuid
+  reason             String?          @db.Text
+  createdAt          DateTime         @default(now()) @map("created_at") @db.Timestamptz
 
   tenant           Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   workflowInstance WorkflowInstance @relation(fields: [tenantId, workflowInstanceId], references: [tenantId, id], onDelete: Cascade, onUpdate: Cascade)
