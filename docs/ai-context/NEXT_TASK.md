@@ -3,36 +3,40 @@
 ## Roadmap & Recommended Next Tasks
 
 ### Context & Current State
-The Award Proposal domain workflow (`NOMINATIF` through `SELESAI`) and the Exception Center persistence/bridge are now fully implemented and tested.
+- **Phase 4H (Completed):** Award Proposal domain workflow (`NOMINATIF` through `SELESAI`) and Exception Center full CRUD & validation bridges are committed.
+- **Phase 4I (Completed in `7966d20`):** `DocumentIntelligenceOrchestrator` implemented and verified with 43/43 integration tests.
+- **Phase 4J (Completed in `e6c63a8`):** `CookieSessionProvider` with cryptographic HMAC-SHA256 token verification and strict fail-closed security committed and tested.
 
-The next critical engineering tracks are:
+The next recommended engineering tracks are:
 
 ---
 
-### Track 1: Document Intelligence Orchestrator Implementation (Recommended)
+### Track 1: Client-Server Boundary Decoupling for Production Build (Immediate Priority)
 
-- **Goal:** Implement the concrete `DocumentIntelligenceOrchestrator` fulfilling `IDocumentIntelligenceOrchestrator` in `src/platform/types/document-intelligence.ts`.
+- **Goal:** Fix the Vercel / `next build` failure caused by Webpack bundling Node.js `pg` driver into client components.
+- **Problem:** `src/app/app/audit/page.tsx` (Client Component) imports `src/lib/storage.ts` which statically imports `PlatformAuditEngine` from `src/platform/audit/engine.ts`, which imports `PostgresAuditEventRepository` $\to$ `pg` (`net`, `tls`, `util/types`).
 - **Scope:**
-  1. Standardize document upload, versioning, and real SHA-256 checksum calculation.
-  2. Implement async / batch OCR extraction status management (`QUEUED` $\to$ `PROCESSING` $\to$ `COMPLETED` / `FAILED`).
-  3. Abstract identity resolution into a reusable resolver pipeline across both Employee (NIP/NRK) and Student (NISN/Name) domains.
-  4. Wire automated validation rules to the orchestrator to emit exceptions consistently.
+  1. Decouple `PlatformAuditEngine` in-memory adapter from the server-only `PostgresAuditEventRepository`.
+  2. Ensure server-only database code is never imported into Client Components (`"use client"`).
+  3. Route client audit log queries through Server Actions (`getRecentAuditEventsAction`) or API routes.
+  4. Verify clean `npm run build` execution locally and on Vercel.
 
 ---
 
-### Track 2: Live Production Authentication Provider Integration
+### Track 2: Phase 4K — Cloud Object Storage & Document Versioning Integration
 
-- **Goal:** Replace `DefaultSessionProvider` (which fails closed with `null`) with a production session resolver.
+- **Goal:** Replace simulated upload placeholders and stub URLs with real cloud object storage (S3 / GCS).
 - **Scope:**
-  1. Implement NextAuth / IronSession / JWT cookie reader in `src/platform/auth/session.ts`.
-  2. Map incoming session claims (`userId`, `tenantId`, `role`, `status`) to `AuthenticatedActorContext`.
-  3. Verify RLS `set_tenant_context()` execution under live web requests.
+  1. Integrate S3 / Google Cloud Storage client for file persistence.
+  2. Implement real SHA-256 binary checksum calculation for `DocumentVersion`.
+  3. Wire award requirement file uploads directly to canonical `Document` & `DocumentVersion` tables.
 
 ---
 
-### Track 3: Unified Action Response & RBAC Policy Registry
+### Track 3: Phase 4L — Unified Action Response & RBAC Policy Registry
 
-- **Goal:** Consolidate duplicated types and authorization policies.
+- **Goal:** Consolidate duplicated types and authorization policies across domains.
 - **Scope:**
   1. Centralize `ActionResponse<T>` and `ActionError` into `src/platform/types/actions.ts`.
   2. Unify domain RBAC arrays into a centralized policy guard system across all domains.
+  3. Add RBAC role assertions to `getRecentAuditEventsAction`.

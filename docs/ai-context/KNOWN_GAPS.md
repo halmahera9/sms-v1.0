@@ -2,9 +2,9 @@
 
 ## Confirmed Gaps [COMMITTED]
 
-### GAP-01: Authentication Provider Fails Closed Without Live Session
-- **Evidence:** `DefaultSessionProvider.getSession()` returns `null` (`src/platform/auth/session.ts`). No production cookie/JWT session provider is wired into `setSessionProvider()`.
-- **Impact:** All server action invocations will throw `AuthenticationError` until a live session provider (e.g. NextAuth / JWT session cookie parser) is registered.
+### GAP-BUILD: Client-Server Import Leak Causes `next build` Webpack Failure
+- **Evidence:** `src/app/app/audit/page.tsx` (`"use client"`) imports `src/lib/storage.ts` which imports `PlatformAuditEngine` from `src/platform/audit/engine.ts`. `engine.ts` imports `PostgresAuditEventRepository` $\to$ `pg`, causing Webpack to fail when resolving Node.js built-ins (`net`, `tls`, `util/types`) for client browser bundles.
+- **Impact:** Vercel / production `npm run build` fails until server-only repositories are decoupled from client component import graphs.
 
 ### GAP-02: Document Storage & Integrity Values Are Placeholders
 - **Evidence:** `student-workflow.ts` uses simulated checksums (`'simulated_ocr_checksum_' + Date.now()`) and placeholder image paths (`/placeholder-doc.png`). Award proposal document uploads set `fileUrl = '#'`.
@@ -31,6 +31,8 @@
 
 ## Resolved Gaps (from previous snapshot)
 
+- **[RESOLVED] GAP-SESSION (Live Cookie Session Provider):** Implemented `CookieSessionProvider` with cryptographic HMAC-SHA256 token verification, strict fail-closed missing secret handling, and actor claim resolution (`e6c63a8`).
+- **[RESOLVED] GAP-ORCHESTRATOR (Document Intelligence Orchestration):** Implemented concrete `DocumentIntelligenceOrchestrator` in `src/platform/services/document-intelligence.ts` with complete extraction, identity matching, validation, exception creation, and audit logging (`7966d20`).
 - **[RESOLVED] GAP-00 (WorkflowInstance State Management):** Initialized generic `WorkflowInstance` schema and migration for unified state machine persistence (`bc67517`).
 - **[RESOLVED] GAP-01 (Exception Creation Path):** Added `createTx` on `PostgresExceptionRepository`, `createExceptionAction` server action (`047dba0`), and `validateOCRAndCreateExceptions` OCR validation bridge (`4e23757`, `c6195d2`).
 - **[RESOLVED] GAP-WORKFLOW (Award Proposal Sign, Send, Archive):** Implemented `signProposalAction`, `sendProposalAction`, and `archiveCompleteProposalAction` with complete transactional persistence, workflow transition validation, and audit recording (`6c68d62`, `3371372`).

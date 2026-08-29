@@ -58,84 +58,71 @@ invalid identifiers.
 **Location:** `src/platform/workflow/engine.ts`, domain workflow files
 
 **Contract:**
-- State transitions are ONLY valid when defined in the `WorkflowDefinition.transitions` array.
-- Guard functions receive a `context` object and return `boolean` or `{ allowed, reason }`.
-- `PlatformWorkflowEngine.transition()` NEVER throws — it returns a `WorkflowTransitionResult`
-  with `success: false` on invalid/guarded transitions.
-- The calling service is responsible for throwing if `result.success === false`.
-- Workflow engine is purely in-memory (stateless) — it does NOT persist state changes.
-  Persistence is the caller's responsibility.
+- All workflow state transitions MUST be defined in a domain-specific `WorkflowDefinition`.
+- Transitions MUST have an explicit `event` string and `from` state (or `from: '*'` for universal).
+- Optional `guard` functions evaluate business rules before transition — returns boolean.
+- The engine enforces `canTransition()` before executing `transition()`.
+- Invalid transitions throw `Error` (caught and mapped to `DOMAIN_ERROR` in server actions).
 
-**Employee award workflow transitions:**
-- `NOMINATIF` $\to$ `BELUM_UPLOAD` (`SUBMIT_NOMINATIVE`)
-- `['NOMINATIF', 'BELUM_UPLOAD']` $\to$ `SEBAGIAN` (`UPLOAD_DOCUMENT`)
-- `['NOMINATIF', 'BELUM_UPLOAD', 'SEBAGIAN']` $\to$ `LENGKAP` (`COMPLETE_DOCUMENTS`)
-- `['LENGKAP', 'SEBAGIAN']` $\to$ `DIVERIFIKASI` (`VERIFY_DOCUMENTS`)
-- `['DIVERIFIKASI', 'LENGKAP']` $\to$ `SIAP_GENERATE` (`APPROVE_GENERATION` — Guard: `allMandatoryVerified === true`)
-- `SIAP_GENERATE` $\to$ `GENERATED` (`MARK_GENERATED`)
-- `GENERATED` $\to$ `DITANDATANGANI` (`SIGN`)
-- `DITANDATANGANI` $\to$ `DIKIRIM` (`SEND`)
-- `DIKIRIM` $\to$ `SELESAI` (`ARCHIVE_COMPLETE`)
-
-**Student absence workflow:** Guard on `VERIFY_ALL_ITEMS` checks `allItemsVerified`.
+**Employee Award Workflow States:**
+`NOMINATIF` $\to$ `BELUM_UPLOAD` $\to$ `SEBAGIAN` $\to$ `LENGKAP` $\to$ `DIVERIFIKASI` $\to$
+`SIAP_GENERATE` $\to$ `GENERATED` $\to$ `DITANDATANGANI` $\to$ `DIKIRIM` $\to$ `SELESAI`
 
 ---
 
-## Contract 5: Authentication Fail-Closed
+## Contract 5: Document Intelligence Orchestrator Contract
+
+**Location:** `src/platform/types/document-intelligence.ts`, `src/platform/services/document-intelligence.ts`
+
+**Contract:**
+- Orchestrator implements `IDocumentIntelligenceOrchestrator.process(request)`.
+- Input request requires valid UUIDs for `tenantId`, `actorId`, `documentId`, and `documentVersionId`.
+- Execution runs entirely inside `runInTenantContext(actorId, tenantId, tx)`.
+- Identity resolution maps raw items against domain masters (e.g. Student NISN/Name or Employee NIP/NRK).
+- Rule validation is executed through `PlatformValidationEngine` (`ocrItemValidationEngine`).
+- Failures and anomalies automatically generate `ExceptionItem` records in `OPEN` status via `createFromValidationResultsTx`.
+- Summary aggregation computes `totalItemsExtracted`, `itemsResolved`, `itemsUnresolved`, `exceptionsCreatedCount`, `itemsRequiringReview`.
+- Result status is strictly calculated:
+  - `FAILED` if document is missing, RLS rejected, or unhandled exception occurs.
+  - `REQUIRES_REVIEW` if exceptions are created or items require human review.
+  - `COMPLETED` if all items are resolved with zero validation exceptions.
+- Atomic transaction-bound audit trail is recorded with action `PROCESS_DOCUMENT_INTELLIGENCE`.
+
+---
+
+## Contract 6: Live Cookie Session Provider Contract
 
 **Location:** `src/platform/auth/session.ts`
 
 **Contract:**
-- `getAuthenticatedActorContext()` throws `AuthenticationError` if: session is null, `actorId`
-  is not a valid UUID, `tenantId` is not a valid UUID, or `status !== 'ACTIVE'`.
-- The `DefaultSessionProvider` always returns `null` — any request without a custom provider
-  is automatically rejected.
-- `setSessionProvider()` allows injection of a real or test provider.
-- `executeInAuthenticatedContext()` combines auth resolution + `runInTenantContext` into one
-  call — the primary entry point for platform-level server actions.
-
-**Violation indicator:** Any path that bypasses `getAuthenticatedActorContext()` and
-calls `runInTenantContext` directly with unverified identity parameters.
+- `CookieSessionProvider` extracts session tokens from HTTP-only cookies (`banyubiru_session` or `process.env.SESSION_COOKIE_NAME`).
+- Uses cryptographic HMAC-SHA256 signing (`createSessionToken`) and verification (`verifySessionToken`).
+- Compares signatures using `crypto.timingSafeEqual` to prevent timing attacks.
+- Enforces strict fail-closed behavior: if `AUTH_SECRET` / `SESSION_SECRET` is missing, `verifySessionToken` and `CookieSessionProvider` immediately return `null`.
+- Unconfigured secrets throw explicit security errors on token signing and never use hardcoded fallbacks.
+- Test suites retain backward-compatible dynamic mocking via `setSessionProvider()` and `resetSessionProvider()`.
 
 ---
 
-## Contract 6: Repository Boundary
+## Contract 7: Exception Center Full Lifecycle
 
-**Location:** `src/platform/repositories/`
+**Location:** `src/platform/repositories/exception.ts`, `src/platform/actions/exception.ts`
 
 **Contract:**
-- Transaction-bound methods are named `*Tx(tx, tenantId, ...)` — they receive the
-  `TenantTransactionClient` as the first argument and MUST use it exclusively.
-- Context-bound convenience methods are named `*InContext(actorId, tenantId, ...)` — they
-  wrap `runInTenantContext` internally.
-- `TenantTransactionClient` is typed as a Prisma-inferred interactive transaction parameter.
-  It is never directly constructed outside of `runInTenantContext`.
+- `ExceptionItem` is the canonical entity for validation anomalies, data quality issues,
+  and OCR extraction failures across all domains.
+- Status transitions: `OPEN` $\to$ `IN_REVIEW` $\to$ `RESOLVED` | `DISMISSED`.
+- Severity levels: `LOW`, `MEDIUM`, `HIGH`, `CRITICAL`.
+- Exceptions are created via `createTx()` on `PostgresExceptionRepository` or via the
+  `createExceptionAction` server action.
+- The validation bridge `createFromValidationResultsTx()` maps `ValidationResult` items to
+  `ExceptionItem` records transactionally with automatic deduplication for active `OPEN` exceptions.
+- Status mutations update `status`, `resolvedAt`, `resolvedByActorId`, and `resolutionNotes`
+  in a single atomic transaction while recording an `AuditEvent`.
 
 ---
 
-## Contract 7: Exception State Machine
-
-**Location:** `src/platform/repositories/exception.ts` (L57–L62)
-
-**Contract (hardcoded in `VALID_TRANSITIONS`):**
-
-```
-OPEN     → IN_REVIEW | RESOLVED | DISMISSED
-IN_REVIEW → RESOLVED | DISMISSED
-RESOLVED  → (terminal)
-DISMISSED → (terminal)
-```
-
-- Any transition not listed above throws `Validation Error: ...transisi ilegal`.
-- Status transitions to `RESOLVED` or `DISMISSED` automatically set `resolvedByUserId`
-  and `resolvedAt`.
-- Transitioning to `IN_REVIEW` clears `resolvedByUserId` and `resolvedAt`.
-- Creation via `createTx(tx, tenantId, params)` inserts an `ExceptionItem` with initial status `OPEN` and emits a `CREATE_EXCEPTION` audit event atomically.
-- Every exception status update emits an audit event atomically.
-
----
-
-## Contract 8: Identity Resolution (Employee Import)
+## Contract 8: Identity Resolution Strict Disambiguation
 
 **Location:** `src/domains/employee/awards/service.ts` (L384–L457)
 

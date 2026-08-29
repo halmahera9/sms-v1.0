@@ -16,7 +16,7 @@ Shared platform infrastructure: PostgreSQL RLS multi-tenancy, Server Action boun
 This context package reflects the synchronized `main` branch.
 
 ### 1. Committed Baseline
-- **HEAD Commit:** `3371372d88a5583e0723dc5b33a9a038acfa24ed`
+- **HEAD Commit:** `e6c63a8061f9cc16e91882d9f53ad20264b61bc4`
 - **Branch:** `main`
 
 All statements in this package distinguish between:
