@@ -2,10 +2,6 @@
 
 ## Confirmed Gaps [COMMITTED]
 
-### GAP-02: Document Storage & Integrity Values Are Placeholders
-- **Evidence:** `student-workflow.ts` uses simulated checksums (`'simulated_ocr_checksum_' + Date.now()`) and placeholder image paths (`/placeholder-doc.png`). Award proposal document uploads set `fileUrl = '#'`.
-- **Impact:** No binary files are stored in object storage (S3/GCS) or integrity-validated via real SHA-256 hashes.
-
 ### GAP-03: Award Document Upload Bypasses Document / DocumentVersion Models
 - **Evidence:** `uploadProposalDocumentAction` constructs an ephemeral `ProposalDocument` domain object and updates `AwardProposalDocument`, creating no rows in `documents` or `document_versions`.
 - **Impact:** Document metadata and version history for employee awards are decoupled from the platform document store.
@@ -17,6 +13,7 @@
 
 ## Resolved Gaps (from previous snapshots)
 
+- **[RESOLVED] GAP-02 (Canonical Object Storage & Real SHA-256 Checksum):** Implemented `IObjectStorageProvider` and `InMemoryObjectStorageProvider`, path validation, buffer safety, and connected real binary uploads in `uploadOCRDocumentAction` to persist provider-computed SHA-256 and storage paths to `DocumentVersion` (with `null` for metadata-only legacy records) (`0d6eae1`, `9b4aaf9`).
 - **[RESOLVED] GAP-04 (Audit Action RBAC Role Restriction):** Added explicit `assertAuthorizedAction(context, 'AUDIT_EVENT_READ')` to `getRecentAuditEventsAction` allowing only `ADMIN`, `ADMIN_TENANT`, `AUDITOR`, and `VERIFIKATOR` roles (`8743c74`).
 - **[RESOLVED] GAP-06 (ActionResponse / ActionError Duplication):** Created canonical `src/platform/types/actions.ts` and replaced all duplicate declarations across 7 server action files (`8743c74`).
 - **[RESOLVED] GAP-07 (RBAC Policy Fragmentation):** Created centralized declarative `PLATFORM_RBAC_REGISTRY` in `src/platform/auth/guards.ts` and unified all server action checks into `assertAuthorizedAction(context, actionPermission)` (`8743c74`).

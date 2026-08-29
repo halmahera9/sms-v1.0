@@ -3,11 +3,11 @@
 ## Repository State
 
 ### 1. Committed Baseline
-- **HEAD commit SHA:** `8743c74c3ce71b9ce2001c228cbf9471713d27b0`
+- **HEAD commit SHA:** `9b4aaf9f8d8ee6fa9beaa3d567c9c0dc11ea9eb2`
 - **Branch:** `main`
-- **Schema Anchor:** Phase 4G Canonical Schema Reconciliation with Generic Workflow Instance Management (Prisma 7.10.0)
+- **Schema Anchor:** Phase 4G Canonical Schema Reconciliation with Generic Workflow Instance Management & Document Version Nullable Checksum (Prisma 7.10.0)
 - **Production Build:** Verified with `npm run build` (Turbopack, 10/10 routes static/SSR built cleanly)
-- **Automated Tests:** Verified with `npm test` (218 / 218 tests passing across 8 test suites)
+- **Automated Tests:** Verified with `npm test` (258 / 258 tests passing across 9 test suites)
 - **Working Tree:** Clean
 
 ---
@@ -15,6 +15,9 @@
 ## Recent Commit History (Last 15)
 
 ```
+9b4aaf9 feat: persist real binary checksums for document uploads
+0d6eae1 feat: add canonical object storage abstraction and sha256 integrity
+6c463d0 docs: synchronize AI context package for Phase 4L and unified RBAC policy registry
 8743c74 feat: implement server action framework with RBAC, audit logging, and core operational workflows
 d88cd55 docs: synchronize AI context package with GAP-BUILD resolution and verified production build
 9832e18 feat: implement unified operational platform with audit engine, centralized dashboard, work queues, and student domain integration.
@@ -27,9 +30,6 @@ c6195d2 feat: generate exceptions from OCR validation
 4e23757 feat: add canonical validation exception bridge
 f02a4e9 test: harden exception status action boundary
 047dba0 feat: implement ExceptionItem server action boundary (createExceptionAction)
-bc67517 feat: initialize Prisma schema and add migration for generic workflow instance state management
-dffbc92 feat: add atomic exception persistence boundary
-96c8c9b feat: define canonical document intelligence orchestration contracts
 ```
 
 ---
@@ -40,16 +40,18 @@ dffbc92 feat: add atomic exception persistence boundary
 - **Framework:** Next.js 16.3.1 (App Router), React 19.2.8.
 - **Database / ORM:** PostgreSQL, Prisma 7.10.0 with `@prisma/adapter-pg`.
 - **Multi-Tenancy:** Enforced at DB level via `runInTenantContext()` calling `set_tenant_context(actorId::uuid, tenantId::uuid)`.
+- **Canonical Object Storage & Integrity (Phase 4K.1 & 4K.2):** `IObjectStorageProvider` with `InMemoryObjectStorageProvider` (`src/platform/storage/`), real SHA-256 binary digest utility (`calculateSha256`), defensive buffer copying, path traversal validation, server-only boundary, and canonical storage path generator (`buildDocumentStoragePath`).
+- **Binary Upload to DocumentVersion (Phase 4K.2):** `uploadOCRDocumentAction` accepts real binary payloads (`fileBuffer` / `fileBase64`), persists actual binary into `IObjectStorageProvider`, and stores provider-computed real SHA-256 and canonical `filePath` into PostgreSQL `DocumentVersion`. Non-binary metadata uploads explicitly store `null` (no fake hashes, no synthetic timestamps).
 - **Canonical Action DTOs (Phase 4L):** `src/platform/types/actions.ts` provides single canonical definitions for `ActionErrorCode`, `ActionError`, and `ActionResponse<T>`.
 - **Unified RBAC Policy Registry (Phase 4L):** `PLATFORM_RBAC_REGISTRY` in `src/platform/auth/guards.ts` maps all server actions to explicit allowed `UserRole` lists and enforces access via `assertAuthorizedAction(sessionContext, actionKey)`.
 - **Audit Action Guard (GAP-04):** `getRecentAuditEventsAction` enforces `AUDIT_EVENT_READ` role checks, rejecting unauthorized users (`PEGAWAI`) with `FORBIDDEN`.
-- **Client-Server Boundary:** `server-only` guards enforce server isolation across all database repositories and engines; client components query audit logs via Server Actions.
+- **Client-Server Boundary:** `server-only` guards enforce server isolation across all database repositories, storage engines, and provider factories.
 - **Production Build:** `npm run build` runs with Turbopack and succeeds with 0 errors across all 10 routes.
 - **Auth Session (Phase 4J):** `CookieSessionProvider` (`src/platform/auth/session.ts`) reads HTTP-only session cookies via Next.js `cookies()`, verifies cryptographic HMAC-SHA256 signatures (`verifySessionToken`), and enforces strict fail-closed behavior when secrets are missing.
 - **Employee Award Workflow:** Complete end-to-end lifecycle implemented (10 states, 9 events: `NOMINATIF` $\to$ `BELUM_UPLOAD` $\to$ `SEBAGIAN` $\to$ `LENGKAP` $\to$ `DIVERIFIKASI` $\to$ `SIAP_GENERATE` $\to$ `GENERATED` $\to$ `DITANDATANGANI` $\to$ `DIKIRIM` $\to$ `SELESAI`) with corresponding server actions (`signProposalAction`, `sendProposalAction`, `archiveCompleteProposalAction`).
 - **Student Absence Workflow:** OCR upload, student identity resolution, human verification, absence record persistence, and export.
 - **Audit Persistence:** `PostgresAuditEventRepository` writes atomically in the same transaction as entity mutations (`recordTx`).
-- **Exception Center:** Full lifecycle implemented with `PostgresExceptionRepository` (`findManyTx`, `findByIdTx`, `createTx`, `updateStatusTx`), server actions (`getExceptionsAction`, `createExceptionAction`, `updateExceptionStatusAction`), and canonical validation bridge (`validateOCRAndCreateExceptions`).
+- **Exception Center:** Full lifecycle implemented with `PostgresExceptionRepository`, server actions (`getExceptionsAction`, `createExceptionAction`, `updateExceptionStatusAction`), and canonical validation bridge (`validateOCRAndCreateExceptions`).
 - **Document Intelligence (Phase 4I):** `DocumentIntelligenceOrchestrator` (`src/platform/services/document-intelligence.ts`) orchestrates document processing, identity matching, validation engine execution, exception creation, and audit logging with terminal status calculation.
 
 ---
@@ -59,6 +61,8 @@ dffbc92 feat: add atomic exception persistence boundary
 | Capability | Status | Evidence |
 |------------|--------|----------|
 | Multi-Tenancy (RLS) | Implemented [COMMITTED] | `src/platform/db/tenant-context.ts` |
+| Canonical Object Storage (Phase 4K.1) | Implemented [COMMITTED] | `src/platform/storage/in-memory.ts`, `tests/object-storage.test.ts` |
+| Real Binary Upload & SHA-256 (Phase 4K.2) | Fully Implemented [COMMITTED] | `src/platform/actions/student-workflow.ts`, `tests/student-ocr-server-actions.test.ts` |
 | Server Action Boundary & DTOs (Phase 4L) | Fully Consolidated [COMMITTED] | `src/platform/types/actions.ts`, all server actions |
 | Unified RBAC Policy Registry (Phase 4L) | Implemented [COMMITTED] | `src/platform/auth/guards.ts` (`PLATFORM_RBAC_REGISTRY`) |
 | Live Cookie Session Auth (Phase 4J) | Implemented [COMMITTED] | `src/platform/auth/session.ts`, `tests/live-session-provider.test.ts` |

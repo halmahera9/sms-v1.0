@@ -161,3 +161,17 @@ invalid identifiers; database triggers reject deletes/updates on `audit_events`.
 
 **Every query MUST include `tenantId` in the WHERE clause** — the RLS policies enforce this
 at the database level, but application code also passes it explicitly for defense in depth.
+
+---
+
+## Contract 11: Canonical Object Storage & Binary Integrity (Phase 4K.1 & 4K.2)
+
+**Location:** `src/platform/storage/`, `src/platform/actions/student-workflow.ts`
+
+**Contract:**
+- Storage operations implement `IObjectStorageProvider` (`upload`, `download`, `delete`, `getMetadata`).
+- `tenantId` is mandatory for all operations; storage paths are namespaced per tenant.
+- Binary data is defensively copied (`Buffer.from()`) on upload and download to prevent external memory mutations.
+- Storage paths are validated against path traversal (`..`), null bytes (`\0`), and canonicalized to relative standard paths.
+- Checksums are calculated exclusively from actual stored binary bytes via `calculateSha256()`.
+- `DocumentVersion.checksumSha256` in PostgreSQL represents the authoritative provider SHA-256 for binary uploads, or `null` for metadata-only records. Fake zero hashes and timestamp checksums are strictly forbidden.
