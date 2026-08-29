@@ -1,29 +1,19 @@
 'use server';
 
-import { executeInAuthenticatedContext, AuthenticationError, AuthorizationError } from '@/platform/auth';
+import {
+  executeInAuthenticatedContext,
+  AuthenticationError,
+  AuthorizationError,
+  assertAuthorizedAction,
+} from '@/platform/auth';
 import {
   IAuditEventRepository,
   PostgresAuditEventRepository,
   AuditEventRecord,
 } from '@/platform/repositories/audit-event';
+import type { ActionErrorCode, ActionError, ActionResponse } from '@/platform/types';
 
-export type ActionErrorCode =
-  | 'UNAUTHENTICATED'
-  | 'FORBIDDEN'
-  | 'VALIDATION_ERROR'
-  | 'DOMAIN_ERROR'
-  | 'INTERNAL_ERROR';
-
-export interface ActionError {
-  code: ActionErrorCode;
-  message: string;
-}
-
-export interface ActionResponse<T> {
-  success: boolean;
-  data?: T;
-  error?: ActionError;
-}
+export type { ActionErrorCode, ActionError, ActionResponse };
 
 /**
  * Sanitizes server-side and database errors to client-safe ActionResponse structures.
@@ -84,7 +74,8 @@ function handleActionError<T>(err: unknown): ActionResponse<T> {
 
 /**
  * Server Action: Get Recent Audit Events
- * Resolves authenticated identity server-side and queries immutable audit trail records under RLS.
+ * Resolves authenticated identity server-side, verifies explicit RBAC policy (AUDIT_EVENT_READ),
+ * and queries immutable audit trail records under RLS.
  * Takes ZERO identity parameters from client; validates limit boundaries server-side.
  */
 export async function getRecentAuditEventsAction(
@@ -102,6 +93,8 @@ export async function getRecentAuditEventsAction(
     }
 
     const events = await executeInAuthenticatedContext(async (context, tx) => {
+      // GAP-04 Security Guard: Explicit RBAC assertion for audit trail read access
+      assertAuthorizedAction(context, 'AUDIT_EVENT_READ');
       return await repo.findRecentTx(tx, context.tenantId, effectiveLimit);
     });
 

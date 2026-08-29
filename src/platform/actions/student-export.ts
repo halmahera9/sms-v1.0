@@ -1,26 +1,17 @@
 'use server';
 
-import { executeInAuthenticatedContext, AuthenticationError, AuthorizationError } from '@/platform/auth';
+import {
+  executeInAuthenticatedContext,
+  AuthenticationError,
+  AuthorizationError,
+  assertAuthorizedAction,
+  PLATFORM_RBAC_REGISTRY,
+} from '@/platform/auth';
 import { AbsenceStatus, DocumentStatus, UserRole } from '@prisma/client';
 import { PostgresAuditEventRepository } from '@/platform/repositories/audit-event';
+import type { ActionErrorCode, ActionError, ActionResponse } from '@/platform/types';
 
-export type ActionErrorCode =
-  | 'UNAUTHENTICATED'
-  | 'FORBIDDEN'
-  | 'VALIDATION_ERROR'
-  | 'DOMAIN_ERROR'
-  | 'INTERNAL_ERROR';
-
-export interface ActionError {
-  code: ActionErrorCode;
-  message: string;
-}
-
-export interface ActionResponse<T> {
-  success: boolean;
-  data?: T;
-  error?: ActionError;
-}
+export type { ActionErrorCode, ActionError, ActionResponse };
 
 export interface StudentAbsenceExportRowDTO {
   no: number;
@@ -49,13 +40,7 @@ export interface StudentAbsenceExportResultDTO {
 }
 
 export const STUDENT_EXPORT_RBAC_POLICY = {
-  EXPORT: [
-    UserRole.ADMIN,
-    UserRole.ADMIN_TENANT,
-    UserRole.OPERATOR,
-    UserRole.VERIFIKATOR,
-    UserRole.AUDITOR,
-  ] as UserRole[],
+  EXPORT: PLATFORM_RBAC_REGISTRY.STUDENT_EXPORT,
 };
 
 import { mapAbsenceStatusToDto } from '@/domains/student/mappers';
@@ -132,11 +117,8 @@ export async function getStudentAbsenceExportDataAction(
 ): Promise<ActionResponse<StudentAbsenceExportResultDTO>> {
   try {
     const result = await executeInAuthenticatedContext(async (context, tx) => {
-      if (!STUDENT_EXPORT_RBAC_POLICY.EXPORT.includes(context.role)) {
-        throw new AuthorizationError(
-          `Akses ditolak: Peran '${context.role}' tidak memiliki wewenang untuk mengekspor data ketidakhadiran siswa.`
-        );
-      }
+      // Canonical RBAC assertion
+      assertAuthorizedAction(context, 'STUDENT_EXPORT');
 
       const selectedClass = filter?.selectedClass?.trim() || 'Semua';
       const tenantId = context.tenantId;

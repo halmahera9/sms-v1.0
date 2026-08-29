@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "tsx --conditions=react-server tests/live-session-provider.test.ts && tsx --conditions=react-server tests/document-intelligence-orchestrator.test.ts && tsx --conditions=react-server tests/award-proposal-archive-complete.test.ts && tsx --conditions=react-server tests/student-ocr-server-actions.test.ts && tsx --conditions=react-server tests/student-export-server-actions.test.ts"
+    "test": "tsx --conditions=react-server tests/live-session-provider.test.ts && tsx --conditions=react-server tests/document-intelligence-orchestrator.test.ts && tsx --conditions=react-server tests/award-proposal-archive-complete.test.ts && tsx --conditions=react-server tests/student-ocr-server-actions.test.ts && tsx --conditions=react-server tests/student-export-server-actions.test.ts && tsx --conditions=react-server tests/audit-server-actions.test.ts && tsx --conditions=react-server tests/exception-server-actions.test.ts && tsx --conditions=react-server tests/student-server-actions.test.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.0",

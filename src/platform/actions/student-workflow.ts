@@ -1,6 +1,12 @@
 'use server';
 
-import { executeInAuthenticatedContext, AuthenticationError, AuthorizationError } from '@/platform/auth';
+import {
+  executeInAuthenticatedContext,
+  AuthenticationError,
+  AuthorizationError,
+  assertAuthorizedAction,
+  PLATFORM_RBAC_REGISTRY,
+} from '@/platform/auth';
 import {
   AbsenceStatus,
   DocumentCategory,
@@ -14,24 +20,9 @@ import { IExceptionRepository, PostgresExceptionRepository } from '@/platform/re
 import { ocrItemValidationEngine } from '@/domains/student/rules';
 import { ExtractedItem as DomainExtractedItem } from '@/domains/student/types';
 import { randomUUID } from 'crypto';
+import type { ActionErrorCode, ActionError, ActionResponse } from '@/platform/types';
 
-export type ActionErrorCode =
-  | 'UNAUTHENTICATED'
-  | 'FORBIDDEN'
-  | 'VALIDATION_ERROR'
-  | 'DOMAIN_ERROR'
-  | 'INTERNAL_ERROR';
-
-export interface ActionError {
-  code: ActionErrorCode;
-  message: string;
-}
-
-export interface ActionResponse<T> {
-  success: boolean;
-  data?: T;
-  error?: ActionError;
-}
+export type { ActionErrorCode, ActionError, ActionResponse };
 
 export interface ExtractedItemDTO {
   id: string;
@@ -87,9 +78,9 @@ export interface VerifyExtractedItemDTO {
 }
 
 export const STUDENT_WORKFLOW_RBAC_POLICY = {
-  READ: [UserRole.ADMIN, UserRole.ADMIN_TENANT, UserRole.OPERATOR, UserRole.VERIFIKATOR] as UserRole[],
-  UPLOAD: [UserRole.ADMIN, UserRole.ADMIN_TENANT, UserRole.OPERATOR, UserRole.VERIFIKATOR] as UserRole[],
-  VERIFY: [UserRole.ADMIN, UserRole.ADMIN_TENANT, UserRole.OPERATOR, UserRole.VERIFIKATOR] as UserRole[],
+  READ: PLATFORM_RBAC_REGISTRY.STUDENT_WORKFLOW_READ,
+  UPLOAD: PLATFORM_RBAC_REGISTRY.STUDENT_WORKFLOW_UPLOAD,
+  VERIFY: PLATFORM_RBAC_REGISTRY.STUDENT_WORKFLOW_VERIFY,
 };
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -162,11 +153,8 @@ function handleActionError<T>(err: unknown): ActionResponse<T> {
 export async function getOCRDocumentsAction(): Promise<ActionResponse<OCRDocumentDTO[]>> {
   try {
     const docs = await executeInAuthenticatedContext(async (context, tx) => {
-      if (!STUDENT_WORKFLOW_RBAC_POLICY.READ.includes(context.role)) {
-        throw new AuthorizationError(
-          `Akses ditolak: Peran '${context.role}' tidak memiliki wewenang untuk membaca data dokumen OCR.`
-        );
-      }
+      // Canonical RBAC assertion
+      assertAuthorizedAction(context, 'STUDENT_WORKFLOW_READ');
 
       const records = await tx.document.findMany({
         where: {
@@ -267,11 +255,8 @@ export async function uploadOCRDocumentAction(
     }
 
     const createdDoc = await executeInAuthenticatedContext(async (context, tx) => {
-      if (!STUDENT_WORKFLOW_RBAC_POLICY.UPLOAD.includes(context.role)) {
-        throw new AuthorizationError(
-          `Akses ditolak: Peran '${context.role}' tidak memiliki wewenang untuk mengunggah dokumen OCR.`
-        );
-      }
+      // Canonical RBAC assertion
+      assertAuthorizedAction(context, 'STUDENT_WORKFLOW_UPLOAD');
 
       const documentId = randomUUID();
       const versionId = randomUUID();
@@ -436,11 +421,8 @@ export async function verifyExtractedItemAction(
     }
 
     const result = await executeInAuthenticatedContext(async (context, tx) => {
-      if (!STUDENT_WORKFLOW_RBAC_POLICY.VERIFY.includes(context.role)) {
-        throw new AuthorizationError(
-          `Akses ditolak: Peran '${context.role}' tidak memiliki wewenang untuk memverifikasi item ekstraksi.`
-        );
-      }
+      // Canonical RBAC assertion
+      assertAuthorizedAction(context, 'STUDENT_WORKFLOW_VERIFY');
 
       const tenantId = context.tenantId;
 

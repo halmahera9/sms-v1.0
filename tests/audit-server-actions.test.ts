@@ -207,6 +207,24 @@ async function runAuditServerActionsTests() {
     );
 
     // ---------------------------------------------------------------------------------
+    // TEST 5B: RBAC Policy Check (GAP-04: PEGAWAI rejected with FORBIDDEN)
+    // ---------------------------------------------------------------------------------
+    setSessionProvider({
+      getSession: async () => ({
+        actorId: ACTOR_A_ID,
+        tenantId: TENANT_A_ID,
+        username: 'pegawai_actor',
+        role: 'PEGAWAI',
+        status: 'ACTIVE',
+      }),
+    });
+    const resPegawai = await getRecentAuditEventsAction();
+    assert(
+      !resPegawai.success && resPegawai.error?.code === 'FORBIDDEN',
+      'getRecentAuditEventsAction fails closed with FORBIDDEN when actor has unauthorized role (PEGAWAI)'
+    );
+
+    // ---------------------------------------------------------------------------------
     // TEST 6: Strict Cross-Tenant RLS Isolation
     // ---------------------------------------------------------------------------------
     const sessionB: AuthenticatedActorContext = {

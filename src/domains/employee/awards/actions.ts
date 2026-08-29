@@ -11,23 +11,8 @@ import { AwardProposalApplicationService } from './service';
 import { getAuthenticatedSession, AuthenticationError } from '@/platform/auth/session';
 import { assertAuthorizedAction, AuthorizationError } from '@/platform/auth/guards';
 
-export type ActionErrorCode =
-  | 'UNAUTHENTICATED'
-  | 'FORBIDDEN'
-  | 'VALIDATION_ERROR'
-  | 'DOMAIN_ERROR'
-  | 'INTERNAL_ERROR';
-
-export interface ActionError {
-  code: ActionErrorCode;
-  message: string;
-}
-
-export interface ActionResponse<T> {
-  success: boolean;
-  data?: T;
-  error?: ActionError;
-}
+import type { ActionErrorCode, ActionError, ActionResponse } from '@/platform/types';
+export type { ActionErrorCode, ActionError, ActionResponse };
 
 export interface UploadProposalDocumentDTO {
   proposalId: string;
@@ -436,7 +421,10 @@ export async function getAwardProposalsAction(): Promise<ActionResponse<AwardPro
     // 1. Authenticate Actor Session (Fail-Closed)
     const session = await getAuthenticatedSession();
 
-    // 2. Execute read in authenticated tenant context via application service
+    // 2. Authorize RBAC Policy (ADMIN, ADMIN_TENANT, VERIFIKATOR, OPERATOR, AUDITOR)
+    assertAuthorizedAction(session, 'READ_PROPOSALS');
+
+    // 3. Execute read in authenticated tenant context via application service
     const service = new AwardProposalApplicationService();
     const proposals = await service.getAllInContext(session.actorId, session.tenantId);
 

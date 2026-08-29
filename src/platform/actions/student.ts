@@ -1,27 +1,18 @@
 'use server';
 
-import { executeInAuthenticatedContext, AuthenticationError, AuthorizationError } from '@/platform/auth';
+import {
+  executeInAuthenticatedContext,
+  AuthenticationError,
+  AuthorizationError,
+  assertAuthorizedAction,
+  PLATFORM_RBAC_REGISTRY,
+} from '@/platform/auth';
 import { StudentStatus, UserRole } from '@prisma/client';
 import { PostgresStudentRepository } from '@/platform/repositories/student';
 import { randomUUID } from 'crypto';
+import type { ActionErrorCode, ActionError, ActionResponse } from '@/platform/types';
 
-export type ActionErrorCode =
-  | 'UNAUTHENTICATED'
-  | 'FORBIDDEN'
-  | 'VALIDATION_ERROR'
-  | 'DOMAIN_ERROR'
-  | 'INTERNAL_ERROR';
-
-export interface ActionError {
-  code: ActionErrorCode;
-  message: string;
-}
-
-export interface ActionResponse<T> {
-  success: boolean;
-  data?: T;
-  error?: ActionError;
-}
+export type { ActionErrorCode, ActionError, ActionResponse };
 
 export interface StudentRecordDTO {
   id: string;
@@ -54,8 +45,8 @@ export interface SaveStudentDTO {
 }
 
 export const STUDENT_RBAC_POLICY = {
-  READ: [UserRole.ADMIN, UserRole.OPERATOR, UserRole.VERIFIKATOR] as UserRole[],
-  WRITE: [UserRole.ADMIN, UserRole.OPERATOR] as UserRole[],
+  READ: PLATFORM_RBAC_REGISTRY.STUDENT_READ,
+  WRITE: PLATFORM_RBAC_REGISTRY.STUDENT_WRITE,
 };
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -156,12 +147,8 @@ export async function getStudentsAction(
     }
 
     const items = await executeInAuthenticatedContext(async (context, tx) => {
-      // RBAC validation
-      if (!STUDENT_RBAC_POLICY.READ.includes(context.role)) {
-        throw new AuthorizationError(
-          `Akses ditolak: Peran '${context.role}' tidak memiliki wewenang untuk membaca data siswa.`
-        );
-      }
+      // Canonical RBAC assertion
+      assertAuthorizedAction(context, 'STUDENT_READ');
 
       const whereClause: Record<string, unknown> = {};
 
@@ -279,12 +266,8 @@ export async function saveStudentAction(
     const studentStatus = dto.status && validStatuses.includes(dto.status) ? dto.status : StudentStatus.ACTIVE;
 
     const saved = await executeInAuthenticatedContext(async (context, tx) => {
-      // RBAC check
-      if (!STUDENT_RBAC_POLICY.WRITE.includes(context.role)) {
-        throw new AuthorizationError(
-          `Akses ditolak: Peran '${context.role}' tidak memiliki wewenang untuk menambah atau mengubah data siswa.`
-        );
-      }
+      // Canonical RBAC assertion
+      assertAuthorizedAction(context, 'STUDENT_WRITE');
 
       const entity = {
         id: studentId,

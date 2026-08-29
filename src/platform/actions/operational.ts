@@ -1,30 +1,20 @@
 'use server';
 
-import { executeInAuthenticatedContext, AuthenticationError, AuthorizationError } from '@/platform/auth';
+import {
+  executeInAuthenticatedContext,
+  AuthenticationError,
+  AuthorizationError,
+  assertAuthorizedAction,
+} from '@/platform/auth';
 import {
   IOperationalQueryRepository,
   PostgresOperationalQueryRepository,
   OperationalMetrics,
   WorkQueueItem,
 } from '@/platform/repositories/operational-query';
+import type { ActionErrorCode, ActionError, ActionResponse } from '@/platform/types';
 
-export type ActionErrorCode =
-  | 'UNAUTHENTICATED'
-  | 'FORBIDDEN'
-  | 'VALIDATION_ERROR'
-  | 'DOMAIN_ERROR'
-  | 'INTERNAL_ERROR';
-
-export interface ActionError {
-  code: ActionErrorCode;
-  message: string;
-}
-
-export interface ActionResponse<T> {
-  success: boolean;
-  data?: T;
-  error?: ActionError;
-}
+export type { ActionErrorCode, ActionError, ActionResponse };
 
 /**
  * Sanitizes server-side and database errors to client-safe ActionResponse structures.
@@ -85,7 +75,8 @@ function handleActionError<T>(err: unknown): ActionResponse<T> {
 
 /**
  * Server Action: Get Operational Metrics
- * Resolves authenticated identity server-side and aggregates real-time operational metrics under RLS.
+ * Resolves authenticated identity server-side, verifies OPERATIONAL_METRICS_READ RBAC policy,
+ * and aggregates real-time operational metrics under RLS.
  * Takes ZERO identity parameters from client.
  */
 export async function getOperationalMetricsAction(
@@ -93,6 +84,8 @@ export async function getOperationalMetricsAction(
 ): Promise<ActionResponse<OperationalMetrics>> {
   try {
     const metrics = await executeInAuthenticatedContext(async (context, tx) => {
+      // Canonical RBAC assertion
+      assertAuthorizedAction(context, 'OPERATIONAL_METRICS_READ');
       return await repo.getAggregatedMetricsTx(tx, context.tenantId);
     });
 
@@ -107,7 +100,8 @@ export async function getOperationalMetricsAction(
 
 /**
  * Server Action: Get Unified Work Queue Items
- * Resolves authenticated identity server-side and projects actionable work items under RLS.
+ * Resolves authenticated identity server-side, verifies OPERATIONAL_WORK_QUEUE_READ RBAC policy,
+ * and projects actionable work items under RLS.
  * Takes ZERO identity parameters from client; validates limit boundaries server-side.
  */
 export async function getUnifiedWorkQueueAction(
@@ -125,6 +119,8 @@ export async function getUnifiedWorkQueueAction(
     }
 
     const items = await executeInAuthenticatedContext(async (context, tx) => {
+      // Canonical RBAC assertion
+      assertAuthorizedAction(context, 'OPERATIONAL_WORK_QUEUE_READ');
       return await repo.getUnifiedWorkQueueItemsTx(tx, context.tenantId, effectiveLimit);
     });
 

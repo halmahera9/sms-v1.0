@@ -1,31 +1,21 @@
 'use server';
 
-import { executeInAuthenticatedContext, AuthenticationError, AuthorizationError } from '@/platform/auth';
-import { ExceptionStatus, Severity, UserRole } from '@prisma/client';
+import {
+  executeInAuthenticatedContext,
+  AuthenticationError,
+  AuthorizationError,
+  assertAuthorizedAction,
+} from '@/platform/auth';
+import { ExceptionStatus, Severity } from '@prisma/client';
 import {
   IExceptionRepository,
   PostgresExceptionRepository,
   ExceptionItemRecord,
   ExceptionFilterOptions,
 } from '@/platform/repositories/exception';
+import type { ActionErrorCode, ActionError, ActionResponse } from '@/platform/types';
 
-export type ActionErrorCode =
-  | 'UNAUTHENTICATED'
-  | 'FORBIDDEN'
-  | 'VALIDATION_ERROR'
-  | 'DOMAIN_ERROR'
-  | 'INTERNAL_ERROR';
-
-export interface ActionError {
-  code: ActionErrorCode;
-  message: string;
-}
-
-export interface ActionResponse<T> {
-  success: boolean;
-  data?: T;
-  error?: ActionError;
-}
+export type { ActionErrorCode, ActionError, ActionResponse };
 
 export interface ExceptionFilterDTO {
   domain?: 'EMPLOYEE' | 'STUDENT' | 'ALL';
@@ -116,7 +106,7 @@ function handleActionError<T>(err: unknown): ActionResponse<T> {
 /**
  * Server Action: Get Exceptions
  * Queries unified exception items for authenticated tenant under RLS.
- * Allowed roles: ADMIN, VERIFIKATOR, OPERATOR.
+ * Enforces EXCEPTION_READ RBAC policy.
  */
 export async function getExceptionsAction(
   filter?: ExceptionFilterDTO,
@@ -133,13 +123,8 @@ export async function getExceptionsAction(
     }
 
     const items = await executeInAuthenticatedContext(async (context, tx) => {
-      // RBAC check: ADMIN, ADMIN_TENANT, VERIFIKATOR, AUDITOR
-      const allowedRoles: string[] = ['ADMIN', 'ADMIN_TENANT', 'VERIFIKATOR', 'AUDITOR'];
-      if (!allowedRoles.includes(context.role)) {
-        throw new AuthorizationError(
-          `Akses ditolak: Peran '${context.role}' tidak memiliki wewenang untuk membaca data pengecualian.`
-        );
-      }
+      // Canonical RBAC assertion
+      assertAuthorizedAction(context, 'EXCEPTION_READ');
 
       const repoFilter: ExceptionFilterOptions = {
         domain: filter?.domain,
@@ -163,7 +148,7 @@ export async function getExceptionsAction(
 /**
  * Server Action: Update Exception Status
  * Mutates exception status (OPEN -> IN_REVIEW -> RESOLVED / DISMISSED) and generates audit log in single transaction.
- * Allowed roles: ADMIN, ADMIN_TENANT, VERIFIKATOR.
+ * Enforces EXCEPTION_UPDATE RBAC policy.
  */
 export async function updateExceptionStatusAction(
   dto: UpdateExceptionStatusDTO,
@@ -184,13 +169,8 @@ export async function updateExceptionStatusAction(
     }
 
     const updated = await executeInAuthenticatedContext(async (context, tx) => {
-      // RBAC check
-      const allowedRoles: string[] = ['ADMIN', 'ADMIN_TENANT', 'VERIFIKATOR'];
-      if (!allowedRoles.includes(context.role)) {
-        throw new AuthorizationError(
-          `Akses ditolak: Peran '${context.role}' tidak memiliki wewenang untuk mengubah status pengecualian.`
-        );
-      }
+      // Canonical RBAC assertion
+      assertAuthorizedAction(context, 'EXCEPTION_UPDATE');
 
       return await repo.updateStatusTx(
         tx,
@@ -214,7 +194,7 @@ export async function updateExceptionStatusAction(
 /**
  * Server Action: Create Exception
  * Atomically creates an exception item and idempotently ensures workflow instance for authenticated tenant.
- * Allowed roles: ADMIN, ADMIN_TENANT, VERIFIKATOR.
+ * Enforces EXCEPTION_CREATE RBAC policy.
  */
 export async function createExceptionAction(
   dto: CreateExceptionDTO,
@@ -259,13 +239,8 @@ export async function createExceptionAction(
     }
 
     const created = await executeInAuthenticatedContext(async (context, tx) => {
-      // RBAC check: ADMIN, ADMIN_TENANT, VERIFIKATOR
-      const allowedRoles: string[] = ['ADMIN', 'ADMIN_TENANT', 'VERIFIKATOR'];
-      if (!allowedRoles.includes(context.role)) {
-        throw new AuthorizationError(
-          `Akses ditolak: Peran '${context.role}' tidak memiliki wewenang untuk membuat data pengecualian.`
-        );
-      }
+      // Canonical RBAC assertion
+      assertAuthorizedAction(context, 'EXCEPTION_CREATE');
 
       return await repo.createTx(tx, context.tenantId, {
         id: dto.id,
