@@ -1,11 +1,9 @@
 import { EmployeeAwardLocalStorageRepository } from '@/domains/employee/awards/repository';
 import { AwardProposal } from '@/domains/employee/awards/types';
-import { PlatformAuditEngine } from '@/platform/audit/engine';
 import { AuditEvent } from '@/platform/types';
 import { SignatoryConfig } from '@/types/award';
 
 const repo = new EmployeeAwardLocalStorageRepository();
-const auditEngine = new PlatformAuditEngine();
 
 const STORAGE_KEYS = {
   SIGNATORY: 'banyubiru_award_signatory_v2',
@@ -66,12 +64,14 @@ export function loadAuditLogs(): AuditEvent[] {
 export function addAuditLog(log: { actor: string; action: string; entity: string; entityId: string; details: string }): void {
   if (typeof window === 'undefined') return;
   const current = loadAuditLogs();
-  const newLog: AuditEvent = auditEngine.recordEvent({
-    actor: log.actor,
+  const newLog: AuditEvent = {
+    id: `audit-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+    timestamp: new Date().toISOString(),
+    actor: log.actor || 'system',
     action: log.action,
     entityType: log.entity,
     entityId: log.entityId,
     metadata: { details: log.details },
-  });
+  };
   localStorage.setItem(STORAGE_KEYS.AUDIT_LOGS, JSON.stringify([newLog, ...current]));
 }

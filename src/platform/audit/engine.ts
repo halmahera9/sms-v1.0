@@ -1,3 +1,4 @@
+import 'server-only';
 import { AuditEvent } from '../types';
 import {
   IAuditEventRepository,

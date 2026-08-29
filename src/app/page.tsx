@@ -15,7 +15,7 @@ import { ExcelImporter } from '@/components/import/ExcelImporter';
 import { DocumentGenerator } from '@/components/documents/DocumentGenerator';
 import { SettingsManager } from '@/components/settings/SettingsManager';
 import { StudentWorkspace } from '@/domains/student/components/StudentWorkspace';
-import { OperationalMetrics } from '@/platform/repositories/operational-query';
+import type { OperationalMetrics } from '@/platform/repositories/operational-query';
 import { getOperationalMetricsAction } from '@/platform/actions/operational';
 
 function WorkspaceContent() {

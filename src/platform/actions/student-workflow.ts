@@ -98,25 +98,9 @@ function isValidUuid(val?: string | null): boolean {
   return typeof val === 'string' && UUID_REGEX.test(val);
 }
 
+import { mapToDbAbsenceStatus, mapToDtoAbsenceStatus } from '@/domains/student/mappers';
+
 const auditRepo = new PostgresAuditEventRepository();
-
-export function mapToDbAbsenceStatus(val?: string | null): AbsenceStatus {
-  if (!val) return AbsenceStatus.SAKIT;
-  const upper = val.trim().toUpperCase();
-  if (upper === 'IZIN') return AbsenceStatus.IZIN;
-  if (upper === 'ALPHA') return AbsenceStatus.ALPHA;
-  if (upper === 'DISPENSASI') return AbsenceStatus.DISPENSASI;
-  return AbsenceStatus.SAKIT;
-}
-
-export function mapToDtoAbsenceStatus(val?: AbsenceStatus | string | null): 'Sakit' | 'Izin' | 'Alpha' | 'Hadir' {
-  if (!val) return 'Sakit';
-  const upper = typeof val === 'string' ? val.toUpperCase() : String(val);
-  if (upper === 'IZIN') return 'Izin';
-  if (upper === 'ALPHA') return 'Alpha';
-  if (upper === 'HADIR') return 'Hadir';
-  return 'Sakit';
-}
 
 function handleActionError<T>(err: unknown): ActionResponse<T> {
   if (err instanceof AuthenticationError) {

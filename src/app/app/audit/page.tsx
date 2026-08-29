@@ -1,34 +1,102 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Search, Clock, User } from 'lucide-react';
-import { getStoredAuditLogs } from '@/lib/storage';
-import { AuditLog } from '@/types/sms';
+import { Search, Clock, User, AlertCircle, RefreshCw } from 'lucide-react';
+import { getRecentAuditEventsAction } from '@/platform/actions/audit';
+
+interface DisplayAuditLog {
+  id: string;
+  timestamp: string;
+  operator: string;
+  action: string;
+  target: string;
+  details: string;
+}
 
 export default function AuditTrailPage() {
-  const [logs, setLogs] = useState<AuditLog[]>([]);
+  const [logs, setLogs] = useState<DisplayAuditLog[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
+  async function loadLogs() {
+    setLoading(true);
+    setErrorMessage(null);
+    try {
+      const res = await getRecentAuditEventsAction(100);
+      if (res.success && res.data) {
+        const formatted: DisplayAuditLog[] = res.data.map((e) => {
+          let detailsStr = '-';
+          if (e.metadata && typeof e.metadata === 'object') {
+            const meta = e.metadata as Record<string, unknown>;
+            if (typeof meta.details === 'string') {
+              detailsStr = meta.details;
+            } else if (typeof meta.reason === 'string') {
+              detailsStr = meta.reason;
+            } else {
+              detailsStr = JSON.stringify(meta);
+            }
+          }
+
+          return {
+            id: e.id,
+            timestamp: typeof e.timestamp === 'string' ? e.timestamp : new Date().toISOString(),
+            operator: e.actor || e.actorUserId || 'system',
+            action: e.action,
+            target: `${e.entityType || ''} ${e.entityId ? `(${e.entityId.substring(0, 8)}...)` : ''}`.trim() || '-',
+            details: detailsStr,
+          };
+        });
+        setLogs(formatted);
+      } else if (res.error) {
+        setErrorMessage(res.error.message);
+      }
+    } catch {
+      setErrorMessage('Gagal memuat log audit dari server.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
   useEffect(() => {
-    Promise.resolve().then(() => setLogs(getStoredAuditLogs()));
+    loadLogs();
   }, []);
 
   const filteredLogs = logs.filter(
     (log) =>
       log.target.toLowerCase().includes(searchQuery.toLowerCase()) ||
       log.action.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      log.details.toLowerCase().includes(searchQuery.toLowerCase())
+      log.details.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      log.operator.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
     <div className="space-y-6">
       {/* Title */}
-      <div className="border-b border-white/10 pb-6">
-        <h1 className="text-2xl font-bold text-white tracking-tight">Audit Trail &amp; Log Riwayat System</h1>
-        <p className="text-xs text-slate-400 mt-1">
-          Pencatatan aktivitas akuntabel: Siapa, Kapan, dan Aksi apa yang dilakukan operator pada sistem SMS.
-        </p>
+      <div className="border-b border-white/10 pb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-white tracking-tight">Audit Trail &amp; Log Riwayat System</h1>
+          <p className="text-xs text-slate-400 mt-1">
+            Pencatatan aktivitas akuntabel: Siapa, Kapan, dan Aksi apa yang dilakukan operator pada sistem SMS.
+          </p>
+        </div>
+        <button
+          onClick={loadLogs}
+          disabled={loading}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 rounded border border-white/10 transition"
+        >
+          <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+          <span>Segarkan</span>
+        </button>
       </div>
+
+      {/* Error Alert */}
+      {errorMessage && (
+        <div className="p-4 bg-rose-500/10 border border-rose-500/30 rounded-xl flex items-center gap-3 text-rose-300 text-xs">
+          <AlertCircle className="h-4 w-4 shrink-0" />
+          <span>{errorMessage}</span>
+        </div>
+      )}
 
       {/* Search Bar */}
       <div className="panel p-4 rounded-xl border border-white/10 flex items-center justify-between">
@@ -59,7 +127,16 @@ export default function AuditTrailPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5 font-mono">
-              {filteredLogs.length === 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan={5} className="p-8 text-center text-slate-400 font-mono">
+                    <div className="flex items-center justify-center gap-2">
+                      <RefreshCw className="h-4 w-4 animate-spin text-sky-400" />
+                      <span>Memuat catatan log audit dari server...</span>
+                    </div>
+                  </td>
+                </tr>
+              ) : filteredLogs.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="p-8 text-center text-slate-500 font-mono">
                     Belum ada catatan log aktivitas.

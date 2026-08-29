@@ -1,10 +1,10 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { OperationalMetrics, WorkQueueItem } from '../repositories/operational-query';
+import type { OperationalMetrics, WorkQueueItem } from '../repositories/operational-query';
 import { getOperationalMetricsAction, getUnifiedWorkQueueAction } from '../actions/operational';
 import { getExceptionsAction } from '../actions/exception';
-import { ExceptionItemRecord } from '../repositories/exception';
+import type { ExceptionItemRecord } from '../repositories/exception';
 import {
   AlertOctagon,
   CheckSquare,

@@ -1,3 +1,4 @@
+import 'server-only';
 import crypto from 'crypto';
 import { AuditEvent } from '../types';
 import { TenantTransactionClient, runInTenantContext } from '../db/tenant-context';

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { WorkQueueItem } from '../repositories/operational-query';
+import type { WorkQueueItem } from '../repositories/operational-query';
 import { getUnifiedWorkQueueAction } from '../actions/operational';
 import { CheckSquare, ArrowRight, AlertCircle } from 'lucide-react';
 

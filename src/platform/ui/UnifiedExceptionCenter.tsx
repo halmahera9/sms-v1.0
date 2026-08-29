@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { getExceptionsAction, updateExceptionStatusAction } from '../actions/exception';
-import { ExceptionItemRecord } from '../repositories/exception';
+import type { ExceptionItemRecord } from '../repositories/exception';
 import { ExceptionStatus, Severity } from '@prisma/client';
 import {
   AlertOctagon,

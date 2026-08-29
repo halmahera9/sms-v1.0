@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { AuditEventRecord } from '../repositories/audit-event';
+import type { AuditEventRecord } from '../repositories/audit-event';
 import { getRecentAuditEventsAction } from '../actions/audit';
 import { History, User, AlertCircle } from 'lucide-react';
 

@@ -58,21 +58,9 @@ export const STUDENT_EXPORT_RBAC_POLICY = {
   ] as UserRole[],
 };
 
-const auditRepo = new PostgresAuditEventRepository();
+import { mapAbsenceStatusToDto } from '@/domains/student/mappers';
 
-export function mapAbsenceStatusToDto(status: AbsenceStatus): 'Sakit' | 'Izin' | 'Alpha' | 'Dispensasi' {
-  switch (status) {
-    case AbsenceStatus.IZIN:
-      return 'Izin';
-    case AbsenceStatus.ALPHA:
-      return 'Alpha';
-    case AbsenceStatus.DISPENSASI:
-      return 'Dispensasi';
-    case AbsenceStatus.SAKIT:
-    default:
-      return 'Sakit';
-  }
-}
+const auditRepo = new PostgresAuditEventRepository();
 
 function handleActionError<T>(err: unknown): ActionResponse<T> {
   if (err instanceof AuthenticationError) {

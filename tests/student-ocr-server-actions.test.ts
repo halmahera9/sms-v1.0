@@ -6,9 +6,11 @@ import {
   getOCRDocumentsAction,
   uploadOCRDocumentAction,
   verifyExtractedItemAction,
+} from '../src/platform/actions/student-workflow';
+import {
   mapToDbAbsenceStatus,
   mapToDtoAbsenceStatus,
-} from '../src/platform/actions/student-workflow';
+} from '../src/domains/student/mappers';
 import {
   setSessionProvider,
   resetSessionProvider,
@@ -723,9 +725,6 @@ async function runStudentOCRServerActionsTests() {
         where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID] } },
       });
       await adminPrisma.student.deleteMany({
-        where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID] } },
-      });
-      await adminPrisma.auditEvent.deleteMany({
         where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID] } },
       });
       await adminPrisma.userActor.deleteMany({

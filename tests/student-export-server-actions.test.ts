@@ -4,8 +4,10 @@ import { PrismaClient, AbsenceStatus, DocumentCategory, DocumentStatus, OCRExtra
 import { PrismaPg } from '@prisma/adapter-pg';
 import {
   getStudentAbsenceExportDataAction,
-  mapAbsenceStatusToDto,
 } from '../src/platform/actions/student-export';
+import {
+  mapAbsenceStatusToDto,
+} from '../src/domains/student/mappers';
 import {
   setSessionProvider,
   resetSessionProvider,

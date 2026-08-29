@@ -3,14 +3,12 @@ import {
   OCRDocumentLocalStorageRepository,
 } from '@/domains/student/repository';
 import { Student, OCRDocument } from '@/domains/student/types';
-import { PlatformAuditEngine } from '@/platform/audit/engine';
 import { PlatformExceptionQueue } from '@/platform/exceptions/queue';
 import { ocrItemValidationEngine } from '@/domains/student/rules';
 import { AuditLog } from '@/types/sms';
 
 const studentRepo = new StudentLocalStorageRepository();
 const docRepo = new OCRDocumentLocalStorageRepository();
-const auditEngine = new PlatformAuditEngine();
 const exceptionQueue = new PlatformExceptionQueue();
 
 export function getStoredStudents(): Student[] {
@@ -55,15 +53,19 @@ export function saveStoredDocuments(documents: OCRDocument[]): void {
 
 export const saveDocuments = saveStoredDocuments;
 
+interface LocalAuditRecord {
+  id: string;
+  timestamp: string;
+  operator: string;
+  action: string;
+  target: string;
+  details: string;
+}
+
+const localAuditLogs: LocalAuditRecord[] = [];
+
 export function getStoredAuditLogs(): AuditLog[] {
-  return auditEngine.getAllEvents().map((e) => ({
-    id: e.id,
-    timestamp: e.timestamp,
-    operator: e.actor,
-    action: e.action,
-    target: e.entityType || e.entityId,
-    details: typeof e.metadata?.details === 'string' ? e.metadata.details : e.action,
-  }));
+  return [...localAuditLogs];
 }
 
 export function addAuditLog(
@@ -89,11 +91,12 @@ export function addAuditLog(
     details = detailsArg || '';
   }
 
-  auditEngine.recordEvent({
-    actor: operator,
-    action: action,
-    entityType: target,
-    entityId: target,
-    metadata: { details: details },
+  localAuditLogs.unshift({
+    id: `audit-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+    timestamp: new Date().toISOString().replace('T', ' ').substring(0, 19),
+    operator,
+    action,
+    target,
+    details,
   });
 }
