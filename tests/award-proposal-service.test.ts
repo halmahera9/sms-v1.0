@@ -263,15 +263,19 @@ async function runAwardProposalServiceTests() {
     assert(crossTenantRejected, 'Test 10: Cross-tenant access (Actor B accessing Tenant A proposal) is rejected');
 
     // Test 11: Direct Repository Delegation Proof (Zero direct Prisma access from service)
-    console.log('\n[10] Testing Direct Repository Delegation Proof...');
+    console.log('\n[10] Testing Direct Repository Delegation Proof & getAllInContext...');
     let saveDocumentTxCalled = false;
     let verifyDocumentTxCalled = false;
+    let findAllTxCalled = false;
 
     const spyRepo = {
       findByIdTx: async () => fixture1,
       findByEmployeeAndAwardAndYearTx: async () => fixture1,
       findByStatusTx: async () => [fixture1],
-      findAllTx: async () => [fixture1],
+      findAllTx: async () => {
+        findAllTxCalled = true;
+        return [fixture1];
+      },
       saveTx: async () => fixture1,
       saveAllTx: async () => [fixture1],
       saveDocumentTx: async () => {
@@ -291,8 +295,12 @@ async function runAwardProposalServiceTests() {
       await delegatedService.verifyDocumentTx(tx, TENANT_A_ID, proposal1Id, 'SK_CPNS', 'verified', ACTOR_A_ID);
     });
 
+    const readResults = await delegatedService.getAllInContext(ACTOR_A_ID, TENANT_A_ID);
+
     assert(saveDocumentTxCalled, 'Test 11: uploadDocumentTx delegates persistence strictly to proposalRepo.saveDocumentTx');
     assert(verifyDocumentTxCalled, 'Test 11: verifyDocumentTx delegates persistence strictly to proposalRepo.verifyDocumentTx');
+    assert(findAllTxCalled && readResults.length === 1, 'Test 12: getAllInContext delegates strictly to proposalRepo.findAllTx');
+
 
   } finally {
     // Guaranteed Teardown of mutable test entities

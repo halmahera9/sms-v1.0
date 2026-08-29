@@ -7,6 +7,7 @@ import {
   verifyProposalDocumentAction,
   approveProposalGenerationAction,
   batchMarkGeneratedAction,
+  getAwardProposalsAction,
 } from '../src/domains/employee/awards/actions';
 import {
   setSessionProvider,
@@ -178,6 +179,11 @@ async function runSecurityActionTests() {
     assert(
       resNoAuth.success === false && resNoAuth.error?.code === 'UNAUTHENTICATED',
       'Test 1: Anonymous request without session is rejected with UNAUTHENTICATED'
+    );
+    const resNoAuthRead = await getAwardProposalsAction();
+    assert(
+      resNoAuthRead.success === false && resNoAuthRead.error?.code === 'UNAUTHENTICATED',
+      'Test 1b: Anonymous read request without session is rejected with UNAUTHENTICATED'
     );
 
     // -------------------------------------------------------------
@@ -416,6 +422,50 @@ async function runSecurityActionTests() {
       AwardProposalApplicationService.prototype.approveGenerationInContext = originalApproveMethod;
       console.error = originalConsoleError;
     }
+
+    // -------------------------------------------------------------
+    // Test 12: getAwardProposalsAction Authenticated Read & Isolation
+    // -------------------------------------------------------------
+    console.log('\n[12] Testing getAwardProposalsAction Authenticated Read & Isolation...');
+    // As Tenant A verifikator
+    setSessionProvider({
+      getSession: async () => ({
+        actorId: ACTOR_VERIFIKATOR,
+        tenantId: TENANT_A_ID,
+        username: 'verifikator_user',
+        role: 'VERIFIKATOR',
+        status: 'ACTIVE',
+      }),
+    });
+    const resReadTenantA = await getAwardProposalsAction();
+    assert(
+      resReadTenantA.success === true && Array.isArray(resReadTenantA.data) && resReadTenantA.data.length >= 1,
+      'Test 17: Tenant A verifikator can read proposals under Tenant A'
+    );
+    assert(
+      resReadTenantA.data?.some((p) => p.id === proposalId) === true,
+      'Test 18: Tenant A results include proposalId created in Tenant A'
+    );
+
+    // As Tenant B actor
+    setSessionProvider({
+      getSession: async () => ({
+        actorId: ACTOR_TENANT_B,
+        tenantId: TENANT_B_ID,
+        username: 'tenant_b_user',
+        role: 'VERIFIKATOR',
+        status: 'ACTIVE',
+      }),
+    });
+    const resReadTenantB = await getAwardProposalsAction();
+    assert(
+      resReadTenantB.success === true && Array.isArray(resReadTenantB.data),
+      'Test 19: Tenant B actor read succeeds under Tenant B context'
+    );
+    assert(
+      resReadTenantB.data?.some((p) => p.id === proposalId) === false,
+      'Test 20: Tenant B cannot see Tenant A proposal (RLS isolation strictly enforced)'
+    );
 
   } finally {
     // Teardown

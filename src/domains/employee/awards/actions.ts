@@ -287,3 +287,25 @@ export async function batchMarkGeneratedAction(
     return handleActionError(err);
   }
 }
+
+/**
+ * Server Action: Get Award Proposals
+ * Resolves authenticated session server-side and retrieves all award proposals under tenant RLS boundary.
+ */
+export async function getAwardProposalsAction(): Promise<ActionResponse<AwardProposal[]>> {
+  try {
+    // 1. Authenticate Actor Session (Fail-Closed)
+    const session = await getAuthenticatedSession();
+
+    // 2. Execute read in authenticated tenant context via application service
+    const service = new AwardProposalApplicationService();
+    const proposals = await service.getAllInContext(session.actorId, session.tenantId);
+
+    return {
+      success: true,
+      data: JSON.parse(JSON.stringify(proposals)),
+    };
+  } catch (err: unknown) {
+    return handleActionError(err);
+  }
+}

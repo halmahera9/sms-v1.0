@@ -393,4 +393,13 @@ export class AwardProposalApplicationService {
       return await this.batchMarkGeneratedTx(tx, tenantId, proposalIds, actorId);
     });
   }
+
+  public async getAllInContext(
+    actorId: string,
+    tenantId: string
+  ): Promise<AwardProposal[]> {
+    return await runInTenantContext(actorId, tenantId, async (tx) => {
+      return await this.proposalRepo.findAllTx(tx);
+    });
+  }
 }
