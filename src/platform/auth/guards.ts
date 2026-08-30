@@ -46,6 +46,11 @@ export const PLATFORM_RBAC_REGISTRY = {
 
   // Audit Trail domain (GAP-04)
   AUDIT_EVENT_READ: [UserRole.ADMIN, UserRole.ADMIN_TENANT, UserRole.AUDITOR, UserRole.VERIFIKATOR],
+
+  // Public Document Upload Invitation domain (Phase 5A)
+  PUBLIC_INVITATION_CREATE: [UserRole.ADMIN, UserRole.ADMIN_TENANT, UserRole.OPERATOR, UserRole.VERIFIKATOR],
+  PUBLIC_INVITATION_REVOKE: [UserRole.ADMIN, UserRole.ADMIN_TENANT, UserRole.OPERATOR, UserRole.VERIFIKATOR],
+  PUBLIC_INVITATION_READ: [UserRole.ADMIN, UserRole.ADMIN_TENANT, UserRole.OPERATOR, UserRole.VERIFIKATOR, UserRole.AUDITOR],
 } as const satisfies Record<string, readonly UserRole[]>;
 
 export type ActionPermission = keyof typeof PLATFORM_RBAC_REGISTRY;

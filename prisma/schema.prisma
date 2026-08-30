@@ -153,6 +153,13 @@ enum ExceptionStatus {
   DISMISSED
 }
 
+enum PublicUploadInvitationStatus {
+  PENDING
+  REVOKED
+  EXPIRED
+  SUBMITTED
+}
+
 // ----------------------------------------------------
 // MODEL DEFINITIONS
 // ----------------------------------------------------
@@ -165,22 +172,23 @@ model Tenant {
   createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
-  users                  UserActor[]
-  employees              Employee[]
-  awardProposals         AwardProposal[]
-  students               Student[]
-  absenceRecords         AbsenceRecord[]
-  documents              Document[]
-  ocrExtractions         OCRExtraction[]
-  humanVerifications     HumanVerification[]
-  workflowInstances      WorkflowInstance[]
-  validationResults      ValidationResult[]
-  exceptionItems         ExceptionItem[]
-  auditEvents            AuditEvent[]
-  extractedItems         ExtractedItem[]
-  documentVersions       DocumentVersion[]
-  workflowTransitions    WorkflowTransition[]
-  awardProposalDocuments AwardProposalDocument[]
+  users                   UserActor[]
+  employees               Employee[]
+  awardProposals          AwardProposal[]
+  students                Student[]
+  absenceRecords          AbsenceRecord[]
+  documents               Document[]
+  ocrExtractions          OCRExtraction[]
+  humanVerifications      HumanVerification[]
+  workflowInstances       WorkflowInstance[]
+  validationResults       ValidationResult[]
+  exceptionItems          ExceptionItem[]
+  auditEvents             AuditEvent[]
+  extractedItems          ExtractedItem[]
+  documentVersions        DocumentVersion[]
+  workflowTransitions     WorkflowTransition[]
+  awardProposalDocuments  AwardProposalDocument[]
+  publicUploadInvitations PublicUploadInvitation[]
 
   @@map("tenants")
 }
@@ -196,14 +204,15 @@ model UserActor {
   createdAt DateTime   @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
-  tenant                    Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  tenant                    Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   verifiedProposalDocuments AwardProposalDocument[]
   humanVerifications        HumanVerification[]
   lockedWorkflowInstances   WorkflowInstance[]
   workflowTransitions       WorkflowTransition[]
-  assignedExceptions        ExceptionItem[]         @relation("AssignedExceptions")
-  resolvedExceptions        ExceptionItem[]         @relation("ResolvedExceptions")
+  assignedExceptions        ExceptionItem[]          @relation("AssignedExceptions")
+  resolvedExceptions        ExceptionItem[]          @relation("ResolvedExceptions")
   auditEvents               AuditEvent[]
+  createdPublicInvitations  PublicUploadInvitation[] @relation("CreatedPublicInvitations")
 
   @@unique([tenantId, id])
   @@unique([tenantId, username])
@@ -385,11 +394,12 @@ model Document {
   createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz
   updatedAt      DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
-  tenant                 Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  tenant                 Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   versions               DocumentVersion[]
   awardProposalDocuments AwardProposalDocument[]
   absenceRecords         AbsenceRecord[]
   ocrExtractions         OCRExtraction[]
+  publicUploadInvitations PublicUploadInvitation[]
 
   @@unique([tenantId, id])
   @@index([tenantId, category])
@@ -533,4 +543,34 @@ model AuditEvent {
   @@unique([tenantId, id])
   @@index([tenantId, createdAt])
   @@map("audit_events")
+}
+
+model PublicUploadInvitation {
+  id                 String                       @id @db.Uuid
+  tenantId           String                       @map("tenant_id") @db.Uuid
+  tokenHash          String                       @unique @map("token_hash") @db.VarChar(64)
+  recipientEmail     String                       @map("recipient_email") @db.VarChar(255)
+  recipientName      String?                      @map("recipient_name") @db.VarChar(255)
+  documentCategory   DocumentCategory             @map("document_category")
+  targetEntityType   String                       @map("target_entity_type") @db.VarChar(50)
+  targetEntityId     String                       @map("target_entity_id") @db.Uuid
+  status             PublicUploadInvitationStatus @default(PENDING)
+  documentId         String?                      @map("document_id") @db.Uuid
+  createdByUserId    String                       @map("created_by_user_id") @db.Uuid
+  expiresAt          DateTime                     @map("expires_at") @db.Timestamptz
+  consumedAt         DateTime?                    @map("consumed_at") @db.Timestamptz
+  maxUploadAttempts  Int                          @default(3) @map("max_upload_attempts")
+  uploadAttempts     Int                          @default(0) @map("upload_attempts")
+  createdAt          DateTime                     @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt          DateTime                     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  tenant        Tenant     @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  createdByUser UserActor  @relation("CreatedPublicInvitations", fields: [tenantId, createdByUserId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade)
+  document      Document?  @relation(fields: [tenantId, documentId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([tenantId, id])
+  @@index([tenantId, status])
+  @@index([tenantId, targetEntityType, targetEntityId])
+  @@index([tokenHash])
+  @@map("public_upload_invitations")
 }
