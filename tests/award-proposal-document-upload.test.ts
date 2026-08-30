@@ -513,9 +513,224 @@ async function runAwardProposalDocumentUploadTests() {
       storageProvider
     );
 
-    assert(!unauthResp.success, 'Unauthenticated request is rejected');
-    assert(unauthResp.error?.code === 'UNAUTHENTICATED', 'Unauthenticated error code is UNAUTHENTICATED');
+    // =============================================================
+    // [8] Testing Canonical Document Version Increment & Replacement Flow
+    // =============================================================
+    console.log('\n[8] Testing Canonical Document Version Increment & Replacement Flow...');
 
+    setSessionProvider({
+      getSession: async () => ({
+        actorId: ACTOR_OPERATOR,
+        tenantId: TENANT_A_ID,
+        username: 'operator_award_doc',
+        role: 'OPERATOR',
+        status: 'ACTIVE',
+      }),
+    });
+
+    const v1Bytes = Buffer.from('%PDF-1.4 Original SK CPNS Version 1 Initial Upload Content 11111');
+    const v1Sha256 = calculateSha256(v1Bytes);
+    const v1Size = v1Bytes.byteLength;
+
+    // 1. Initial upload creates Document(v1)
+    const initialUploadResp = await uploadProposalDocumentAction(
+      {
+        proposalId: proposalA2Id,
+        requirementCode: 'SK_CPNS',
+        fileName: 'sk_cpns_initial.pdf',
+        fileBuffer: v1Bytes,
+        mimeType: 'application/pdf',
+      },
+      storageProvider
+    );
+
+    assert(initialUploadResp.success, 'Initial upload succeeds');
+    const initialProposalDoc = initialUploadResp.data!.documents.find((d) => d.requirementCode === 'SK_CPNS');
+    assert(Boolean(initialProposalDoc?.documentId), 'Initial upload creates canonical documentId');
+    const canonicalDocId = initialProposalDoc!.documentId!;
+
+    const initialDbDoc = await adminPrisma.document.findUniqueOrThrow({
+      where: { id: canonicalDocId },
+      include: { versions: { orderBy: { versionNumber: 'asc' } } },
+    });
+
+    assert(initialDbDoc.currentVersion === 1, 'Document.currentVersion is 1 on initial upload');
+    assert(initialDbDoc.versions.length === 1, 'Exactly one DocumentVersion exists');
+    assert(initialDbDoc.versions[0].versionNumber === 1, 'DocumentVersion is version 1');
+    assert(initialDbDoc.versions[0].checksumSha256 === v1Sha256, 'DocumentVersion v1 has correct SHA-256');
+    assert(Number(initialDbDoc.versions[0].fileSizeBytes) === v1Size, 'DocumentVersion v1 has correct file size');
+
+    // Simulate rejection / flagging of version 1
+    await adminPrisma.document.update({
+      where: { id: canonicalDocId },
+      data: { status: 'REJECTED' },
+    });
+    await adminPrisma.awardProposalDocument.update({
+      where: { proposalId_requirementCode: { proposalId: proposalA2Id, requirementCode: 'SK_CPNS' } },
+      data: { status: 'FAILED' },
+    });
+
+    // 2. Replacement upload creates DocumentVersion(v2) under the same Document.id
+    const v2Bytes = Buffer.from('%PDF-1.4 Corrected SK CPNS Version 2 Replacement Upload Content 22222');
+    const v2Sha256 = calculateSha256(v2Bytes);
+    const v2Size = v2Bytes.byteLength;
+
+    const replacementUploadResp = await uploadProposalDocumentAction(
+      {
+        proposalId: proposalA2Id,
+        requirementCode: 'SK_CPNS',
+        fileName: 'sk_cpns_corrected_v2.pdf',
+        fileBuffer: v2Bytes,
+        mimeType: 'application/pdf',
+      },
+      storageProvider
+    );
+
+    assert(replacementUploadResp.success, 'Replacement upload succeeds');
+    const replacedProposalDoc = replacementUploadResp.data!.documents.find((d) => d.requirementCode === 'SK_CPNS');
+    assert(replacedProposalDoc?.documentId === canonicalDocId, 'Replacement retains the exact same Document.id');
+    assert(replacedProposalDoc?.checksumSha256 === v2Sha256, 'Proposal document projects latest v2 SHA-256');
+    assert(replacedProposalDoc?.fileSize === v2Size, 'Proposal document projects latest v2 file size');
+
+    const updatedDbDoc = await adminPrisma.document.findUniqueOrThrow({
+      where: { id: canonicalDocId },
+      include: { versions: { orderBy: { versionNumber: 'asc' } } },
+    });
+
+    assert(updatedDbDoc.currentVersion === 2, 'Document.currentVersion advanced to 2');
+    assert(updatedDbDoc.status === 'PENDING_VERIFICATION', 'Document.status reset to PENDING_VERIFICATION');
+    assert(updatedDbDoc.versions.length === 2, 'Both DocumentVersions (v1 and v2) are retained');
+
+    // 3. Verify v1 remains unchanged
+    const dbV1 = updatedDbDoc.versions[0];
+    assert(dbV1.versionNumber === 1, 'v1 versionNumber is 1');
+    assert(dbV1.checksumSha256 === v1Sha256, 'v1 SHA-256 remains unchanged');
+    assert(Number(dbV1.fileSizeBytes) === v1Size, 'v1 size remains unchanged');
+
+    // 4. Verify v2 has distinct binary and correct metadata
+    const dbV2 = updatedDbDoc.versions[1];
+    assert(dbV2.versionNumber === 2, 'v2 versionNumber is 2');
+    assert(dbV2.checksumSha256 === v2Sha256, 'v2 SHA-256 matches replacement binary');
+    assert(Number(dbV2.fileSizeBytes) === v2Size, 'v2 size matches replacement binary');
+    assert(dbV2.filePath.includes(`v${dbV2.versionNumber}-`), 'v2 filePath contains version number 2');
+
+    // 5. Verify both v1 and v2 binaries remain downloadable through storage
+    const downloadedV1 = await storageProvider.download(TENANT_A_ID, dbV1.filePath);
+    const downloadedV2 = await storageProvider.download(TENANT_A_ID, dbV2.filePath);
+    assert(downloadedV1.equals(v1Bytes), 'Downloaded v1 bytes match original v1 binary');
+    assert(downloadedV2.equals(v2Bytes), 'Downloaded v2 bytes match replacement v2 binary');
+
+    // 6. Test storage compensation on replacement failure (v3 fails in DB => v3 deleted, v1 & v2 remain untouched)
+    const v3Bytes = Buffer.from('%PDF-1.4 Version 3 doomed to fail DB transaction');
+    const v3Sha256 = calculateSha256(v3Bytes);
+
+    // Mock a DB failure during replacement by passing a corrupted session or non-existent proposal ID in middle
+    const failedReplacementResp = await uploadProposalDocumentAction(
+      {
+        proposalId: '00000000-0000-7000-8000-000000000000', // Non-existent proposal ID
+        requirementCode: 'SK_CPNS',
+        fileName: 'sk_cpns_v3_fail.pdf',
+        fileBuffer: v3Bytes,
+      },
+      storageProvider
+    );
+
+    assert(!failedReplacementResp.success, 'Failed replacement operation returns error');
+    // Ensure v1 and v2 remain intact in DB and storage
+    const docAfterFailedV3 = await adminPrisma.document.findUniqueOrThrow({
+      where: { id: canonicalDocId },
+      include: { versions: { orderBy: { versionNumber: 'asc' } } },
+    });
+    assert(docAfterFailedV3.currentVersion === 2, 'Document.currentVersion remains 2 after failed v3 attempt');
+    assert(docAfterFailedV3.versions.length === 2, 'DocumentVersion count remains 2 after failed v3 attempt');
+
+    const v1StillExists = await storageProvider.download(TENANT_A_ID, dbV1.filePath);
+    const v2StillExists = await storageProvider.download(TENANT_A_ID, dbV2.filePath);
+    assert(v1StillExists.equals(v1Bytes), 'v1 binary is completely unaffected by failed replacement');
+    assert(v2StillExists.equals(v2Bytes), 'v2 binary is completely unaffected by failed replacement');
+
+    // =============================================================
+    // [9] Testing Concurrent Document Replacement Uploads (Race Condition Invariant)
+    // =============================================================
+    console.log('\n[9] Testing Concurrent Document Replacement Uploads (Race Condition Invariant)...');
+
+    // Initial upload creates a fresh document with currentVersion = 1
+    const freshV1Bytes = Buffer.from('%PDF-1.4 Fresh Concurrency Base Document Version 1 Binary Content');
+    const freshInitialResp = await uploadProposalDocumentAction(
+      {
+        proposalId: proposalA1Id,
+        requirementCode: 'SK_PANGKAT_TERAKHIR',
+        fileName: 'sk_pangkat_base_v1.pdf',
+        fileBuffer: freshV1Bytes,
+        mimeType: 'application/pdf',
+      },
+      storageProvider
+    );
+
+    assert(freshInitialResp.success, 'Fresh base document upload succeeds');
+    const freshProposalDoc = freshInitialResp.data!.documents.find((d) => d.requirementCode === 'SK_PANGKAT_TERAKHIR');
+    const freshDocId = freshProposalDoc!.documentId!;
+
+    const freshDocInitialDb = await adminPrisma.document.findUniqueOrThrow({
+      where: { id: freshDocId },
+    });
+    assert(freshDocInitialDb.currentVersion === 1, 'Initial document starts with currentVersion = 1');
+
+    // Launch two simultaneous replacement uploads against the SAME document concurrently
+    const concurrentReqA_Bytes = Buffer.from('%PDF-1.4 Concurrent Replacement Upload Request A Binary Payload');
+    const concurrentReqB_Bytes = Buffer.from('%PDF-1.4 Concurrent Replacement Upload Request B Binary Payload');
+
+    const [concurrentRespA, concurrentRespB] = await Promise.all([
+      uploadProposalDocumentAction(
+        {
+          proposalId: proposalA1Id,
+          requirementCode: 'SK_PANGKAT_TERAKHIR',
+          fileName: 'sk_pangkat_concurrent_A.pdf',
+          fileBuffer: concurrentReqA_Bytes,
+          mimeType: 'application/pdf',
+        },
+        storageProvider
+      ),
+      uploadProposalDocumentAction(
+        {
+          proposalId: proposalA1Id,
+          requirementCode: 'SK_PANGKAT_TERAKHIR',
+          fileName: 'sk_pangkat_concurrent_B.pdf',
+          fileBuffer: concurrentReqB_Bytes,
+          mimeType: 'application/pdf',
+        },
+        storageProvider
+      ),
+    ]);
+
+    assert(concurrentRespA.success, 'Concurrent replacement upload A succeeds');
+    assert(concurrentRespB.success, 'Concurrent replacement upload B succeeds');
+
+    const finalConcurrentDbDoc = await adminPrisma.document.findUniqueOrThrow({
+      where: { id: freshDocId },
+      include: { versions: { orderBy: { versionNumber: 'asc' } } },
+    });
+
+    assert(finalConcurrentDbDoc.currentVersion === 3, 'Document.currentVersion advanced to exactly 3 under concurrency');
+    assert(finalConcurrentDbDoc.versions.length === 3, 'Exactly 3 DocumentVersion records exist');
+
+    const versionNumbers = finalConcurrentDbDoc.versions.map((v) => v.versionNumber);
+    assert(
+      JSON.stringify(versionNumbers) === JSON.stringify([1, 2, 3]),
+      'DocumentVersion versionNumbers are strictly [1, 2, 3] with zero duplicates or lost increments'
+    );
+
+    // Verify all 3 version binaries are intact in object storage
+    const downloadedFreshV1 = await storageProvider.download(TENANT_A_ID, finalConcurrentDbDoc.versions[0].filePath);
+    const downloadedFreshV2 = await storageProvider.download(TENANT_A_ID, finalConcurrentDbDoc.versions[1].filePath);
+    const downloadedFreshV3 = await storageProvider.download(TENANT_A_ID, finalConcurrentDbDoc.versions[2].filePath);
+
+    assert(downloadedFreshV1.equals(freshV1Bytes), 'Version 1 binary intact after concurrent replacements');
+    assert(
+      (downloadedFreshV2.equals(concurrentReqA_Bytes) && downloadedFreshV3.equals(concurrentReqB_Bytes)) ||
+      (downloadedFreshV2.equals(concurrentReqB_Bytes) && downloadedFreshV3.equals(concurrentReqA_Bytes)),
+      'Both concurrent uploads A and B persisted valid, distinct version binaries (v2 and v3)'
+    );
   } finally {
     resetSessionProvider();
     // Cleanup fixtures

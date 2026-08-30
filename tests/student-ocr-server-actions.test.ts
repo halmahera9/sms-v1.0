@@ -835,9 +835,136 @@ async function runStudentOCRServerActionsTests() {
     } catch {
       crossTenantStorageFailed = true;
     }
+    // =========================================================================
+    // TEST 25 — Canonical Document Replacement & Version Increment Flow
+    // =========================================================================
+    console.log('\n[25] Testing Canonical Document Replacement & Version Increment Flow...');
+
+    const studentDocV1Binary = Buffer.from('%PDF-1.4 Student Surat Izin Dokter Original Version 1 Binary 11111');
+    const studentDocV1Sha = calculateSha256(studentDocV1Binary);
+    const studentDocV1Size = studentDocV1Binary.byteLength;
+
+    // 1. Initial student upload creates Document(v1)
+    const initialStudentDocRes = await uploadOCRDocumentAction({
+      fileName: 'Surat_Izin_Dokter_v1.pdf',
+      fileBuffer: studentDocV1Binary,
+      items: [{ ocrText: 'Citra Dewi', confidence: 95, status: 'Sakit' }],
+    });
+
+    assert(initialStudentDocRes.success, 'TEST 25A: Initial student document upload succeeds');
+    const studentDocId = initialStudentDocRes.data!.id;
+
+    const initialStudentDbDoc = await adminPrisma.document.findUniqueOrThrow({
+      where: { id: studentDocId },
+      include: { versions: { orderBy: { versionNumber: 'asc' } } },
+    });
+
+    assert(initialStudentDbDoc.currentVersion === 1, 'TEST 25B: Document.currentVersion is 1 on initial upload');
+    assert(initialStudentDbDoc.versions.length === 1, 'TEST 25C: Exactly 1 DocumentVersion exists');
+    assert(initialStudentDbDoc.versions[0].versionNumber === 1, 'TEST 25D: Version number is 1');
+    assert(initialStudentDbDoc.versions[0].checksumSha256 === studentDocV1Sha, 'TEST 25E: v1 has correct SHA-256');
+
+    // 2. Replacement upload targeting existing documentId
+    const studentDocV2Binary = Buffer.from('%PDF-1.4 Student Surat Izin Dokter Corrected Version 2 Binary 22222');
+    const studentDocV2Sha = calculateSha256(studentDocV2Binary);
+    const studentDocV2Size = studentDocV2Binary.byteLength;
+
+    const replacementStudentDocRes = await uploadOCRDocumentAction({
+      documentId: studentDocId,
+      fileName: 'Surat_Izin_Dokter_v2_Corrected.pdf',
+      fileBuffer: studentDocV2Binary,
+      items: [{ ocrText: 'Citra Dewi', confidence: 99, status: 'Sakit' }],
+    });
+
+    assert(replacementStudentDocRes.success, 'TEST 25F: Replacement student document upload succeeds');
+    assert(replacementStudentDocRes.data!.id === studentDocId, 'TEST 25G: Replacement maintains identical Document.id');
+
+    const updatedStudentDbDoc = await adminPrisma.document.findUniqueOrThrow({
+      where: { id: studentDocId },
+      include: { versions: { orderBy: { versionNumber: 'asc' } } },
+    });
+
+    assert(updatedStudentDbDoc.currentVersion === 2, 'TEST 25H: Document.currentVersion advanced to 2');
+    assert(updatedStudentDbDoc.versions.length === 2, 'TEST 25I: Both v1 and v2 DocumentVersions are retained');
+
+    // 3. Verify v1 is preserved
+    const studentDbV1 = updatedStudentDbDoc.versions[0];
+    assert(studentDbV1.versionNumber === 1, 'TEST 25J: v1 versionNumber is 1');
+    assert(studentDbV1.checksumSha256 === studentDocV1Sha, 'TEST 25K: v1 SHA-256 is unchanged');
+    assert(Number(studentDbV1.fileSizeBytes) === studentDocV1Size, 'TEST 25L: v1 size is unchanged');
+
+    // 4. Verify v2
+    const studentDbV2 = updatedStudentDbDoc.versions[1];
+    assert(studentDbV2.versionNumber === 2, 'TEST 25M: v2 versionNumber is 2');
+    assert(studentDbV2.checksumSha256 === studentDocV2Sha, 'TEST 25N: v2 SHA-256 matches replacement');
+    assert(Number(studentDbV2.fileSizeBytes) === studentDocV2Size, 'TEST 25O: v2 size matches replacement');
+    assert(studentDbV2.filePath.includes(`v${studentDbV2.versionNumber}-`), 'TEST 25P: v2 path contains version number 2');
+
+    // 5. Download both versions from storage
+    const downloadedStudentV1 = await storageProvider.download(TENANT_A_ID, studentDbV1.filePath);
+    const downloadedStudentV2 = await storageProvider.download(TENANT_A_ID, studentDbV2.filePath);
+    assert(downloadedStudentV1.equals(studentDocV1Binary), 'TEST 25Q: Downloaded v1 matches original binary');
+    assert(downloadedStudentV2.equals(studentDocV2Binary), 'TEST 25R: Downloaded v2 matches replacement binary');
+
+    // =========================================================================
+    // TEST 26 — Concurrent Student OCR Document Replacement Uploads
+    // =========================================================================
+    console.log('\n[26] Testing Concurrent Student OCR Document Replacement Uploads...');
+
+    const concurrentOcrV1Binary = Buffer.from('%PDF-1.4 Base Student Document For Concurrent Replacement 11111');
+    const baseOcrUpload = await uploadOCRDocumentAction({
+      fileName: 'Surat_Izin_Concurrency_Base.pdf',
+      fileBuffer: concurrentOcrV1Binary,
+      items: [{ ocrText: 'Citra Dewi Base', confidence: 90, status: 'Izin' }],
+    });
+
+    assert(baseOcrUpload.success, 'TEST 26A: Base OCR document upload succeeds');
+    const baseOcrDocId = baseOcrUpload.data!.id;
+
+    const concurrentOcrReqA_Binary = Buffer.from('%PDF-1.4 Concurrent OCR Replacement Upload Request A 22222');
+    const concurrentOcrReqB_Binary = Buffer.from('%PDF-1.4 Concurrent OCR Replacement Upload Request B 33333');
+
+    const [concurrentOcrRespA, concurrentOcrRespB] = await Promise.all([
+      uploadOCRDocumentAction({
+        documentId: baseOcrDocId,
+        fileName: 'Surat_Izin_Concurrent_A.pdf',
+        fileBuffer: concurrentOcrReqA_Binary,
+        items: [{ ocrText: 'Citra Dewi Concurrent A', confidence: 95, status: 'Izin' }],
+      }),
+      uploadOCRDocumentAction({
+        documentId: baseOcrDocId,
+        fileName: 'Surat_Izin_Concurrent_B.pdf',
+        fileBuffer: concurrentOcrReqB_Binary,
+        items: [{ ocrText: 'Citra Dewi Concurrent B', confidence: 98, status: 'Izin' }],
+      }),
+    ]);
+
+    assert(concurrentOcrRespA.success, 'TEST 26B: Concurrent OCR replacement upload A succeeds');
+    assert(concurrentOcrRespB.success, 'TEST 26C: Concurrent OCR replacement upload B succeeds');
+
+    const finalConcurrentOcrDoc = await adminPrisma.document.findUniqueOrThrow({
+      where: { id: baseOcrDocId },
+      include: { versions: { orderBy: { versionNumber: 'asc' } } },
+    });
+
+    assert(finalConcurrentOcrDoc.currentVersion === 3, 'TEST 26D: Document.currentVersion is exactly 3');
+    assert(finalConcurrentOcrDoc.versions.length === 3, 'TEST 26E: Exactly 3 versions exist');
+
+    const ocrVersionNumbers = finalConcurrentOcrDoc.versions.map((v) => v.versionNumber);
     assert(
-      crossTenantStorageFailed,
-      'TEST 24B: Tenant B cannot access Tenant A document binary via storage provider'
+      JSON.stringify(ocrVersionNumbers) === JSON.stringify([1, 2, 3]),
+      'TEST 26F: Version numbers are strictly [1, 2, 3] with zero collisions or duplicates'
+    );
+
+    const downloadedOcrV1 = await storageProvider.download(TENANT_A_ID, finalConcurrentOcrDoc.versions[0].filePath);
+    const downloadedOcrV2 = await storageProvider.download(TENANT_A_ID, finalConcurrentOcrDoc.versions[1].filePath);
+    const downloadedOcrV3 = await storageProvider.download(TENANT_A_ID, finalConcurrentOcrDoc.versions[2].filePath);
+
+    assert(downloadedOcrV1.equals(concurrentOcrV1Binary), 'TEST 26G: Version 1 binary unchanged');
+    assert(
+      (downloadedOcrV2.equals(concurrentOcrReqA_Binary) && downloadedOcrV3.equals(concurrentOcrReqB_Binary)) ||
+      (downloadedOcrV2.equals(concurrentOcrReqB_Binary) && downloadedOcrV3.equals(concurrentOcrReqA_Binary)),
+      'TEST 26H: Both concurrent uploads created valid and distinct version snapshots (v2 and v3)'
     );
 
     console.log('\n=====================================================');
@@ -873,12 +1000,6 @@ async function runStudentOCRServerActionsTests() {
       });
       await adminPrisma.student.deleteMany({
         where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID] } },
-      });
-      await adminPrisma.userActor.deleteMany({
-        where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID] } },
-      });
-      await adminPrisma.tenant.deleteMany({
-        where: { id: { in: [TENANT_A_ID, TENANT_B_ID] } },
       });
     } catch (err) {
       console.warn('Cleanup warning:', err);

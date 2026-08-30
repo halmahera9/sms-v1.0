@@ -201,43 +201,94 @@ export async function uploadProposalDocumentAction(
         throw new Error('Validation Error: Payload binary file upload tidak boleh kosong.');
       }
 
-      const documentId = randomUUID();
-      const versionId = randomUUID();
       const tenantId = session.tenantId;
       const fileName = (dto.fileName || `${dto.requirementCode}.pdf`).trim();
       const mimeType = dto.mimeType || 'application/pdf';
 
-      // 4. Build canonical storage path & upload to object storage
-      const storagePath = buildDocumentStoragePath(tenantId, documentId, 1, fileName);
-      const uploadResult = await storageProvider.upload({
-        tenantId,
-        storagePath,
-        content: binaryBuffer,
-        mimeType,
-      });
-
-      // 5. Execute DB persistence in authenticated tenant context with compensation cleanup
-      try {
-        const updatedProposal = await runInTenantContext(session.actorId, tenantId, async (tx) => {
-          // A. Create canonical Document
-          const doc = await tx.document.create({
-            data: {
-              id: documentId,
-              tenantId,
-              title: fileName,
-              category: mapRequirementCodeToCategory(dto.requirementCode),
-              currentVersion: 1,
-              status: DocumentStatus.PENDING_VERIFICATION,
+      // 4. Resolve proposal and check if a canonical document already exists for this requirement
+      const updatedProposal = await runInTenantContext(session.actorId, tenantId, async (tx) => {
+        const proposal = await tx.awardProposal.findUnique({
+          where: { id: dto.proposalId },
+          include: {
+            documents: {
+              where: { requirementCode: dto.requirementCode },
             },
-          });
+          },
+        });
 
-          // B. Create canonical DocumentVersion
+        if (!proposal) {
+          throw new Error(`AwardProposal not found: ${dto.proposalId}`);
+        }
+
+        const existingProposalDoc = proposal.documents[0];
+        let targetDocumentId: string;
+        let nextVersion: number;
+
+        if (existingProposalDoc?.documentId) {
+          targetDocumentId = existingProposalDoc.documentId;
+          // Row-level lock on document record to serialize concurrent replacement attempts
+          await tx.$executeRaw`SELECT id FROM documents WHERE id = ${targetDocumentId}::uuid AND tenant_id = ${tenantId}::uuid FOR UPDATE;`;
+          const existingDoc = await tx.document.findUniqueOrThrow({
+            where: { id: targetDocumentId },
+          });
+          nextVersion = existingDoc.currentVersion + 1;
+        } else {
+          targetDocumentId = randomUUID();
+          nextVersion = 1;
+        }
+
+        // 5. Upload replacement binary for (tenantId, targetDocumentId, nextVersion, fileName)
+        const storagePath = buildDocumentStoragePath(tenantId, targetDocumentId, nextVersion, fileName);
+        const uploadResult = await storageProvider.upload({
+          tenantId,
+          storagePath,
+          content: binaryBuffer,
+          mimeType,
+        });
+
+        try {
+          // A. Create or update canonical Document
+          let doc: {
+            id: string;
+            tenantId: string;
+            title: string;
+            category: DocumentCategory;
+            currentVersion: number;
+            status: DocumentStatus;
+            createdAt: Date;
+            updatedAt: Date;
+          };
+
+          if (nextVersion === 1) {
+            doc = await tx.document.create({
+              data: {
+                id: targetDocumentId,
+                tenantId,
+                title: fileName,
+                category: mapRequirementCodeToCategory(dto.requirementCode),
+                currentVersion: 1,
+                status: DocumentStatus.PENDING_VERIFICATION,
+              },
+            });
+          } else {
+            doc = await tx.document.update({
+              where: { id: targetDocumentId },
+              data: {
+                title: fileName,
+                currentVersion: nextVersion,
+                status: DocumentStatus.PENDING_VERIFICATION,
+              },
+            });
+          }
+
+          // B. Create canonical DocumentVersion for versionNumber: nextVersion
+          const versionId = randomUUID();
           await tx.documentVersion.create({
             data: {
               id: versionId,
               tenantId,
-              documentId: doc.id,
-              versionNumber: 1,
+              documentId: targetDocumentId,
+              versionNumber: nextVersion,
               filePath: uploadResult.storagePath,
               fileSizeBytes: BigInt(uploadResult.sizeBytes),
               mimeType: uploadResult.mimeType || mimeType,
@@ -247,9 +298,9 @@ export async function uploadProposalDocumentAction(
 
           // C. Construct domain ProposalDocument with authoritative binary metadata
           const document: ProposalDocument = {
-            id: randomUUID(),
+            id: existingProposalDoc?.id || randomUUID(),
             proposalId: dto.proposalId,
-            documentId: doc.id,
+            documentId: targetDocumentId,
             requirementCode: dto.requirementCode,
             fileName: doc.title,
             fileSize: uploadResult.sizeBytes,
@@ -268,21 +319,21 @@ export async function uploadProposalDocumentAction(
             document,
             session.actorId
           );
-        });
-
-        return {
-          success: true,
-          data: JSON.parse(JSON.stringify(updatedProposal)),
-        };
-      } catch (dbErr) {
-        // Compensation cleanup if DB transaction fails
-        try {
-          await storageProvider.delete(tenantId, storagePath);
-        } catch (cleanupErr) {
-          console.warn('[Storage Cleanup Error]: Failed to delete uploaded file after DB failure:', cleanupErr);
+        } catch (dbErr) {
+          // Compensation cleanup if DB transaction fails: Delete ONLY this version's storagePath
+          try {
+            await storageProvider.delete(tenantId, storagePath);
+          } catch (cleanupErr) {
+            console.warn('[Storage Cleanup Error]: Failed to delete uploaded version file after DB failure:', cleanupErr);
+          }
+          throw dbErr;
         }
-        throw dbErr;
-      }
+      });
+
+      return {
+        success: true,
+        data: JSON.parse(JSON.stringify(updatedProposal)),
+      };
     } else {
       // 6. Metadata-only legacy path (no fake Document, no fake DocumentVersion, no fake checksum)
       const document: ProposalDocument = {

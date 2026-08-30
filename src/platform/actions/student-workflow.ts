@@ -66,6 +66,7 @@ export interface UploadOCRItemDTO {
 }
 
 export interface UploadOCRDocumentDTO {
+  documentId?: string;
   fileName: string;
   fileSize?: number;
   imageUrl?: string;
@@ -123,7 +124,11 @@ function handleActionError<T>(err: unknown): ActionResponse<T> {
   }
 
   if (err instanceof Error) {
-    if (err.message.startsWith('Validation Error:')) {
+    if (
+      err.message.startsWith('Validation Error:') ||
+      err.message.toLowerCase().includes('wajib') ||
+      err.message.toLowerCase().includes('tidak valid')
+    ) {
       return {
         success: false,
         error: {
@@ -155,8 +160,8 @@ function handleActionError<T>(err: unknown): ActionResponse<T> {
 }
 
 /**
- * Server Action: Get OCR Documents
- * Queries documents, OCR extractions, and extracted items for authenticated tenant under RLS.
+ * Server Action: Get All OCR Documents
+ * Enforces AuthN + AuthZ (STUDENT_WORKFLOW_READ) and returns tenant-isolated OCR documents.
  */
 export async function getOCRDocumentsAction(): Promise<ActionResponse<OCRDocumentDTO[]>> {
   try {
@@ -217,7 +222,7 @@ export async function getOCRDocumentsAction(): Promise<ActionResponse<OCRDocumen
         });
 
         const verifiedCount = items.filter((i) => i.verificationStatus === 'verified').length;
-        const allVerified = items.length > 0 && verifiedCount === items.length;
+        const isComplete = verifiedCount === items.length && items.length > 0;
 
         return {
           id: doc.id,
@@ -225,8 +230,8 @@ export async function getOCRDocumentsAction(): Promise<ActionResponse<OCRDocumen
           fileSize: latestVersion ? Number(latestVersion.fileSizeBytes) : 520000,
           uploadedAt: doc.createdAt.toISOString(),
           imageUrl: latestVersion?.filePath || '/placeholder-doc.png',
-          status: allVerified ? 'completed' : 'needs_verification',
-          workflowState: allVerified ? 'VERIFIED' : 'NEEDS_VERIFICATION',
+          status: isComplete ? 'completed' : 'needs_verification',
+          workflowState: isComplete ? 'VERIFIED' : 'NEEDS_VERIFICATION',
           extractedCount: items.length,
           verifiedCount,
           items,
@@ -248,6 +253,7 @@ export async function getOCRDocumentsAction(): Promise<ActionResponse<OCRDocumen
 /**
  * Server Action: Upload OCR Document
  * Atomically persists Document, DocumentVersion, OCRExtraction, and ExtractedItems in PostgreSQL under RLS.
+ * Supports canonical DocumentVersion increment and replacement upload when documentId is supplied.
  */
 export async function uploadOCRDocumentAction(
   dto: UploadOCRDocumentDTO,
@@ -263,35 +269,86 @@ export async function uploadOCRDocumentAction(
       throw new Error('Validation Error: Dokumen OCR harus memiliki minimal satu item ekstraksi.');
     }
 
+    if (dto.documentId !== undefined && !isValidUuid(dto.documentId)) {
+      throw new Error(`Validation Error: documentId '${dto.documentId}' bukan UUID yang valid.`);
+    }
+
+    // Binary payload validation
+    if (dto.fileBase64 !== undefined && dto.fileBase64.trim().length === 0) {
+      throw new Error('Validation Error: fileBase64 tidak boleh berupa string kosong.');
+    }
+    if (dto.fileBuffer !== undefined && dto.fileBuffer.byteLength === 0) {
+      throw new Error('Validation Error: fileBuffer tidak boleh berupa buffer kosong.');
+    }
+
+    const hasBuffer = Boolean(dto.fileBuffer);
+    const hasBase64 = Boolean(dto.fileBase64 && dto.fileBase64.trim().length > 0);
+
+    if (hasBuffer && hasBase64) {
+      throw new Error('Validation Error: fileBuffer dan fileBase64 tidak boleh diberikan secara bersamaan.');
+    }
+
     const createdDoc = await executeInAuthenticatedContext(async (context, tx) => {
       // Canonical RBAC assertion
       assertAuthorizedAction(context, 'STUDENT_WORKFLOW_UPLOAD');
 
-      const documentId = randomUUID();
+      const tenantId = context.tenantId;
+      let targetDocumentId: string;
+      let nextVersion: number;
+
+      if (dto.documentId) {
+        const existingDoc = await tx.document.findFirst({
+          where: { id: dto.documentId, tenantId },
+        });
+
+        if (!existingDoc) {
+          throw new Error(`Validation Error: Document with ID ${dto.documentId} not found.`);
+        }
+
+        // Concurrency lock: serialize concurrent replacement uploads on the same document
+        await tx.$executeRaw`SELECT id FROM documents WHERE id = ${existingDoc.id}::uuid AND tenant_id = ${tenantId}::uuid FOR UPDATE;`;
+        const lockedDoc = await tx.document.findUniqueOrThrow({
+          where: { id: existingDoc.id },
+        });
+        targetDocumentId = lockedDoc.id;
+        nextVersion = lockedDoc.currentVersion + 1;
+      } else {
+        targetDocumentId = randomUUID();
+        nextVersion = 1;
+      }
+
       const versionId = randomUUID();
       const extractionId = randomUUID();
-      const tenantId = context.tenantId;
+      const fileName = dto.fileName.trim();
+      const mimeType = dto.mimeType || 'image/png';
 
       // Determine file storage and real checksum
       let resolvedFilePath = dto.imageUrl || '/placeholder-doc.png';
       let resolvedFileSizeBytes = BigInt(dto.fileSize || 0);
-      let resolvedMimeType = dto.mimeType || 'image/png';
+      let resolvedMimeType = mimeType;
       let resolvedChecksumSha256: string | null = null;
 
-      const hasBinaryContent = Boolean(dto.fileBuffer || (dto.fileBase64 && dto.fileBase64.trim().length > 0));
+      let uploadedStoragePath: string | null = null;
+
+      const hasBinaryContent = hasBuffer || hasBase64;
       if (hasBinaryContent) {
-        const binaryBuffer = dto.fileBuffer
-          ? Buffer.from(dto.fileBuffer)
+        const binaryBuffer = hasBuffer
+          ? Buffer.from(dto.fileBuffer!)
           : Buffer.from(dto.fileBase64!.trim(), 'base64');
 
-        const storagePath = buildDocumentStoragePath(tenantId, documentId, 1, dto.fileName);
+        if (binaryBuffer.byteLength === 0) {
+          throw new Error('Validation Error: Payload binary file upload tidak boleh kosong.');
+        }
+
+        const storagePath = buildDocumentStoragePath(tenantId, targetDocumentId, nextVersion, fileName);
         const uploadResult = await storageProvider.upload({
           tenantId,
           storagePath,
           content: binaryBuffer,
-          mimeType: dto.mimeType || 'image/png',
+          mimeType,
         });
 
+        uploadedStoragePath = storagePath;
         resolvedFilePath = uploadResult.storagePath;
         resolvedFileSizeBytes = BigInt(uploadResult.sizeBytes);
         resolvedChecksumSha256 = uploadResult.checksumSha256;
@@ -300,140 +357,172 @@ export async function uploadOCRDocumentAction(
         }
       }
 
-      // 1. Create Document
-      const doc = await tx.document.create({
-        data: {
-          id: documentId,
-          tenantId,
-          title: dto.fileName.trim(),
-          category: DocumentCategory.LAINNYA,
-          currentVersion: 1,
-          status: DocumentStatus.PENDING_VERIFICATION,
-        },
-      });
-
-      // 2. Create Document Version
-      await tx.documentVersion.create({
-        data: {
-          id: versionId,
-          tenantId,
-          documentId: doc.id,
-          versionNumber: 1,
-          filePath: resolvedFilePath,
-          fileSizeBytes: resolvedFileSizeBytes,
-          mimeType: resolvedMimeType,
-          checksumSha256: resolvedChecksumSha256,
-        },
-      });
-
-      // 3. Create OCRExtraction (Status: COMPLETED because items are produced)
-      await tx.oCRExtraction.create({
-        data: {
-          id: extractionId,
-          tenantId,
-          documentId: doc.id,
-          status: OCRExtractionStatus.COMPLETED,
-          rawJson: { itemCount: dto.items.length, uploadedAt: new Date().toISOString() },
-        },
-      });
-
-      // 4. Create ExtractedItems and wire automated Exception generation
-      const createdItems: ExtractedItemDTO[] = [];
-
-      for (const item of dto.items) {
-        const itemId = item.id && isValidUuid(item.id) ? item.id : randomUUID();
-
-        // Resolve matched student ID if not provided
-        let resolvedStudentId = item.matchedStudentId;
-        if (!resolvedStudentId && item.matchedNisn) {
-          const foundStudent = await tx.student.findFirst({
-            where: { tenantId, nisn: item.matchedNisn },
-          });
-          if (foundStudent) resolvedStudentId = foundStudent.id;
-        }
-
-        const rawAbsenceDate = item.date || new Date().toISOString().slice(0, 10);
-        const rawAbsenceType = item.status || 'Sakit';
-
-        const createdItem = await tx.extractedItem.create({
-          data: {
-            id: itemId,
-            tenantId,
-            ocrExtractionId: extractionId,
-            studentNameRaw: item.matchedStudentName || item.ocrText,
-            nisnRaw: item.matchedNisn || null,
-            absenceDateRaw: rawAbsenceDate,
-            absenceTypeRaw: rawAbsenceType,
-            confidenceScore: item.confidence,
-            matchedStudentId: resolvedStudentId || null,
-            absenceRecordId: null, // Pending verification
-          },
-          include: {
-            matchedStudent: true,
-          },
-        });
-
-        const domainItem: DomainExtractedItem = {
-          id: createdItem.id,
-          ocrText: createdItem.studentNameRaw,
-          matchedStudentId: createdItem.matchedStudentId || undefined,
-          matchedStudentName: createdItem.matchedStudent?.fullName || createdItem.studentNameRaw,
-          matchedNisn: createdItem.matchedStudent?.nisn || createdItem.nisnRaw || undefined,
-          confidence: Number(createdItem.confidenceScore),
-          class: createdItem.matchedStudent?.className || item.class || 'X IPA 1',
-          date: rawAbsenceDate,
-          status: mapToDtoAbsenceStatus(rawAbsenceType),
-          notes: item.notes,
-          verificationStatus: 'pending',
+      try {
+        let doc: {
+          id: string;
+          tenantId: string;
+          title: string;
+          category: DocumentCategory;
+          currentVersion: number;
+          status: DocumentStatus;
+          createdAt: Date;
+          updatedAt: Date;
         };
 
-        // Platform automated exception generation bridge
-        const validationResults = ocrItemValidationEngine.validateEntity(domainItem);
-        await exceptionRepo.createFromValidationResultsTx(
-          tx,
-          tenantId,
-          'ExtractedItem',
-          createdItem.id,
-          validationResults,
-          context.actorId
-        );
+        if (nextVersion === 1) {
+          doc = await tx.document.create({
+            data: {
+              id: targetDocumentId,
+              tenantId,
+              title: fileName,
+              category: DocumentCategory.LAINNYA,
+              currentVersion: 1,
+              status: DocumentStatus.PENDING_VERIFICATION,
+            },
+          });
+        } else {
+          doc = await tx.document.update({
+            where: { id: targetDocumentId },
+            data: {
+              title: fileName,
+              currentVersion: nextVersion,
+              status: DocumentStatus.PENDING_VERIFICATION,
+            },
+          });
+        }
 
-        createdItems.push({
-          id: createdItem.id,
-          ocrText: createdItem.studentNameRaw,
-          matchedStudentId: createdItem.matchedStudentId || undefined,
-          matchedStudentName: createdItem.matchedStudent?.fullName || createdItem.studentNameRaw,
-          matchedNisn: createdItem.matchedStudent?.nisn || createdItem.nisnRaw || undefined,
-          confidence: Number(createdItem.confidenceScore),
-          class: createdItem.matchedStudent?.className || item.class || 'X IPA 1',
-          date: rawAbsenceDate,
-          status: mapToDtoAbsenceStatus(rawAbsenceType),
-          notes: item.notes,
-          verificationStatus: 'pending',
+        // Create Document Version for nextVersion
+        await tx.documentVersion.create({
+          data: {
+            id: versionId,
+            tenantId,
+            documentId: targetDocumentId,
+            versionNumber: nextVersion,
+            filePath: resolvedFilePath,
+            fileSizeBytes: resolvedFileSizeBytes,
+            mimeType: resolvedMimeType,
+            checksumSha256: resolvedChecksumSha256,
+          },
         });
+
+        // Create OCRExtraction for this version
+        await tx.oCRExtraction.create({
+          data: {
+            id: extractionId,
+            tenantId,
+            documentId: targetDocumentId,
+            status: OCRExtractionStatus.COMPLETED,
+            rawJson: { itemCount: dto.items.length, uploadedAt: new Date().toISOString(), versionNumber: nextVersion },
+          },
+        });
+
+        // 4. Create ExtractedItems and wire automated Exception generation
+        const createdItems: ExtractedItemDTO[] = [];
+
+        for (const item of dto.items) {
+          const itemId = item.id && isValidUuid(item.id) ? item.id : randomUUID();
+
+          // Resolve matched student ID if not provided
+          let resolvedStudentId = item.matchedStudentId;
+          if (!resolvedStudentId && item.matchedNisn) {
+            const foundStudent = await tx.student.findFirst({
+              where: { tenantId, nisn: item.matchedNisn },
+            });
+            if (foundStudent) resolvedStudentId = foundStudent.id;
+          }
+
+          const rawAbsenceDate = item.date || new Date().toISOString().slice(0, 10);
+          const rawAbsenceType = item.status || 'Sakit';
+
+          const createdItem = await tx.extractedItem.create({
+            data: {
+              id: itemId,
+              tenantId,
+              ocrExtractionId: extractionId,
+              studentNameRaw: item.matchedStudentName || item.ocrText,
+              nisnRaw: item.matchedNisn || null,
+              absenceDateRaw: rawAbsenceDate,
+              absenceTypeRaw: rawAbsenceType,
+              confidenceScore: item.confidence,
+              matchedStudentId: resolvedStudentId || null,
+              absenceRecordId: null, // Pending verification
+            },
+            include: {
+              matchedStudent: true,
+            },
+          });
+
+          const domainItem: DomainExtractedItem = {
+            id: createdItem.id,
+            ocrText: createdItem.studentNameRaw,
+            matchedStudentId: createdItem.matchedStudentId || undefined,
+            matchedStudentName: createdItem.matchedStudent?.fullName || createdItem.studentNameRaw,
+            matchedNisn: createdItem.matchedStudent?.nisn || createdItem.nisnRaw || undefined,
+            confidence: Number(createdItem.confidenceScore),
+            class: createdItem.matchedStudent?.className || item.class || 'X IPA 1',
+            date: rawAbsenceDate,
+            status: mapToDtoAbsenceStatus(rawAbsenceType),
+            notes: item.notes,
+            verificationStatus: 'pending',
+          };
+
+          // Platform automated exception generation bridge
+          const validationResults = ocrItemValidationEngine.validateEntity(domainItem);
+          await exceptionRepo.createFromValidationResultsTx(
+            tx,
+            tenantId,
+            'ExtractedItem',
+            createdItem.id,
+            validationResults,
+            context.actorId
+          );
+
+          createdItems.push({
+            id: createdItem.id,
+            ocrText: createdItem.studentNameRaw,
+            matchedStudentId: createdItem.matchedStudentId || undefined,
+            matchedStudentName: createdItem.matchedStudent?.fullName || createdItem.studentNameRaw,
+            matchedNisn: createdItem.matchedStudent?.nisn || createdItem.nisnRaw || undefined,
+            confidence: Number(createdItem.confidenceScore),
+            class: createdItem.matchedStudent?.className || item.class || 'X IPA 1',
+            date: rawAbsenceDate,
+            status: mapToDtoAbsenceStatus(rawAbsenceType),
+            notes: item.notes,
+            verificationStatus: 'pending',
+          });
+        }
+
+        // 5. Record Audit Event via PostgresAuditEventRepository
+        await auditRepo.recordTx(tx, tenantId, {
+          actorUserId: context.actorId,
+          action: 'UPLOAD_OCR',
+          entityType: 'Document',
+          entityId: doc.id,
+          metadata: { fileName: doc.title, extractedCount: dto.items.length, versionNumber: nextVersion },
+        });
+
+        return {
+          id: doc.id,
+          fileName: doc.title,
+          fileSize: dto.fileSize || 520000,
+          uploadedAt: doc.createdAt.toISOString(),
+          imageUrl: dto.imageUrl || '/placeholder-doc.png',
+          status: 'needs_verification' as const,
+          workflowState: 'NEEDS_VERIFICATION' as const,
+          extractedCount: createdItems.length,
+          verifiedCount: 0,
+          items: createdItems,
+        };
+      } catch (dbErr) {
+        if (uploadedStoragePath) {
+          try {
+            await storageProvider.delete(tenantId, uploadedStoragePath);
+          } catch (cleanupErr) {
+            console.warn('[Storage Cleanup Error]: Failed to delete uploaded replacement file after DB failure:', cleanupErr);
+          }
+        }
+        throw dbErr;
       }
-
-      // 5. Record Audit Event via PostgresAuditEventRepository
-      await auditRepo.recordTx(tx, tenantId, {
-        actorUserId: context.actorId,
-        action: 'UPLOAD_OCR',
-        entityType: 'Document',
-        entityId: doc.id,
-        metadata: { fileName: doc.title, extractedCount: dto.items.length },
-      });
-
-      return {
-        id: doc.id,
-        fileName: doc.title,
-        fileSize: dto.fileSize || 520000,
-        uploadedAt: doc.createdAt.toISOString(),
-        imageUrl: dto.imageUrl || '/placeholder-doc.png',
-        status: 'needs_verification' as const,
-        workflowState: 'NEEDS_VERIFICATION' as const,
-        extractedCount: createdItems.length,
-        verifiedCount: 0,
-        items: createdItems,
-      };
     });
 
     return {
