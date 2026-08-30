@@ -94,7 +94,14 @@ export class PostgresAwardProposalRepository
         employee: true,
         documents: {
           include: {
-            document: true,
+            document: {
+              include: {
+                versions: {
+                  orderBy: { versionNumber: 'desc' },
+                  take: 1,
+                },
+              },
+            },
           },
         },
       },
@@ -127,7 +134,14 @@ export class PostgresAwardProposalRepository
         employee: true,
         documents: {
           include: {
-            document: true,
+            document: {
+              include: {
+                versions: {
+                  orderBy: { versionNumber: 'desc' },
+                  take: 1,
+                },
+              },
+            },
           },
         },
       },
@@ -152,7 +166,14 @@ export class PostgresAwardProposalRepository
         employee: true,
         documents: {
           include: {
-            document: true,
+            document: {
+              include: {
+                versions: {
+                  orderBy: { versionNumber: 'desc' },
+                  take: 1,
+                },
+              },
+            },
           },
         },
       },
@@ -167,7 +188,14 @@ export class PostgresAwardProposalRepository
         employee: true,
         documents: {
           include: {
-            document: true,
+            document: {
+              include: {
+                versions: {
+                  orderBy: { versionNumber: 'desc' },
+                  take: 1,
+                },
+              },
+            },
           },
         },
       },
@@ -220,7 +248,14 @@ export class PostgresAwardProposalRepository
         employee: true,
         documents: {
           include: {
-            document: true,
+            document: {
+              include: {
+                versions: {
+                  orderBy: { versionNumber: 'desc' },
+                  take: 1,
+                },
+              },
+            },
           },
         },
       },
@@ -257,6 +292,7 @@ export class PostgresAwardProposalRepository
         : 'PENDING';
     const verifiedByUserId = isValidUuid(document.verifiedBy) ? document.verifiedBy : null;
     const verifiedAt = document.verifiedAt ? new Date(document.verifiedAt) : null;
+    const canonicalDocId = isValidUuid(document.documentId) ? document.documentId : null;
 
     const record = await tx.awardProposalDocument.upsert({
       where: {
@@ -269,6 +305,7 @@ export class PostgresAwardProposalRepository
         id: docId,
         tenantId,
         proposalId,
+        documentId: canonicalDocId,
         requirementCode: document.requirementCode,
         status: checklistStatus,
         verifiedByUserId,
@@ -276,6 +313,7 @@ export class PostgresAwardProposalRepository
         catatan: document.catatan || null,
       },
       update: {
+        documentId: canonicalDocId,
         requirementCode: document.requirementCode,
         status: checklistStatus,
         verifiedByUserId,
@@ -283,18 +321,29 @@ export class PostgresAwardProposalRepository
         catatan: document.catatan || null,
       },
       include: {
-        document: true,
+        document: {
+          include: {
+            versions: {
+              orderBy: { versionNumber: 'desc' },
+              take: 1,
+            },
+          },
+        },
       },
     });
+
+    const latestVersion = record.document?.versions?.[0];
 
     return {
       id: record.id,
       proposalId: record.proposalId,
       requirementCode: record.requirementCode,
-      fileName: record.document?.title || `${record.requirementCode}.pdf`,
-      fileSize: 1024 * 100,
-      fileType: 'application/pdf',
-      fileUrl: '#',
+      documentId: record.documentId || undefined,
+      checksumSha256: latestVersion?.checksumSha256 || document.checksumSha256 || undefined,
+      fileName: record.document?.title || document.fileName || `${record.requirementCode}.pdf`,
+      fileSize: latestVersion ? Number(latestVersion.fileSizeBytes) : (record.document ? 0 : document.fileSize || 0),
+      fileType: latestVersion?.mimeType || document.fileType || 'application/pdf',
+      fileUrl: latestVersion?.filePath || document.fileUrl || '#',
       uploadedAt: record.createdAt ? new Date(record.createdAt).toISOString() : new Date().toISOString(),
       verificationStatus:
         record.status === 'PASSED' ? 'verified' : record.status === 'FAILED' ? 'rejected' : 'pending',
@@ -341,18 +390,29 @@ export class PostgresAwardProposalRepository
         catatan: notes || null,
       },
       include: {
-        document: true,
+        document: {
+          include: {
+            versions: {
+              orderBy: { versionNumber: 'desc' },
+              take: 1,
+            },
+          },
+        },
       },
     });
+
+    const latestVersion = record.document?.versions?.[0];
 
     return {
       id: record.id,
       proposalId: record.proposalId,
       requirementCode: record.requirementCode,
+      documentId: record.documentId || undefined,
+      checksumSha256: latestVersion?.checksumSha256 || undefined,
       fileName: record.document?.title || `${record.requirementCode}.pdf`,
-      fileSize: 1024 * 100,
-      fileType: 'application/pdf',
-      fileUrl: '#',
+      fileSize: latestVersion ? Number(latestVersion.fileSizeBytes) : (record.document ? 0 : 1024 * 100),
+      fileType: latestVersion?.mimeType || 'application/pdf',
+      fileUrl: latestVersion?.filePath || '#',
       uploadedAt: record.createdAt ? new Date(record.createdAt).toISOString() : new Date().toISOString(),
       verificationStatus:
         record.status === 'PASSED' ? 'verified' : record.status === 'FAILED' ? 'rejected' : 'pending',
@@ -410,20 +470,25 @@ export class PostgresAwardProposalRepository
       catatan: record.catatan || undefined,
       createdAt: record.createdAt ? new Date(record.createdAt).toISOString() : new Date().toISOString(),
       updatedAt: record.updatedAt ? new Date(record.updatedAt).toISOString() : new Date().toISOString(),
-      documents: (record.documents || []).map((doc: any) => ({
-        id: doc.id,
-        proposalId: doc.proposalId,
-        requirementCode: doc.requirementCode,
-        fileName: doc.document?.title || `${doc.requirementCode}.pdf`,
-        fileSize: 1024 * 100,
-        fileType: 'application/pdf',
-        fileUrl: '#',
-        uploadedAt: doc.createdAt ? new Date(doc.createdAt).toISOString() : new Date().toISOString(),
-        verificationStatus: doc.status === 'PASSED' ? 'verified' : doc.status === 'FAILED' ? 'rejected' : 'pending',
-        verifiedBy: doc.verifiedByUserId || undefined,
-        verifiedAt: doc.verifiedAt ? new Date(doc.verifiedAt).toISOString() : undefined,
-        catatan: doc.catatan || undefined,
-      })),
+      documents: (record.documents || []).map((doc: any) => {
+        const latestVersion = doc.document?.versions?.[0];
+        return {
+          id: doc.id,
+          proposalId: doc.proposalId,
+          requirementCode: doc.requirementCode,
+          documentId: doc.documentId || doc.document?.id || undefined,
+          checksumSha256: latestVersion?.checksumSha256 || undefined,
+          fileName: doc.document?.title || `${doc.requirementCode}.pdf`,
+          fileSize: latestVersion ? Number(latestVersion.fileSizeBytes) : (doc.document ? 0 : 1024 * 100),
+          fileType: latestVersion?.mimeType || 'application/pdf',
+          fileUrl: latestVersion?.filePath || '#',
+          uploadedAt: doc.createdAt ? new Date(doc.createdAt).toISOString() : new Date().toISOString(),
+          verificationStatus: doc.status === 'PASSED' ? 'verified' : doc.status === 'FAILED' ? 'rejected' : 'pending',
+          verifiedBy: doc.verifiedByUserId || undefined,
+          verifiedAt: doc.verifiedAt ? new Date(doc.verifiedAt).toISOString() : undefined,
+          catatan: doc.catatan || undefined,
+        };
+      }),
     };
   }
 }

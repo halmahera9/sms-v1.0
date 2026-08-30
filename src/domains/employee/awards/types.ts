@@ -58,6 +58,8 @@ export interface ProposalDocument {
   verifiedBy?: string;
   verifiedAt?: string;
   catatan?: string;
+  documentId?: string;
+  checksumSha256?: string | null;
 }
 
 export interface AwardProposal {

@@ -11,16 +11,28 @@ import { AwardProposalApplicationService } from './service';
 import { getAuthenticatedSession, AuthenticationError } from '@/platform/auth/session';
 import { assertAuthorizedAction, AuthorizationError } from '@/platform/auth/guards';
 
+import { randomUUID } from 'crypto';
+import { DocumentCategory, DocumentStatus } from '@prisma/client';
+import { getObjectStorageProvider, IObjectStorageProvider, buildDocumentStoragePath } from '@/platform/storage';
+import { runInTenantContext } from '@/platform/db/tenant-context';
+
 import type { ActionErrorCode, ActionError, ActionResponse } from '@/platform/types';
 export type { ActionErrorCode, ActionError, ActionResponse };
 
 export interface UploadProposalDocumentDTO {
   proposalId: string;
   requirementCode: string;
-  fileName: string;
-  fileSize: number;
-  fileType: string;
+  fileName?: string;
+  fileSize?: number;
+  fileType?: string;
   fileUrl?: string;
+  /**
+   * Optional real binary payload (Base64 encoded string or raw Buffer/Uint8Array).
+   * When provided, bytes are uploaded to IObjectStorageProvider, and real SHA-256 is persisted.
+   */
+  fileBase64?: string;
+  fileBuffer?: Buffer | Uint8Array;
+  mimeType?: string;
 }
 
 export interface VerifyProposalDocumentDTO {
@@ -48,6 +60,15 @@ export interface SendProposalDTO {
 
 export interface ArchiveCompleteProposalDTO {
   proposalId: string;
+}
+
+function mapRequirementCodeToCategory(code: string): DocumentCategory {
+  if (code in DocumentCategory) {
+    return code as DocumentCategory;
+  }
+  if (code.startsWith('SK_JABATAN')) return DocumentCategory.SK_JABATAN;
+  if (code.startsWith('SKP')) return DocumentCategory.SKP_2_TAHUN;
+  return DocumentCategory.LAINNYA;
 }
 
 /**
@@ -128,9 +149,12 @@ function handleActionError<T>(err: unknown): ActionResponse<T> {
 /**
  * Server Action: Upload Proposal Document
  * Enforces AuthN + AuthZ (UPLOAD_DOCUMENT) ➔ delegates to application service.
+ * Supports canonical binary upload to IObjectStorageProvider with real SHA-256 persistence
+ * and canonical Document + DocumentVersion records.
  */
 export async function uploadProposalDocumentAction(
-  dto: UploadProposalDocumentDTO
+  dto: UploadProposalDocumentDTO,
+  storageProvider: IObjectStorageProvider = getObjectStorageProvider()
 ): Promise<ActionResponse<AwardProposal>> {
   try {
     // 1. Authenticate Actor Session (Fail-Closed)
@@ -140,6 +164,9 @@ export async function uploadProposalDocumentAction(
     assertAuthorizedAction(session, 'UPLOAD_DOCUMENT');
 
     // 3. Validate Input DTO
+    if (!dto || typeof dto !== 'object') {
+      throw new Error('Validation Error: Input payload wajib berupa object.');
+    }
     if (!dto.proposalId || typeof dto.proposalId !== 'string') {
       throw new Error('Validation Error: proposalId is required and must be a string.');
     }
@@ -147,32 +174,141 @@ export async function uploadProposalDocumentAction(
       throw new Error('Validation Error: requirementCode is required and must be a string.');
     }
 
-    // 4. Construct trusted domain document payload
-    const document: ProposalDocument = {
-      id: `doc-${Date.now()}-${dto.requirementCode}`,
-      proposalId: dto.proposalId,
-      requirementCode: dto.requirementCode,
-      fileName: dto.fileName || `${dto.requirementCode}.pdf`,
-      fileSize: dto.fileSize || 1024 * 100,
-      fileType: dto.fileType || 'application/pdf',
-      fileUrl: dto.fileUrl || '#',
-      uploadedAt: new Date().toISOString(),
-      verificationStatus: 'pending',
-    };
+    // Validate binary inputs mutual exclusivity and validity
+    if (dto.fileBase64 !== undefined && dto.fileBase64.trim().length === 0) {
+      throw new Error('Validation Error: fileBase64 tidak boleh berupa string kosong.');
+    }
+    if (dto.fileBuffer !== undefined && dto.fileBuffer.byteLength === 0) {
+      throw new Error('Validation Error: fileBuffer tidak boleh berupa buffer kosong.');
+    }
 
-    // 5. Execute in authenticated tenant context
+    const hasBuffer = Boolean(dto.fileBuffer);
+    const hasBase64 = Boolean(dto.fileBase64 && dto.fileBase64.trim().length > 0);
+
+    if (hasBuffer && hasBase64) {
+      throw new Error('Validation Error: fileBuffer dan fileBase64 tidak boleh diberikan secara bersamaan.');
+    }
+
+    const hasBinaryContent = hasBuffer || hasBase64;
     const service = new AwardProposalApplicationService();
-    const updatedProposal = await service.uploadDocumentInContext(
-      session.actorId,
-      session.tenantId,
-      dto.proposalId,
-      document
-    );
 
-    return {
-      success: true,
-      data: JSON.parse(JSON.stringify(updatedProposal)),
-    };
+    if (hasBinaryContent) {
+      const binaryBuffer = hasBuffer
+        ? Buffer.from(dto.fileBuffer!)
+        : Buffer.from(dto.fileBase64!.trim(), 'base64');
+
+      if (binaryBuffer.byteLength === 0) {
+        throw new Error('Validation Error: Payload binary file upload tidak boleh kosong.');
+      }
+
+      const documentId = randomUUID();
+      const versionId = randomUUID();
+      const tenantId = session.tenantId;
+      const fileName = (dto.fileName || `${dto.requirementCode}.pdf`).trim();
+      const mimeType = dto.mimeType || 'application/pdf';
+
+      // 4. Build canonical storage path & upload to object storage
+      const storagePath = buildDocumentStoragePath(tenantId, documentId, 1, fileName);
+      const uploadResult = await storageProvider.upload({
+        tenantId,
+        storagePath,
+        content: binaryBuffer,
+        mimeType,
+      });
+
+      // 5. Execute DB persistence in authenticated tenant context with compensation cleanup
+      try {
+        const updatedProposal = await runInTenantContext(session.actorId, tenantId, async (tx) => {
+          // A. Create canonical Document
+          const doc = await tx.document.create({
+            data: {
+              id: documentId,
+              tenantId,
+              title: fileName,
+              category: mapRequirementCodeToCategory(dto.requirementCode),
+              currentVersion: 1,
+              status: DocumentStatus.PENDING_VERIFICATION,
+            },
+          });
+
+          // B. Create canonical DocumentVersion
+          await tx.documentVersion.create({
+            data: {
+              id: versionId,
+              tenantId,
+              documentId: doc.id,
+              versionNumber: 1,
+              filePath: uploadResult.storagePath,
+              fileSizeBytes: BigInt(uploadResult.sizeBytes),
+              mimeType: uploadResult.mimeType || mimeType,
+              checksumSha256: uploadResult.checksumSha256,
+            },
+          });
+
+          // C. Construct domain ProposalDocument with authoritative binary metadata
+          const document: ProposalDocument = {
+            id: randomUUID(),
+            proposalId: dto.proposalId,
+            documentId: doc.id,
+            requirementCode: dto.requirementCode,
+            fileName: doc.title,
+            fileSize: uploadResult.sizeBytes,
+            fileType: uploadResult.mimeType || mimeType,
+            fileUrl: uploadResult.storagePath,
+            checksumSha256: uploadResult.checksumSha256,
+            uploadedAt: new Date().toISOString(),
+            verificationStatus: 'pending',
+          };
+
+          // D. Mutate proposal document and update workflow state
+          return await service.uploadDocumentTx(
+            tx,
+            tenantId,
+            dto.proposalId,
+            document,
+            session.actorId
+          );
+        });
+
+        return {
+          success: true,
+          data: JSON.parse(JSON.stringify(updatedProposal)),
+        };
+      } catch (dbErr) {
+        // Compensation cleanup if DB transaction fails
+        try {
+          await storageProvider.delete(tenantId, storagePath);
+        } catch (cleanupErr) {
+          console.warn('[Storage Cleanup Error]: Failed to delete uploaded file after DB failure:', cleanupErr);
+        }
+        throw dbErr;
+      }
+    } else {
+      // 6. Metadata-only legacy path (no fake Document, no fake DocumentVersion, no fake checksum)
+      const document: ProposalDocument = {
+        id: `doc-${Date.now()}-${dto.requirementCode}`,
+        proposalId: dto.proposalId,
+        requirementCode: dto.requirementCode,
+        fileName: dto.fileName || `${dto.requirementCode}.pdf`,
+        fileSize: dto.fileSize || 0,
+        fileType: dto.fileType || 'application/pdf',
+        fileUrl: dto.fileUrl || '#',
+        uploadedAt: new Date().toISOString(),
+        verificationStatus: 'pending',
+      };
+
+      const updatedProposal = await service.uploadDocumentInContext(
+        session.actorId,
+        session.tenantId,
+        dto.proposalId,
+        document
+      );
+
+      return {
+        success: true,
+        data: JSON.parse(JSON.stringify(updatedProposal)),
+      };
+    }
   } catch (err: unknown) {
     return handleActionError(err);
   }
