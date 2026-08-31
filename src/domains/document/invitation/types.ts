@@ -78,3 +78,23 @@ export interface ValidatePublicUploadInvitationResult {
   errorMessage?: string;
   invitation?: PublicUploadInvitationSummaryDTO;
 }
+
+export interface SubmitPublicDocumentUploadDTO {
+  rawToken: string;
+  fileName: string;
+  fileBuffer?: Buffer | Uint8Array;
+  fileBase64?: string;
+  mimeType?: string;
+}
+
+export interface PublicUploadSubmittedDTO {
+  invitationId: string;
+  documentId: string;
+  documentVersionId: string;
+  documentCategory: DocumentCategory;
+  fileName: string;
+  fileSize: number;
+  checksumSha256: string;
+  status: PublicUploadInvitationStatus;
+  consumedAt: string;
+}
