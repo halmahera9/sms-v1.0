@@ -65,6 +65,16 @@ function handleActionError<T>(err: unknown): ActionResponse<T> {
       };
     }
 
+    if (msg.startsWith('SECURITY ERROR:') || msg.startsWith('SECURITY/SCHEMA ERROR:')) {
+      return {
+        success: false,
+        error: {
+          code: 'FORBIDDEN',
+          message: 'Akses ditolak oleh kebijakan keamanan data.',
+        },
+      };
+    }
+
     return {
       success: false,
       error: {

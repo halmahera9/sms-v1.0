@@ -9,6 +9,11 @@ import {
 } from '@/platform/storage';
 import { PostgresAuditEventRepository } from '@/platform/repositories/audit-event';
 import { ActionResponse } from '@/platform/types/actions';
+import {
+  IDocumentIntelligenceOrchestrator,
+  DocumentIntelligencePipelineRequest,
+} from '@/platform/types';
+import { DocumentIntelligenceOrchestrator } from '@/platform/services/document-intelligence';
 import { hashInvitationToken } from './token';
 import {
   SubmitPublicDocumentUploadDTO,
@@ -52,26 +57,38 @@ function handleActionError<T>(err: unknown): ActionResponse<T> {
   };
 }
 
+function resolveTargetDomain(targetEntityType?: string): string {
+  const entityType = targetEntityType?.trim().toLowerCase() || '';
+  if (entityType === 'student' || entityType === 'siswa') return 'student';
+  if (entityType === 'employee' || entityType === 'pegawai') return 'employee';
+  return entityType || 'student';
+}
+
 /**
- * Server Action: Submit Public Document Upload (Phase 5B)
+ * Server Action: Submit Public Document Upload & Post-Commit Intelligence Trigger (Phase 5E.2)
  *
  * Public unauthenticated upload entry point protected by capability-scoped invitation token.
  *
- * Security & Integrity Invariants:
+ * Architecture & Lifecycle Invariants:
  * 1. Public caller provides ONLY: rawToken, binary payload (fileBuffer/fileBase64), fileName, optional mimeType.
  * 2. Public caller NEVER provides: tenantId, documentId, targetEntityId, targetEntityType, documentCategory, or storagePath.
  * 3. All internal routing, tenant context, and entity bindings are resolved server-side from the invitation.
  * 4. Pessimistic concurrency control via SELECT ... FOR UPDATE serializes concurrent upload attempts.
  * 5. State re-validated post-lock (fail-closed against REVOKED, EXPIRED, SUBMITTED, MAX_ATTEMPTS_EXCEEDED).
  * 6. uploadAttempts increments strictly upon successful atomic database commit together with Document + DocumentVersion creation.
- * 7. Storage upload compensation ensures orphaned files are removed if database operations fail.
+ * 7. Storage upload compensation ensures orphaned files are removed if database operations fail before commit.
+ * 8. Post-Commit Orchestration Boundary: DocumentIntelligenceOrchestrator.process() is invoked strictly
+ *    AFTER the database transaction successfully commits.
+ * 9. Downstream Fault Isolation: If the intelligence pipeline encounters an error or requires review post-commit,
+ *    the committed upload (Document, DocumentVersion, SUBMITTED invitation) remains canonical and is NEVER rolled back.
  */
 export async function submitPublicDocumentUploadAction(
   rawTokenOrDto: string | SubmitPublicDocumentUploadDTO,
   fileBufferArg?: Buffer | Uint8Array,
   fileNameArg?: string,
   mimeTypeArg?: string,
-  storageProvider: IObjectStorageProvider = getObjectStorageProvider()
+  storageProvider: IObjectStorageProvider = getObjectStorageProvider(),
+  orchestrator: IDocumentIntelligenceOrchestrator = new DocumentIntelligenceOrchestrator()
 ): Promise<ActionResponse<PublicUploadSubmittedDTO>> {
   try {
     let rawToken: string;
@@ -124,11 +141,14 @@ export async function submitPublicDocumentUploadAction(
 
     const tokenHash = hashInvitationToken(rawToken);
 
-    return await adminPrisma.$transaction(async (tx) => {
-      // 1. Pessimistic row-level lock on public_upload_invitations row
+    // -----------------------------------------------------------------
+    // 1. ATOMIC PERSISTENCE BOUNDARY (DB Transaction)
+    // -----------------------------------------------------------------
+    const txResult = await adminPrisma.$transaction(async (tx) => {
+      // 1.1 Pessimistic row-level lock on public_upload_invitations row
       await tx.$executeRaw`SELECT id FROM public_upload_invitations WHERE token_hash = ${tokenHash} FOR UPDATE;`;
 
-      // 2. Fetch locked invitation
+      // 1.2 Fetch locked invitation
       const invitation = await tx.publicUploadInvitation.findUnique({
         where: { tokenHash },
       });
@@ -137,7 +157,7 @@ export async function submitPublicDocumentUploadAction(
         throw new Error('Validation Error: Undangan upload tidak ditemukan atau token tidak valid.');
       }
 
-      // 3. Fail-closed invariant checks
+      // 1.3 Fail-closed invariant checks
       if (invitation.status === PublicUploadInvitationStatus.REVOKED) {
         throw new Error('Undangan upload telah dicabut oleh administrator.');
       }
@@ -155,7 +175,7 @@ export async function submitPublicDocumentUploadAction(
         throw new Error('Batas maksimum percobaan upload telah tercapai.');
       }
 
-      // 4. Construct canonical tenant-isolated storage path
+      // 1.4 Construct canonical tenant-isolated storage path
       const tenantId = invitation.tenantId;
       const targetDocumentId = randomUUID();
       const versionId = randomUUID();
@@ -170,7 +190,7 @@ export async function submitPublicDocumentUploadAction(
         cleanFileName
       );
 
-      // 5. Upload binary to canonical object storage
+      // 1.5 Upload binary to canonical object storage
       const uploadResult = await storageProvider.upload({
         tenantId,
         storagePath,
@@ -179,7 +199,7 @@ export async function submitPublicDocumentUploadAction(
       });
 
       try {
-        // 6. Create canonical Document
+        // 1.6 Create canonical Document
         await tx.document.create({
           data: {
             id: targetDocumentId,
@@ -191,7 +211,7 @@ export async function submitPublicDocumentUploadAction(
           },
         });
 
-        // 7. Create canonical immutable DocumentVersion
+        // 1.7 Create canonical immutable DocumentVersion
         await tx.documentVersion.create({
           data: {
             id: versionId,
@@ -205,7 +225,7 @@ export async function submitPublicDocumentUploadAction(
           },
         });
 
-        // 8. Atomically consume invitation and increment uploadAttempts
+        // 1.8 Atomically consume invitation and increment uploadAttempts
         const consumedTimestamp = new Date();
         await tx.publicUploadInvitation.update({
           where: { id: invitation.id },
@@ -217,7 +237,7 @@ export async function submitPublicDocumentUploadAction(
           },
         });
 
-        // 9. Record Audit Event
+        // 1.9 Record Audit Event for upload submission
         await auditRepo.recordTx(tx as any, tenantId, {
           actor: 'public_upload',
           action: 'PUBLIC_UPLOAD_SUBMITTED',
@@ -236,9 +256,10 @@ export async function submitPublicDocumentUploadAction(
           },
         });
 
+        const targetDomain = resolveTargetDomain(invitation.targetEntityType);
+
         return {
-          success: true,
-          data: {
+          dto: {
             invitationId: invitation.id,
             documentId: targetDocumentId,
             documentVersionId: versionId,
@@ -249,9 +270,21 @@ export async function submitPublicDocumentUploadAction(
             status: PublicUploadInvitationStatus.SUBMITTED,
             consumedAt: consumedTimestamp.toISOString(),
           },
+          orchestrationRequest: {
+            tenantId,
+            actorId: invitation.createdByUserId,
+            documentId: targetDocumentId,
+            documentVersionId: versionId,
+            targetDomain,
+            metadata: {
+              invitationId: invitation.id,
+              targetEntityType: invitation.targetEntityType,
+              targetEntityId: invitation.targetEntityId,
+            },
+          } as DocumentIntelligencePipelineRequest,
         };
       } catch (dbErr) {
-        // 10. Storage Compensation: Clean up newly uploaded binary if database operations fail
+        // 1.10 Storage Compensation: Clean up newly uploaded binary if database operations fail before commit
         try {
           await storageProvider.delete(tenantId, storagePath);
         } catch (cleanupErr) {
@@ -263,6 +296,25 @@ export async function submitPublicDocumentUploadAction(
         throw dbErr;
       }
     });
+
+    // -----------------------------------------------------------------
+    // 2. POST-COMMIT DOCUMENT INTELLIGENCE TRIGGER BOUNDARY (Phase 5E.2)
+    // -----------------------------------------------------------------
+    // Invoked strictly AFTER successful database commit.
+    // Any downstream failure does not invalidate the committed upload.
+    try {
+      await orchestrator.process(txResult.orchestrationRequest);
+    } catch (pipelineErr: unknown) {
+      console.error(
+        '[DocumentIntelligence Post-Commit Trigger Error]: Pipeline execution encountered an unhandled error:',
+        pipelineErr
+      );
+    }
+
+    return {
+      success: true,
+      data: txResult.dto,
+    };
   } catch (err: unknown) {
     return handleActionError(err);
   }

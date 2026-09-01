@@ -43,7 +43,7 @@ async function runPublicUploadInvitationTests() {
 
   const ACTOR_ADMIN_A_ID = '9a111111-1111-7111-8111-111111111111';
   const ACTOR_OPERATOR_A_ID = '9a222222-2222-7222-8222-222222222222';
-  const ACTOR_AUDITOR_A_ID = '9a333333-3333-7333-8333-333333333333';
+  const ACTOR_AUDITOR_A_ID = '9a111111-1111-7111-8111-111111111119';
   const ACTOR_INACTIVE_A_ID = '9a444444-4444-7444-8444-444444444444';
   const ACTOR_ADMIN_B_ID = '9b111111-1111-7111-8111-111111111111';
 
@@ -109,7 +109,7 @@ async function runPublicUploadInvitationTests() {
     });
     await adminPrisma.userActor.upsert({
       where: { id: ACTOR_AUDITOR_A_ID },
-      create: { id: ACTOR_AUDITOR_A_ID, tenantId: TENANT_A_ID, username: 'auditor_a', email: 'auditor_a@example.com', fullName: 'Auditor Tenant A', role: UserRole.AUDITOR, status: UserStatus.ACTIVE },
+      create: { id: ACTOR_AUDITOR_A_ID, tenantId: TENANT_A_ID, username: 'auditor_inv_a', email: 'auditor_inv_a@example.com', fullName: 'Auditor Tenant A', role: UserRole.AUDITOR, status: UserStatus.ACTIVE },
       update: { role: UserRole.AUDITOR, status: UserStatus.ACTIVE },
     });
     await adminPrisma.userActor.upsert({
