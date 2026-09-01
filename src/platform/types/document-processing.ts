@@ -90,3 +90,12 @@ export interface IDocumentProcessingWorker {
     limit?: number;
   }): Promise<DocumentProcessingJobExecutionResult[]>;
 }
+
+/**
+ * Explicit execution result returned by the document processing runtime trigger.
+ */
+export interface DocumentProcessingRuntimeResult {
+  jobsProcessed: number;
+  hasMore: boolean;
+  results: DocumentProcessingJobExecutionResult[];
+}
