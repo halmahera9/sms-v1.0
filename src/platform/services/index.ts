@@ -1,3 +1,4 @@
 export * from './document-intelligence';
 export * from './document-processing-runner';
 export * from './document-extractor';
+export * from './document-processing-worker';

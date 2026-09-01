@@ -65,3 +65,28 @@ export interface IDocumentProcessingJobRunner {
    */
   executeJob(tenantId: string, jobId: string): Promise<DocumentProcessingJobExecutionResult>;
 }
+
+/**
+ * Canonical Application Service interface for Document Processing Worker (Phase 5E.2-D).
+ * Responsible for discovering executable QUEUED jobs and delegating them to the runner.
+ */
+export interface IDocumentProcessingWorker {
+  /**
+   * Discovers and processes the oldest executable QUEUED job.
+   *
+   * @param tenantId Optional tenant ID to restrict processing scope to a specific tenant.
+   * @returns Execution result of the processed job, or null if no executable job is found.
+   */
+  processNextJob(tenantId?: string): Promise<DocumentProcessingJobExecutionResult | null>;
+
+  /**
+   * Processes a bounded batch of executable QUEUED jobs sequentially.
+   *
+   * @param options Optional configuration for tenant scoping and batch limit.
+   * @returns Array of execution results for all processed jobs.
+   */
+  processBatch(options?: {
+    tenantId?: string;
+    limit?: number;
+  }): Promise<DocumentProcessingJobExecutionResult[]>;
+}
