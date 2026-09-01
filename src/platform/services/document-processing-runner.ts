@@ -10,7 +10,15 @@ import {
   DocumentProcessingJobDTO,
   DocumentProcessingJobExecutionResult,
 } from '../types/document-processing';
+import {
+  IDocumentExtractor,
+} from '../types/document-extractor';
+import {
+  IObjectStorageProvider,
+  getObjectStorageProvider,
+} from '@/platform/storage';
 import { DocumentIntelligenceOrchestrator } from './document-intelligence';
+import { DeterministicDocumentExtractor } from './document-extractor';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -19,21 +27,26 @@ function isValidUuid(val?: string | null): boolean {
 }
 
 /**
- * Concrete Application Service for Document Processing Job Runner (Phase 5E.2-B).
+ * Concrete Application Service for Document Processing Job Runner (Phase 5E.2-B & 5E.2-C).
  *
- * Implements canonical job claiming and execution:
- * - Atomic job claim preventing concurrent double-execution (QUEUED -> PROCESSING)
- * - Safe attempt counter incrementing
- * - Persisted context delegation to DocumentIntelligenceOrchestrator
- * - Terminal state transitions:
- *     - Success -> COMPLETED (sets processedAt)
+ * Implements canonical job claiming and execution lifecycle:
+ * 1. Atomic job claim (QUEUED -> PROCESSING) preventing concurrent double-execution.
+ * 2. Attempts counter incrementing.
+ * 3. Object Storage binary retrieval: storageProvider.download(tenantId, storagePath).
+ * 4. Document extraction via IDocumentExtractor.extract().
+ * 5. Metadata merging (preserving existing job metadata and injecting extractionResult.items).
+ * 6. DocumentIntelligenceOrchestrator.process() execution.
+ * 7. Terminal state transitions:
+ *     - Success -> COMPLETED (sets processedAt, clears lastError)
  *     - Failure with remaining attempts -> QUEUED (preserves lastError for retry)
  *     - Failure with exhausted attempts -> FAILED (sets processedAt and lastError)
- * - Strict multi-tenant isolation and fail-closed validation
+ * 8. Strict multi-tenant isolation and fail-closed validation.
  */
 export class DocumentProcessingJobRunner implements IDocumentProcessingJobRunner {
   constructor(
     private readonly orchestrator: IDocumentIntelligenceOrchestrator = new DocumentIntelligenceOrchestrator(),
+    private readonly storageProvider: IObjectStorageProvider = getObjectStorageProvider(),
+    private readonly extractor: IDocumentExtractor = new DeterministicDocumentExtractor(),
     private readonly prisma: PrismaClient = adminPrisma
   ) {}
 
@@ -155,21 +168,68 @@ export class DocumentProcessingJobRunner implements IDocumentProcessingJobRunner
       };
     }
 
-    // 2. Prepare Context for DocumentIntelligenceOrchestrator
-    const request: DocumentIntelligencePipelineRequest = {
-      tenantId: claimed.tenantId,
-      actorId: claimed.actorId,
-      documentId: claimed.documentId,
-      documentVersionId: claimed.documentVersionId,
-      targetDomain: claimed.targetDomain,
-      metadata: (claimed.metadata as Record<string, unknown>) || undefined,
-    };
-
-    // 3. Delegate to DocumentIntelligenceOrchestrator
     let orchestrationResult: DocumentIntelligencePipelineResult | null = null;
     let orchestrationError: string | null = null;
 
     try {
+      // 2. Resolve Binary Storage Context
+      const jobMeta = (claimed.metadata as Record<string, unknown>) || {};
+      let storagePath = jobMeta.storagePath as string | undefined;
+      let mimeType = jobMeta.mimeType as string | undefined;
+      let fileName = jobMeta.fileName as string | undefined;
+
+      if (!storagePath || !mimeType) {
+        const docVersion = await this.prisma.documentVersion.findUnique({
+          where: { id: claimed.documentVersionId },
+        });
+
+        if (!docVersion) {
+          throw new Error(
+            `DocumentVersion '${claimed.documentVersionId}' not found for processing job '${claimed.id}'.`
+          );
+        }
+
+        storagePath = storagePath || docVersion.filePath;
+        mimeType = mimeType || docVersion.mimeType;
+      }
+
+      fileName = fileName || 'document.pdf';
+      mimeType = mimeType || 'application/pdf';
+
+      // 3. Download Binary from Object Storage
+      const fileBuffer = await this.storageProvider.download(claimed.tenantId, storagePath);
+
+      // 4. Extract Structured Data via IDocumentExtractor
+      const extractionResult = await this.extractor.extract({
+        tenantId: claimed.tenantId,
+        documentId: claimed.documentId,
+        documentVersionId: claimed.documentVersionId,
+        fileName,
+        mimeType,
+        content: fileBuffer,
+        metadata: jobMeta,
+      });
+
+      if (!extractionResult.success) {
+        throw new Error(extractionResult.errorMessage || 'Document extraction failed.');
+      }
+
+      // 5. Merge Extraction Items with Preserved Job Metadata
+      const mergedMetadata: Record<string, unknown> = {
+        ...jobMeta,
+        items: extractionResult.items,
+      };
+
+      // 6. Delegate to DocumentIntelligenceOrchestrator
+      const request: DocumentIntelligencePipelineRequest = {
+        tenantId: claimed.tenantId,
+        actorId: claimed.actorId,
+        documentId: claimed.documentId,
+        documentVersionId: claimed.documentVersionId,
+        targetDomain: claimed.targetDomain,
+        metadata: mergedMetadata,
+      };
+
       orchestrationResult = await this.orchestrator.process(request);
 
       if (orchestrationResult.status === 'FAILED') {
@@ -180,9 +240,9 @@ export class DocumentProcessingJobRunner implements IDocumentProcessingJobRunner
       orchestrationError = err instanceof Error ? err.message : String(err);
     }
 
-    // 4. Handle Lifecycle Transitions
+    // 7. Handle Lifecycle Transitions
     if (!orchestrationError) {
-      // 4.1 Success -> COMPLETED
+      // 7.1 Success -> COMPLETED
       const processedAt = new Date();
 
       await this.prisma.documentProcessingJob.update({
@@ -206,7 +266,7 @@ export class DocumentProcessingJobRunner implements IDocumentProcessingJobRunner
         orchestrationResult,
       };
     } else {
-      // 4.2 Failure: Check remaining attempts for retry
+      // 7.2 Failure: Check remaining attempts for retry
       const isRetryable = claimed.attempts < claimed.maxAttempts;
       const finalStatus = isRetryable
         ? DocumentProcessingStatus.QUEUED

@@ -95,4 +95,5 @@ export interface IRepository<T, ID = string> {
 // Document Intelligence Orchestration Contracts
 export * from './document-intelligence';
 export * from './document-processing';
+export * from './document-extractor';
 export * from './actions';
