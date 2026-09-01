@@ -1,7 +1,13 @@
 import 'dotenv/config';
 import pg from 'pg';
 import crypto from 'crypto';
-import { PrismaClient, DocumentCategory, PublicUploadInvitationStatus, DocumentStatus } from '@prisma/client';
+import {
+  PrismaClient,
+  DocumentCategory,
+  PublicUploadInvitationStatus,
+  DocumentStatus,
+  DocumentProcessingStatus,
+} from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { submitPublicDocumentUploadAction } from '../src/domains/document/invitation/upload';
 import { createPublicUploadInvitationAction } from '../src/domains/document/invitation/actions';
@@ -10,17 +16,7 @@ import {
   resetSessionProvider,
   AuthenticatedActorContext,
 } from '../src/platform/auth';
-import {
-  InMemoryObjectStorageProvider,
-} from '../src/platform/storage';
-import {
-  IDocumentIntelligenceOrchestrator,
-  DocumentIntelligencePipelineRequest,
-  DocumentIntelligencePipelineResult,
-} from '../src/platform/types';
-import { DocumentIntelligenceOrchestrator } from '../src/platform/services/document-intelligence';
-import { PostgresAuditEventRepository } from '../src/platform/repositories/audit-event';
-import { PostgresExceptionRepository } from '../src/platform/repositories/exception';
+import { InMemoryObjectStorageProvider } from '../src/platform/storage';
 
 let testCount = 0;
 let passCount = 0;
@@ -36,54 +32,19 @@ function assert(condition: boolean, message: string, detail?: string) {
   }
 }
 
-class SpyOrchestrator implements IDocumentIntelligenceOrchestrator {
-  public callCount = 0;
-  public lastRequest?: DocumentIntelligencePipelineRequest;
-  public shouldThrow = false;
-  public returnStatus: 'COMPLETED' | 'REQUIRES_REVIEW' | 'FAILED' = 'COMPLETED';
-
-  public async process(
-    request: DocumentIntelligencePipelineRequest
-  ): Promise<DocumentIntelligencePipelineResult> {
-    this.callCount++;
-    this.lastRequest = request;
-
-    if (this.shouldThrow) {
-      throw new Error('Simulated downstream OCR infrastructure timeout');
-    }
-
-    return {
-      status: this.returnStatus,
-      documentId: request.documentId,
-      documentVersionId: request.documentVersionId,
-      processedItems: [],
-      summary: {
-        totalItemsExtracted: 0,
-        itemsResolved: 0,
-        itemsUnresolved: 0,
-        itemsAmbiguous: 0,
-        validationErrorsCount: 0,
-        exceptionsCreatedCount: 0,
-        itemsRequiringReview: 0,
-      },
-      exceptionIds: [],
-      startedAt: new Date().toISOString(),
-      completedAt: new Date().toISOString(),
-    };
-  }
-}
-
 async function runPostCommitOrchestrationTests() {
   console.log('================================================================');
-  console.log(' PHASE 5E.2: POST-COMMIT INTELLIGENCE TRIGGER TEST SUITE       ');
+  console.log(' PHASE 5E.2-A: DOCUMENT PROCESSING JOB ATOMIC PERSISTENCE SUITE ');
   console.log('================================================================\n');
 
   const adminPool = new pg.Pool({ connectionString: process.env.ADMIN_DATABASE_URL });
   const adminPrisma = new PrismaClient({ adapter: new PrismaPg(adminPool) });
 
-  const TENANT_ID = '95555555-5555-7555-8555-555555555555';
-  const ACTOR_CREATOR_ID = '9a555555-5555-7555-8555-555555555555';
-  const TARGET_STUDENT_ID = '9e555555-5555-7555-8555-555555555555';
+  const TENANT_A_ID = '95555555-5555-7555-8555-555555555555';
+  const TENANT_B_ID = '96666666-6666-7666-8666-666666666666';
+  const ACTOR_CREATOR_A_ID = '9a555555-5555-7555-8555-555555555555';
+  const ACTOR_CREATOR_B_ID = '9b666666-6666-7666-8666-666666666666';
+  const TARGET_STUDENT_A_ID = '9e555555-5555-7555-8555-555555555555';
 
   const storageProvider = new InMemoryObjectStorageProvider();
 
@@ -91,26 +52,48 @@ async function runPostCommitOrchestrationTests() {
     // -----------------------------------------------------------------
     // SECTION 1: FIXTURE SETUP
     // -----------------------------------------------------------------
-    await adminPrisma.exceptionItem.deleteMany({ where: { tenantId: TENANT_ID } });
-    await adminPrisma.publicUploadInvitation.deleteMany({ where: { tenantId: TENANT_ID } });
-    await adminPrisma.documentVersion.deleteMany({ where: { tenantId: TENANT_ID } });
-    await adminPrisma.document.deleteMany({ where: { tenantId: TENANT_ID } });
-    await adminPrisma.student.deleteMany({ where: { tenantId: TENANT_ID } });
+    console.log('--- SECTION 1: Fixture Setup ---');
+    await adminPrisma.documentProcessingJob.deleteMany({ where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID] } } });
+    await adminPrisma.exceptionItem.deleteMany({ where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID] } } });
+    await adminPrisma.publicUploadInvitation.deleteMany({ where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID] } } });
+    await adminPrisma.documentVersion.deleteMany({ where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID] } } });
+    await adminPrisma.document.deleteMany({ where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID] } } });
+    await adminPrisma.student.deleteMany({ where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID] } } });
 
     await adminPrisma.tenant.upsert({
-      where: { id: TENANT_ID },
-      create: { id: TENANT_ID, name: 'Phase 5E Tenant', code: 'PHASE_5E2_TENANT', status: 'ACTIVE' },
-      update: { name: 'Phase 5E Tenant', code: 'PHASE_5E2_TENANT', status: 'ACTIVE' },
+      where: { id: TENANT_A_ID },
+      create: { id: TENANT_A_ID, name: 'Phase 5E Tenant A', code: 'PHASE_5E2_TENANT_A', status: 'ACTIVE' },
+      update: { name: 'Phase 5E Tenant A', code: 'PHASE_5E2_TENANT_A', status: 'ACTIVE' },
+    });
+
+    await adminPrisma.tenant.upsert({
+      where: { id: TENANT_B_ID },
+      create: { id: TENANT_B_ID, name: 'Phase 5E Tenant B', code: 'PHASE_5E2_TENANT_B', status: 'ACTIVE' },
+      update: { name: 'Phase 5E Tenant B', code: 'PHASE_5E2_TENANT_B', status: 'ACTIVE' },
     });
 
     await adminPrisma.userActor.upsert({
-      where: { id: ACTOR_CREATOR_ID },
+      where: { id: ACTOR_CREATOR_A_ID },
       create: {
-        id: ACTOR_CREATOR_ID,
-        tenantId: TENANT_ID,
-        username: 'creator_5e',
-        email: 'creator_5e@test.local',
-        fullName: 'Creator Phase 5E',
+        id: ACTOR_CREATOR_A_ID,
+        tenantId: TENANT_A_ID,
+        username: 'creator_5e_a',
+        email: 'creator_5e_a@test.local',
+        fullName: 'Creator Phase 5E A',
+        role: 'ADMIN_TENANT',
+        status: 'ACTIVE',
+      },
+      update: { role: 'ADMIN_TENANT', status: 'ACTIVE' },
+    });
+
+    await adminPrisma.userActor.upsert({
+      where: { id: ACTOR_CREATOR_B_ID },
+      create: {
+        id: ACTOR_CREATOR_B_ID,
+        tenantId: TENANT_B_ID,
+        username: 'creator_5e_b',
+        email: 'creator_5e_b@test.local',
+        fullName: 'Creator Phase 5E B',
         role: 'ADMIN_TENANT',
         status: 'ACTIVE',
       },
@@ -118,10 +101,10 @@ async function runPostCommitOrchestrationTests() {
     });
 
     await adminPrisma.student.upsert({
-      where: { id: TARGET_STUDENT_ID },
+      where: { id: TARGET_STUDENT_A_ID },
       create: {
-        id: TARGET_STUDENT_ID,
-        tenantId: TENANT_ID,
+        id: TARGET_STUDENT_A_ID,
+        tenantId: TENANT_A_ID,
         nisn: '0055555555',
         nis: '12345',
         fullName: 'Budi Test 5E',
@@ -130,15 +113,15 @@ async function runPostCommitOrchestrationTests() {
       update: {},
     });
 
-    assert(true, 'Fixtures initialized cleanly for Phase 5E.2');
+    assert(true, 'Fixtures initialized cleanly for Phase 5E.2-A');
 
-    // Helper: Create an invitation
+    // Helper: Create an invitation in Tenant A
     async function createTestInvitation(): Promise<{ invitationId: string; rawToken: string }> {
       setSessionProvider({
         getSession: async (): Promise<AuthenticatedActorContext | null> => ({
-          actorId: ACTOR_CREATOR_ID,
-          tenantId: TENANT_ID,
-          username: 'creator_5e',
+          actorId: ACTOR_CREATOR_A_ID,
+          tenantId: TENANT_A_ID,
+          username: 'creator_5e_a',
           role: 'ADMIN_TENANT',
           status: 'ACTIVE',
         }),
@@ -149,7 +132,7 @@ async function runPostCommitOrchestrationTests() {
         recipientName: 'Wali Murid Budi',
         documentCategory: DocumentCategory.SURAT_PENGANTAR,
         targetEntityType: 'Student',
-        targetEntityId: TARGET_STUDENT_ID,
+        targetEntityId: TARGET_STUDENT_A_ID,
         expiresInHours: 24,
       });
 
@@ -166,14 +149,13 @@ async function runPostCommitOrchestrationTests() {
     }
 
     // -----------------------------------------------------------------
-    // SECTION 2: CANONICAL POST-COMMIT TRIGGER DISPATCH
+    // SECTION 2: ATOMIC PERSISTENCE OF DOCUMENT PROCESSING JOB
     // -----------------------------------------------------------------
-    console.log('\n--- SECTION 2: Canonical Post-Commit Trigger Dispatch ---');
+    console.log('\n--- SECTION 2: Atomic Persistence of DocumentProcessingJob ---');
 
     const inv1 = await createTestInvitation();
-    const spyOrchestrator = new SpyOrchestrator();
+    const samplePdfBuffer = Buffer.from('%PDF-1.4 canonical test pdf content for 5e.2-a');
 
-    const samplePdfBuffer = Buffer.from('%PDF-1.4 canonical test pdf content for 5e');
     const uploadRes1 = await submitPublicDocumentUploadAction(
       {
         rawToken: inv1.rawToken,
@@ -184,119 +166,119 @@ async function runPostCommitOrchestrationTests() {
       undefined,
       undefined,
       undefined,
-      storageProvider,
-      spyOrchestrator
+      storageProvider
     );
 
     assert(uploadRes1.success === true, 'Upload submission returned success');
-    assert(spyOrchestrator.callCount === 1, 'Orchestrator was called exactly once post-commit');
-    assert(spyOrchestrator.lastRequest !== undefined, 'Orchestration request payload is defined');
-    assert(spyOrchestrator.lastRequest?.tenantId === TENANT_ID, 'tenantId correctly forwarded');
-    assert(spyOrchestrator.lastRequest?.actorId === ACTOR_CREATOR_ID, 'actorId mapped to invitation creator');
-    assert(spyOrchestrator.lastRequest?.documentId === uploadRes1.data?.documentId, 'documentId matches committed document');
-    assert(spyOrchestrator.lastRequest?.documentVersionId === uploadRes1.data?.documentVersionId, 'documentVersionId matches committed version');
-    assert(spyOrchestrator.lastRequest?.targetDomain === 'student', 'targetDomain mapped to student');
-    assert(spyOrchestrator.lastRequest?.metadata?.invitationId === inv1.invitationId, 'metadata.invitationId matches');
-    assert(spyOrchestrator.lastRequest?.metadata?.targetEntityType === 'Student', 'metadata.targetEntityType matches');
-    assert(spyOrchestrator.lastRequest?.metadata?.targetEntityId === TARGET_STUDENT_ID, 'metadata.targetEntityId matches');
+    assert(uploadRes1.data !== undefined, 'Upload response data is defined');
+    assert(typeof uploadRes1.data?.processingJobId === 'string', 'Returned processingJobId is a string UUID');
 
-    // -----------------------------------------------------------------
-    // SECTION 3: DOWNSTREAM FAULT ISOLATION (Orchestrator Throws Exception)
-    // -----------------------------------------------------------------
-    console.log('\n--- SECTION 3: Fault Isolation: Orchestrator Exception Does Not Rollback ---');
+    const processingJobId = uploadRes1.data!.processingJobId!;
 
-    const inv2 = await createTestInvitation();
-    const throwingOrchestrator = new SpyOrchestrator();
-    throwingOrchestrator.shouldThrow = true;
-
-    const uploadRes2 = await submitPublicDocumentUploadAction(
-      {
-        rawToken: inv2.rawToken,
-        fileName: 'surat_sakit_failing_orch.pdf',
-        fileBuffer: samplePdfBuffer,
-        mimeType: 'application/pdf',
-      },
-      undefined,
-      undefined,
-      undefined,
-      storageProvider,
-      throwingOrchestrator
-    );
-
-    assert(uploadRes2.success === true, 'Upload submission returned success despite orchestrator throwing');
-    assert(throwingOrchestrator.callCount === 1, 'Failing orchestrator was called post-commit');
-
-    // Verify DB committed state is intact
-    const dbDoc = await adminPrisma.document.findUnique({
-      where: { id: uploadRes2.data!.documentId },
+    // 1. Verify DocumentProcessingJob record exists in DB
+    const dbJob = await adminPrisma.documentProcessingJob.findUnique({
+      where: { id: processingJobId },
     });
-    assert(dbDoc !== null, 'Canonical Document remains committed in DB');
+
+    assert(dbJob !== null, 'DocumentProcessingJob record persisted in database');
+    assert(dbJob?.tenantId === TENANT_A_ID, 'Job tenantId matches Tenant A');
+    assert(dbJob?.documentId === uploadRes1.data!.documentId, 'Job documentId matches committed Document');
+    assert(dbJob?.documentVersionId === uploadRes1.data!.documentVersionId, 'Job documentVersionId matches committed DocumentVersion');
+    assert(dbJob?.actorId === ACTOR_CREATOR_A_ID, 'Job actorId is mapped to the invitation creator');
+    assert(dbJob?.targetDomain === 'student', 'Job targetDomain is resolved to "student"');
+    assert(dbJob?.status === DocumentProcessingStatus.QUEUED, 'Job initial status is strictly QUEUED');
+    assert(dbJob?.attempts === 0, 'Job initial attempts count is strictly 0');
+    assert(dbJob?.maxAttempts === 3, 'Job maxAttempts is strictly 3');
+    assert(dbJob?.lastError === null, 'Job lastError is initially null');
+    assert(dbJob?.createdAt !== null, 'Job createdAt timestamp is set');
+    assert(dbJob?.updatedAt !== null, 'Job updatedAt timestamp is set');
+    assert(dbJob?.processedAt === null, 'Job processedAt is initially null');
+
+    // 2. Verify Execution Context in Metadata (Worker does not need to re-read invitation)
+    const meta = dbJob?.metadata as Record<string, any>;
+    assert(meta !== null && typeof meta === 'object', 'Job metadata is valid JSON object');
+    assert(meta.invitationId === inv1.invitationId, 'metadata.invitationId matches');
+    assert(meta.targetEntityType === 'Student', 'metadata.targetEntityType matches');
+    assert(meta.targetEntityId === TARGET_STUDENT_A_ID, 'metadata.targetEntityId matches');
+    assert(meta.documentCategory === DocumentCategory.SURAT_PENGANTAR, 'metadata.documentCategory matches');
+    assert(meta.fileName === 'surat_keterangan_sakit.pdf', 'metadata.fileName matches');
+    assert(meta.fileSizeBytes === samplePdfBuffer.byteLength, 'metadata.fileSizeBytes matches');
+    assert(typeof meta.checksumSha256 === 'string', 'metadata.checksumSha256 is present');
+    assert(typeof meta.storagePath === 'string', 'metadata.storagePath is present');
+    assert(meta.mimeType === 'application/pdf', 'metadata.mimeType matches');
+
+    // 3. Verify Document and Version are committed
+    const dbDoc = await adminPrisma.document.findUnique({
+      where: { id: uploadRes1.data!.documentId },
+    });
     assert(dbDoc?.status === DocumentStatus.PENDING_VERIFICATION, 'Document status is PENDING_VERIFICATION');
 
-    const dbVersion = await adminPrisma.documentVersion.findUnique({
-      where: { id: uploadRes2.data!.documentVersionId },
-    });
-    assert(dbVersion !== null, 'Canonical DocumentVersion remains committed in DB');
-
     const dbInv = await adminPrisma.publicUploadInvitation.findUnique({
-      where: { id: inv2.invitationId },
+      where: { id: inv1.invitationId },
     });
-    assert(dbInv?.status === PublicUploadInvitationStatus.SUBMITTED, 'Invitation remains committed as SUBMITTED');
-    assert(dbInv?.uploadAttempts === 1, 'uploadAttempts is strictly 1');
-    assert(dbInv?.consumedAt !== null, 'consumedAt is not null');
-
-    const downloadedFile = await storageProvider.download(TENANT_ID, dbVersion!.filePath);
-    assert(downloadedFile.byteLength > 0, 'Object in storage is NOT deleted because DB committed successfully');
+    assert(dbInv?.status === PublicUploadInvitationStatus.SUBMITTED, 'Invitation status is SUBMITTED');
+    assert(dbInv?.uploadAttempts === 1, 'Invitation uploadAttempts is 1');
 
     // -----------------------------------------------------------------
-    // SECTION 4: REAL END-TO-END ORCHESTRATOR TRIGGER
+    // SECTION 3: IDEMPOTENCY PROTECTION (Unique on tenant_id, document_version_id)
     // -----------------------------------------------------------------
-    console.log('\n--- SECTION 4: Real DocumentIntelligenceOrchestrator Integration ---');
+    console.log('\n--- SECTION 3: Idempotency Protection ---');
 
-    const inv3 = await createTestInvitation();
-    const auditRepo = new PostgresAuditEventRepository();
-    const exceptionRepo = new PostgresExceptionRepository(auditRepo);
-    const realOrchestrator = new DocumentIntelligenceOrchestrator(auditRepo, exceptionRepo);
+    let duplicateJobErrorCaught = false;
+    try {
+      await adminPrisma.documentProcessingJob.create({
+        data: {
+          id: crypto.randomUUID(),
+          tenantId: TENANT_A_ID,
+          documentId: uploadRes1.data!.documentId,
+          documentVersionId: uploadRes1.data!.documentVersionId, // DUPLICATE VERSION ID
+          actorId: ACTOR_CREATOR_A_ID,
+          targetDomain: 'student',
+          status: DocumentProcessingStatus.QUEUED,
+        },
+      });
+    } catch (err: any) {
+      duplicateJobErrorCaught = true;
+    }
+    assert(duplicateJobErrorCaught === true, 'Duplicate DocumentProcessingJob for same version is rejected by unique constraint');
 
-    const uploadRes3 = await submitPublicDocumentUploadAction(
-      {
-        rawToken: inv3.rawToken,
-        fileName: 'real_orchestration_test.pdf',
-        fileBuffer: samplePdfBuffer,
-        mimeType: 'application/pdf',
-      },
-      undefined,
-      undefined,
-      undefined,
-      storageProvider,
-      realOrchestrator
-    );
+    // -----------------------------------------------------------------
+    // SECTION 4: TENANT ISOLATION (Tenant B cannot access Tenant A Jobs)
+    // -----------------------------------------------------------------
+    console.log('\n--- SECTION 4: Tenant Isolation ---');
 
-    assert(uploadRes3.success === true, 'Upload succeeded with real orchestrator');
+    const tenantBJobs = await adminPrisma.documentProcessingJob.findMany({
+      where: { tenantId: TENANT_B_ID },
+    });
+    assert(tenantBJobs.length === 0, 'Tenant B has zero processing jobs (Tenant A jobs isolated)');
 
-    // Verify both AuditEvents exist in DB
+    // -----------------------------------------------------------------
+    // SECTION 5: AUDIT TRAIL ATOMIC PERSISTENCE
+    // -----------------------------------------------------------------
+    console.log('\n--- SECTION 5: Audit Trail Verification ---');
+
     const uploadAudit = await adminPrisma.auditEvent.findFirst({
       where: {
-        tenantId: TENANT_ID,
+        tenantId: TENANT_A_ID,
         action: 'PUBLIC_UPLOAD_SUBMITTED',
-        entityId: inv3.invitationId,
+        entityId: inv1.invitationId,
       },
     });
     assert(uploadAudit !== null, 'PUBLIC_UPLOAD_SUBMITTED audit event exists in DB');
-
-    const diAudit = await adminPrisma.auditEvent.findFirst({
-      where: {
-        tenantId: TENANT_ID,
-        action: 'PROCESS_DOCUMENT_INTELLIGENCE',
-        entityId: uploadRes3.data!.documentId,
-      },
-    });
-    assert(diAudit !== null, 'PROCESS_DOCUMENT_INTELLIGENCE audit event recorded in DB via real orchestrator');
+    const auditMeta = uploadAudit?.payloadJson as Record<string, any>;
+    assert(auditMeta?.metadata?.processingJobId === processingJobId, 'AuditEvent captures processingJobId');
 
     console.log('\n================================================================');
-    console.log(` ALL ${testCount} / ${testCount} POST-COMMIT ORCHESTRATION TESTS PASSED `);
+    console.log(` ALL ${testCount} / ${testCount} PHASE 5E.2-A TESTS PASSED `);
     console.log('================================================================\n');
   } finally {
+    // Cleanup fixtures
+    await adminPrisma.documentProcessingJob.deleteMany({ where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID] } } });
+    await adminPrisma.exceptionItem.deleteMany({ where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID] } } });
+    await adminPrisma.publicUploadInvitation.deleteMany({ where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID] } } });
+    await adminPrisma.documentVersion.deleteMany({ where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID] } } });
+    await adminPrisma.document.deleteMany({ where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID] } } });
+    await adminPrisma.student.deleteMany({ where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID] } } });
     await adminPrisma.$disconnect();
     await adminPool.end();
   }

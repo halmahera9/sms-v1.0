@@ -79,6 +79,9 @@ async function runDocumentIntelligenceOrchestratorTests() {
     await adminPrisma.oCRExtraction.deleteMany({
       where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID] } },
     });
+    await adminPrisma.documentProcessingJob.deleteMany({
+      where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID] } },
+    });
     await adminPrisma.documentVersion.deleteMany({
       where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID] } },
     });

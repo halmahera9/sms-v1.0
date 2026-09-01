@@ -740,6 +740,9 @@ async function runAwardProposalDocumentUploadTests() {
     await adminPrisma.awardProposal.deleteMany({
       where: { id: { in: [proposalA1Id, proposalA2Id, proposalB1Id] } },
     });
+    await adminPrisma.documentProcessingJob.deleteMany({
+      where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID] } },
+    });
     await adminPrisma.documentVersion.deleteMany({
       where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID] } },
     });

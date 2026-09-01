@@ -91,6 +91,7 @@ export interface PublicUploadSubmittedDTO {
   invitationId: string;
   documentId: string;
   documentVersionId: string;
+  processingJobId?: string;
   documentCategory: DocumentCategory;
   fileName: string;
   fileSize: number;

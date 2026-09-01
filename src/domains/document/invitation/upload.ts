@@ -1,6 +1,10 @@
 import 'server-only';
 import { randomUUID } from 'crypto';
-import { PublicUploadInvitationStatus, DocumentStatus } from '@prisma/client';
+import {
+  PublicUploadInvitationStatus,
+  DocumentStatus,
+  DocumentProcessingStatus,
+} from '@prisma/client';
 import { adminPrisma } from '@/platform/db/prisma';
 import {
   getObjectStorageProvider,
@@ -9,11 +13,6 @@ import {
 } from '@/platform/storage';
 import { PostgresAuditEventRepository } from '@/platform/repositories/audit-event';
 import { ActionResponse } from '@/platform/types/actions';
-import {
-  IDocumentIntelligenceOrchestrator,
-  DocumentIntelligencePipelineRequest,
-} from '@/platform/types';
-import { DocumentIntelligenceOrchestrator } from '@/platform/services/document-intelligence';
 import { hashInvitationToken } from './token';
 import {
   SubmitPublicDocumentUploadDTO,
@@ -65,7 +64,7 @@ function resolveTargetDomain(targetEntityType?: string): string {
 }
 
 /**
- * Server Action: Submit Public Document Upload & Post-Commit Intelligence Trigger (Phase 5E.2)
+ * Server Action: Submit Public Document Upload & Atomic Job Persistence (Phase 5E.2-A)
  *
  * Public unauthenticated upload entry point protected by capability-scoped invitation token.
  *
@@ -77,18 +76,15 @@ function resolveTargetDomain(targetEntityType?: string): string {
  * 5. State re-validated post-lock (fail-closed against REVOKED, EXPIRED, SUBMITTED, MAX_ATTEMPTS_EXCEEDED).
  * 6. uploadAttempts increments strictly upon successful atomic database commit together with Document + DocumentVersion creation.
  * 7. Storage upload compensation ensures orphaned files are removed if database operations fail before commit.
- * 8. Post-Commit Orchestration Boundary: DocumentIntelligenceOrchestrator.process() is invoked strictly
- *    AFTER the database transaction successfully commits.
- * 9. Downstream Fault Isolation: If the intelligence pipeline encounters an error or requires review post-commit,
- *    the committed upload (Document, DocumentVersion, SUBMITTED invitation) remains canonical and is NEVER rolled back.
+ * 8. Asynchronous Processing Intent: Atomically persists a DocumentProcessingJob record with status QUEUED
+ *    in the same database transaction, containing full execution context for future background workers.
  */
 export async function submitPublicDocumentUploadAction(
   rawTokenOrDto: string | SubmitPublicDocumentUploadDTO,
   fileBufferArg?: Buffer | Uint8Array,
   fileNameArg?: string,
   mimeTypeArg?: string,
-  storageProvider: IObjectStorageProvider = getObjectStorageProvider(),
-  orchestrator: IDocumentIntelligenceOrchestrator = new DocumentIntelligenceOrchestrator()
+  storageProvider: IObjectStorageProvider = getObjectStorageProvider()
 ): Promise<ActionResponse<PublicUploadSubmittedDTO>> {
   try {
     let rawToken: string;
@@ -179,6 +175,7 @@ export async function submitPublicDocumentUploadAction(
       const tenantId = invitation.tenantId;
       const targetDocumentId = randomUUID();
       const versionId = randomUUID();
+      const processingJobId = randomUUID();
       const nextVersion = 1;
       const cleanFileName = fileName.trim() || `${invitation.documentCategory}.pdf`;
       const cleanMimeType = (mimeType || 'application/pdf').trim();
@@ -237,7 +234,34 @@ export async function submitPublicDocumentUploadAction(
           },
         });
 
-        // 1.9 Record Audit Event for upload submission
+        // 1.9 Atomically persist DocumentProcessingJob (QUEUED)
+        const targetDomain = resolveTargetDomain(invitation.targetEntityType);
+        await tx.documentProcessingJob.create({
+          data: {
+            id: processingJobId,
+            tenantId,
+            documentId: targetDocumentId,
+            documentVersionId: versionId,
+            actorId: invitation.createdByUserId,
+            targetDomain,
+            status: DocumentProcessingStatus.QUEUED,
+            attempts: 0,
+            maxAttempts: 3,
+            metadata: {
+              invitationId: invitation.id,
+              targetEntityType: invitation.targetEntityType,
+              targetEntityId: invitation.targetEntityId,
+              documentCategory: invitation.documentCategory,
+              fileName: cleanFileName,
+              fileSizeBytes: uploadResult.sizeBytes,
+              checksumSha256: uploadResult.checksumSha256,
+              storagePath: uploadResult.storagePath,
+              mimeType: uploadResult.mimeType || cleanMimeType,
+            },
+          },
+        });
+
+        // 1.10 Record Audit Event for upload submission
         await auditRepo.recordTx(tx as any, tenantId, {
           actor: 'public_upload',
           action: 'PUBLIC_UPLOAD_SUBMITTED',
@@ -247,6 +271,7 @@ export async function submitPublicDocumentUploadAction(
             invitationId: invitation.id,
             documentId: targetDocumentId,
             documentVersionId: versionId,
+            processingJobId,
             category: invitation.documentCategory,
             targetEntityType: invitation.targetEntityType,
             targetEntityId: invitation.targetEntityId,
@@ -256,35 +281,20 @@ export async function submitPublicDocumentUploadAction(
           },
         });
 
-        const targetDomain = resolveTargetDomain(invitation.targetEntityType);
-
         return {
-          dto: {
-            invitationId: invitation.id,
-            documentId: targetDocumentId,
-            documentVersionId: versionId,
-            documentCategory: invitation.documentCategory,
-            fileName: cleanFileName,
-            fileSize: uploadResult.sizeBytes,
-            checksumSha256: uploadResult.checksumSha256,
-            status: PublicUploadInvitationStatus.SUBMITTED,
-            consumedAt: consumedTimestamp.toISOString(),
-          },
-          orchestrationRequest: {
-            tenantId,
-            actorId: invitation.createdByUserId,
-            documentId: targetDocumentId,
-            documentVersionId: versionId,
-            targetDomain,
-            metadata: {
-              invitationId: invitation.id,
-              targetEntityType: invitation.targetEntityType,
-              targetEntityId: invitation.targetEntityId,
-            },
-          } as DocumentIntelligencePipelineRequest,
+          invitationId: invitation.id,
+          documentId: targetDocumentId,
+          documentVersionId: versionId,
+          processingJobId,
+          documentCategory: invitation.documentCategory,
+          fileName: cleanFileName,
+          fileSize: uploadResult.sizeBytes,
+          checksumSha256: uploadResult.checksumSha256,
+          status: PublicUploadInvitationStatus.SUBMITTED,
+          consumedAt: consumedTimestamp.toISOString(),
         };
       } catch (dbErr) {
-        // 1.10 Storage Compensation: Clean up newly uploaded binary if database operations fail before commit
+        // 1.11 Storage Compensation: Clean up newly uploaded binary if database operations fail before commit
         try {
           await storageProvider.delete(tenantId, storagePath);
         } catch (cleanupErr) {
@@ -297,23 +307,9 @@ export async function submitPublicDocumentUploadAction(
       }
     });
 
-    // -----------------------------------------------------------------
-    // 2. POST-COMMIT DOCUMENT INTELLIGENCE TRIGGER BOUNDARY (Phase 5E.2)
-    // -----------------------------------------------------------------
-    // Invoked strictly AFTER successful database commit.
-    // Any downstream failure does not invalidate the committed upload.
-    try {
-      await orchestrator.process(txResult.orchestrationRequest);
-    } catch (pipelineErr: unknown) {
-      console.error(
-        '[DocumentIntelligence Post-Commit Trigger Error]: Pipeline execution encountered an unhandled error:',
-        pipelineErr
-      );
-    }
-
     return {
       success: true,
-      data: txResult.dto,
+      data: txResult,
     };
   } catch (err: unknown) {
     return handleActionError(err);

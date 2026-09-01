@@ -55,6 +55,35 @@ async function runStudentOCRServerActionsTests() {
   const STUDENT_A1_ID = 'e1111111-1111-7111-8111-111111111111';
 
   try {
+    // 0. Clean up previous test artifacts
+    await adminPrisma.workflowInstance.deleteMany({
+      where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID] } },
+    });
+    await adminPrisma.humanVerification.deleteMany({
+      where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID] } },
+    });
+    await adminPrisma.extractedItem.deleteMany({
+      where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID] } },
+    });
+    await adminPrisma.oCRExtraction.deleteMany({
+      where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID] } },
+    });
+    await adminPrisma.absenceRecord.deleteMany({
+      where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID] } },
+    });
+    await adminPrisma.documentProcessingJob.deleteMany({
+      where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID] } },
+    });
+    await adminPrisma.documentVersion.deleteMany({
+      where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID] } },
+    });
+    await adminPrisma.document.deleteMany({
+      where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID] } },
+    });
+    await adminPrisma.student.deleteMany({
+      where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID] } },
+    });
+
     // 1. Setup tenants
     await adminPrisma.tenant.upsert({
       where: { id: TENANT_A_ID },
@@ -990,6 +1019,9 @@ async function runStudentOCRServerActionsTests() {
         where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID] } },
       });
       await adminPrisma.absenceRecord.deleteMany({
+        where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID] } },
+      });
+      await adminPrisma.documentProcessingJob.deleteMany({
         where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID] } },
       });
       await adminPrisma.documentVersion.deleteMany({

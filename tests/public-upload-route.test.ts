@@ -43,6 +43,9 @@ async function runPublicUploadRouteTests() {
     // -----------------------------------------------------------------
     console.log('--- SECTION 1: Fixture Setup ---');
 
+    await adminPrisma.documentProcessingJob.deleteMany({
+      where: { tenantId: TENANT_A_ID },
+    });
     await adminPrisma.publicUploadInvitation.deleteMany({
       where: { tenantId: TENANT_A_ID },
     });

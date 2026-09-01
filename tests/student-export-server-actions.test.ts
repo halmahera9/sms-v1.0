@@ -706,6 +706,9 @@ async function runStudentExportServerActionsTests() {
       await adminPrisma.absenceRecord.deleteMany({
         where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID] } },
       });
+      await adminPrisma.documentProcessingJob.deleteMany({
+        where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID] } },
+      });
       await adminPrisma.documentVersion.deleteMany({
         where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID] } },
       });

@@ -590,12 +590,6 @@ async function runStudentServerActionsTests() {
       await adminPrisma.student.deleteMany({
         where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID] } },
       });
-      await adminPrisma.userActor.deleteMany({
-        where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID] } },
-      });
-      await adminPrisma.tenant.deleteMany({
-        where: { id: { in: [TENANT_A_ID, TENANT_B_ID] } },
-      });
     } catch (err) {
       console.warn('Cleanup error:', err);
     }

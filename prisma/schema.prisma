@@ -131,6 +131,13 @@ enum OCRExtractionStatus {
   FAILED
 }
 
+enum DocumentProcessingStatus {
+  QUEUED
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
 enum StudentAbsenceWorkflowState {
   DRAFT
   NEEDS_VERIFICATION
@@ -189,6 +196,7 @@ model Tenant {
   workflowTransitions     WorkflowTransition[]
   awardProposalDocuments  AwardProposalDocument[]
   publicUploadInvitations PublicUploadInvitation[]
+  documentProcessingJobs  DocumentProcessingJob[]
 
   @@map("tenants")
 }
@@ -213,6 +221,7 @@ model UserActor {
   resolvedExceptions        ExceptionItem[]          @relation("ResolvedExceptions")
   auditEvents               AuditEvent[]
   createdPublicInvitations  PublicUploadInvitation[] @relation("CreatedPublicInvitations")
+  documentProcessingJobs    DocumentProcessingJob[]
 
   @@unique([tenantId, id])
   @@unique([tenantId, username])
@@ -400,6 +409,7 @@ model Document {
   absenceRecords         AbsenceRecord[]
   ocrExtractions         OCRExtraction[]
   publicUploadInvitations PublicUploadInvitation[]
+  processingJobs         DocumentProcessingJob[]
 
   @@unique([tenantId, id])
   @@index([tenantId, category])
@@ -417,8 +427,9 @@ model DocumentVersion {
   checksumSha256 String?  @map("checksum_sha256") @db.VarChar(64)
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
 
-  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  document Document @relation(fields: [tenantId, documentId], references: [tenantId, id], onDelete: Cascade, onUpdate: Cascade)
+  tenant         Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  document       Document                @relation(fields: [tenantId, documentId], references: [tenantId, id], onDelete: Cascade, onUpdate: Cascade)
+  processingJobs DocumentProcessingJob[]
 
   @@unique([tenantId, id])
   @@unique([documentId, versionNumber])
@@ -573,4 +584,32 @@ model PublicUploadInvitation {
   @@index([tenantId, targetEntityType, targetEntityId])
   @@index([tokenHash])
   @@map("public_upload_invitations")
+}
+
+model DocumentProcessingJob {
+  id                String                   @id @db.Uuid
+  tenantId          String                   @map("tenant_id") @db.Uuid
+  documentId        String                   @map("document_id") @db.Uuid
+  documentVersionId String                   @map("document_version_id") @db.Uuid
+  actorId           String                   @map("actor_id") @db.Uuid
+  targetDomain      String                   @map("target_domain") @db.VarChar(50)
+  metadata          Json?                    @map("metadata")
+  status            DocumentProcessingStatus @default(QUEUED)
+  attempts          Int                      @default(0) @map("attempts")
+  maxAttempts       Int                      @default(3) @map("max_attempts")
+  lastError         String?                  @map("last_error") @db.Text
+  createdAt         DateTime                 @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime                 @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  processedAt       DateTime?                @map("processed_at") @db.Timestamptz
+
+  tenant          Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  document        Document        @relation(fields: [tenantId, documentId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade)
+  documentVersion DocumentVersion @relation(fields: [tenantId, documentVersionId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade)
+  actor           UserActor       @relation(fields: [tenantId, actorId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, documentVersionId])
+  @@index([tenantId, status])
+  @@index([status, createdAt])
+  @@map("document_processing_jobs")
 }
