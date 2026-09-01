@@ -2,6 +2,7 @@ import React from 'react';
 import { Metadata } from 'next';
 import { validatePublicUploadInvitationToken } from '@/domains/document/invitation/actions';
 import { PublicInvitationErrorCode } from '@/domains/document/invitation/types';
+import { PublicDocumentUploadForm } from '@/components/public/PublicDocumentUploadForm';
 
 export const metadata: Metadata = {
   title: 'Unggah Dokumen Publik - BANYUBIRU',
@@ -86,9 +87,9 @@ export default async function PublicUploadPage({ params }: PageProps) {
 
   return (
     <main className="min-h-screen flex items-center justify-center p-4 bg-slate-50 dark:bg-slate-950">
-      <div className="max-w-lg w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 sm:p-8 shadow-sm">
+      <div className="max-w-lg w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 sm:p-8 shadow-sm space-y-6">
         {/* Header */}
-        <div className="mb-6">
+        <div>
           <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 mb-3">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
             Tautan Aktif &amp; Terverifikasi
@@ -104,7 +105,7 @@ export default async function PublicUploadPage({ params }: PageProps) {
         </div>
 
         {/* Invitation Summary */}
-        <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-4 mb-6 border border-slate-100 dark:border-slate-800 space-y-3">
+        <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-4 border border-slate-100 dark:border-slate-800 space-y-3">
           <div className="flex justify-between items-center text-sm">
             <span className="text-slate-500 dark:text-slate-400">Kategori Dokumen:</span>
             <span className="font-semibold text-slate-900 dark:text-slate-100">
@@ -126,6 +127,9 @@ export default async function PublicUploadPage({ params }: PageProps) {
             </span>
           </div>
         </div>
+
+        {/* Public Upload Form */}
+        <PublicDocumentUploadForm token={token} />
 
         {/* Informational SSR Notice */}
         <div className="p-4 rounded-lg bg-blue-50 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900/40 text-blue-800 dark:text-blue-300 text-xs leading-relaxed">
