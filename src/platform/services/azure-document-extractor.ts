@@ -5,6 +5,7 @@ import {
   DocumentExtractionResult,
   ExtractedDocumentItem,
 } from '../types/document-extractor';
+import { resolveAzureDocumentExtractorConfig } from './azure-document-extractor-config';
 
 /**
  * Options for configuring AzureDocumentExtractor.
@@ -79,25 +80,12 @@ export class AzureDocumentExtractor implements IDocumentExtractor {
   private readonly fetchImpl: typeof fetch;
 
   constructor(options: AzureDocumentExtractorOptions = {}) {
-    this.endpoint =
-      options.endpoint ??
-      process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT ??
-      process.env.AZURE_FORM_RECOGNIZER_ENDPOINT;
+    const config = resolveAzureDocumentExtractorConfig(process.env, options);
 
-    this.apiKey =
-      options.apiKey ??
-      process.env.AZURE_DOCUMENT_INTELLIGENCE_KEY ??
-      process.env.AZURE_FORM_RECOGNIZER_KEY;
-
-    this.apiVersion =
-      options.apiVersion ??
-      process.env.AZURE_DOCUMENT_INTELLIGENCE_API_VERSION ??
-      '2024-11-30';
-
-    this.modelId =
-      options.modelId ??
-      process.env.AZURE_DOCUMENT_INTELLIGENCE_MODEL_ID ??
-      'prebuilt-layout';
+    this.endpoint = config.endpoint;
+    this.apiKey = config.apiKey;
+    this.apiVersion = config.apiVersion;
+    this.modelId = config.modelId;
 
     this.pollIntervalMs =
       options.pollIntervalMs ?? options.pollingIntervalMs ?? 1000;

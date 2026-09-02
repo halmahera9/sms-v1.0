@@ -5,6 +5,7 @@ import {
   ExtractedDocumentItem,
 } from '../types/document-extractor';
 import { AzureDocumentExtractor } from './azure-document-extractor';
+import { resolveAzureDocumentExtractorConfig } from './azure-document-extractor-config';
 
 /**
  * Configuration options for DeterministicDocumentExtractor.
@@ -91,20 +92,32 @@ export class UnavailableDocumentExtractor implements IDocumentExtractor {
  * It must only be injected explicitly in test or development fixtures.
  */
 export function getDocumentExtractor(): IDocumentExtractor {
-  const endpoint =
-    process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT ||
-    process.env.AZURE_FORM_RECOGNIZER_ENDPOINT;
+  const config = resolveAzureDocumentExtractorConfig();
 
-  const apiKey =
-    process.env.AZURE_DOCUMENT_INTELLIGENCE_KEY ||
-    process.env.AZURE_FORM_RECOGNIZER_KEY;
-
-  if (endpoint && apiKey) {
-    return new AzureDocumentExtractor();
+  if (config.isConfigured && config.endpoint && config.apiKey) {
+    return new AzureDocumentExtractor({
+      endpoint: config.endpoint,
+      apiKey: config.apiKey,
+      apiVersion: config.apiVersion,
+      modelId: config.modelId,
+    });
   }
 
-  return new UnavailableDocumentExtractor(
+  let failureReason =
     'Extraction Engine Unavailable: Azure Document Intelligence is not configured. ' +
-    'Provide AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT and AZURE_DOCUMENT_INTELLIGENCE_KEY.'
-  );
+    'Provide AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT and AZURE_DOCUMENT_INTELLIGENCE_KEY.';
+
+  if (config.status === 'partially_configured') {
+    if (!config.summary.hasApiKey) {
+      failureReason =
+        'Extraction Engine Unavailable: Azure Document Intelligence is partially configured (missing API key). ' +
+        'Provide AZURE_DOCUMENT_INTELLIGENCE_KEY.';
+    } else {
+      failureReason =
+        'Extraction Engine Unavailable: Azure Document Intelligence is partially configured (missing endpoint). ' +
+        'Provide AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT.';
+    }
+  }
+
+  return new UnavailableDocumentExtractor(failureReason);
 }
