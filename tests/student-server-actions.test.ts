@@ -5,7 +5,6 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import {
   getStudentsAction,
   saveStudentAction,
-  STUDENT_RBAC_POLICY,
   SaveStudentDTO,
 } from '../src/platform/actions/student';
 import {

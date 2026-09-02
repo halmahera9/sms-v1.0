@@ -5,7 +5,6 @@ import {
   AuthenticationError,
   AuthorizationError,
   assertAuthorizedAction,
-  PLATFORM_RBAC_REGISTRY,
 } from '@/platform/auth';
 import { AbsenceStatus, DocumentStatus, UserRole } from '@prisma/client';
 import { PostgresAuditEventRepository } from '@/platform/repositories/audit-event';
@@ -38,10 +37,6 @@ export interface StudentAbsenceExportResultDTO {
   totalCount: number;
   availableClasses: string[];
 }
-
-export const STUDENT_EXPORT_RBAC_POLICY = {
-  EXPORT: PLATFORM_RBAC_REGISTRY.STUDENT_EXPORT,
-};
 
 import { mapAbsenceStatusToDto } from '@/domains/student/mappers';
 

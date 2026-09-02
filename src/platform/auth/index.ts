@@ -24,6 +24,9 @@ export type {
 export {
   AuthorizationError,
   AWARD_PROPOSAL_RBAC_POLICY,
+  STUDENT_RBAC_POLICY,
+  STUDENT_WORKFLOW_RBAC_POLICY,
+  STUDENT_EXPORT_RBAC_POLICY,
   PLATFORM_RBAC_REGISTRY,
   assertAuthorizedAction,
 } from './guards';

@@ -5,7 +5,6 @@ import {
   AuthenticationError,
   AuthorizationError,
   assertAuthorizedAction,
-  PLATFORM_RBAC_REGISTRY,
 } from '@/platform/auth';
 import {
   AbsenceStatus,
@@ -85,12 +84,6 @@ export interface VerifyExtractedItemDTO {
   decision?: 'PASSED' | 'FLAGGED' | 'REJECTED';
   notes?: string;
 }
-
-export const STUDENT_WORKFLOW_RBAC_POLICY = {
-  READ: PLATFORM_RBAC_REGISTRY.STUDENT_WORKFLOW_READ,
-  UPLOAD: PLATFORM_RBAC_REGISTRY.STUDENT_WORKFLOW_UPLOAD,
-  VERIFY: PLATFORM_RBAC_REGISTRY.STUDENT_WORKFLOW_VERIFY,
-};
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

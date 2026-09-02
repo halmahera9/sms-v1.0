@@ -5,7 +5,6 @@ import {
   AuthenticationError,
   AuthorizationError,
   assertAuthorizedAction,
-  PLATFORM_RBAC_REGISTRY,
 } from '@/platform/auth';
 import { StudentStatus, UserRole } from '@prisma/client';
 import { PostgresStudentRepository } from '@/platform/repositories/student';
@@ -43,11 +42,6 @@ export interface SaveStudentDTO {
   jurusan?: string | null;
   status?: StudentStatus;
 }
-
-export const STUDENT_RBAC_POLICY = {
-  READ: PLATFORM_RBAC_REGISTRY.STUDENT_READ,
-  WRITE: PLATFORM_RBAC_REGISTRY.STUDENT_WRITE,
-};
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const NISN_REGEX = /^\d{10}$/;

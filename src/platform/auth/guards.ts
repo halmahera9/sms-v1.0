@@ -58,6 +58,21 @@ export type ActionPermission = keyof typeof PLATFORM_RBAC_REGISTRY;
 // Backward-compatible alias for existing imports
 export const AWARD_PROPOSAL_RBAC_POLICY = PLATFORM_RBAC_REGISTRY;
 
+export const STUDENT_RBAC_POLICY = {
+  READ: PLATFORM_RBAC_REGISTRY.STUDENT_READ,
+  WRITE: PLATFORM_RBAC_REGISTRY.STUDENT_WRITE,
+} as const;
+
+export const STUDENT_WORKFLOW_RBAC_POLICY = {
+  READ: PLATFORM_RBAC_REGISTRY.STUDENT_WORKFLOW_READ,
+  UPLOAD: PLATFORM_RBAC_REGISTRY.STUDENT_WORKFLOW_UPLOAD,
+  VERIFY: PLATFORM_RBAC_REGISTRY.STUDENT_WORKFLOW_VERIFY,
+} as const;
+
+export const STUDENT_EXPORT_RBAC_POLICY = {
+  EXPORT: PLATFORM_RBAC_REGISTRY.STUDENT_EXPORT,
+} as const;
+
 /**
  * Asserts that the authenticated actor session possesses one of the allowed roles for the action.
  * Throws AuthorizationError if forbidden.
