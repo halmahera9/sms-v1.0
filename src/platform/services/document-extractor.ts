@@ -4,6 +4,7 @@ import {
   DocumentExtractionResult,
   ExtractedDocumentItem,
 } from '../types/document-extractor';
+import { AzureDocumentExtractor } from './azure-document-extractor';
 
 /**
  * Configuration options for DeterministicDocumentExtractor.
@@ -75,4 +76,35 @@ export class UnavailableDocumentExtractor implements IDocumentExtractor {
       errorMessage: this.reason,
     };
   }
+}
+
+/**
+ * Canonical production factory for IDocumentExtractor.
+ *
+ * Selection logic (fail-closed):
+ * - When both AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT (or AZURE_FORM_RECOGNIZER_ENDPOINT)
+ *   and AZURE_DOCUMENT_INTELLIGENCE_KEY (or AZURE_FORM_RECOGNIZER_KEY) are present
+ *   in the environment → returns AzureDocumentExtractor.
+ * - Otherwise → returns UnavailableDocumentExtractor.
+ *
+ * DeterministicDocumentExtractor is intentionally excluded from this path.
+ * It must only be injected explicitly in test or development fixtures.
+ */
+export function getDocumentExtractor(): IDocumentExtractor {
+  const endpoint =
+    process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT ||
+    process.env.AZURE_FORM_RECOGNIZER_ENDPOINT;
+
+  const apiKey =
+    process.env.AZURE_DOCUMENT_INTELLIGENCE_KEY ||
+    process.env.AZURE_FORM_RECOGNIZER_KEY;
+
+  if (endpoint && apiKey) {
+    return new AzureDocumentExtractor();
+  }
+
+  return new UnavailableDocumentExtractor(
+    'Extraction Engine Unavailable: Azure Document Intelligence is not configured. ' +
+    'Provide AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT and AZURE_DOCUMENT_INTELLIGENCE_KEY.'
+  );
 }

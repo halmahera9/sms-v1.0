@@ -18,7 +18,7 @@ import {
   getObjectStorageProvider,
 } from '@/platform/storage';
 import { DocumentIntelligenceOrchestrator } from './document-intelligence';
-import { DeterministicDocumentExtractor } from './document-extractor';
+import { getDocumentExtractor } from './document-extractor';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -46,7 +46,7 @@ export class DocumentProcessingJobRunner implements IDocumentProcessingJobRunner
   constructor(
     private readonly orchestrator: IDocumentIntelligenceOrchestrator = new DocumentIntelligenceOrchestrator(),
     private readonly storageProvider: IObjectStorageProvider = getObjectStorageProvider(),
-    private readonly extractor: IDocumentExtractor = new DeterministicDocumentExtractor(),
+    private readonly extractor: IDocumentExtractor = getDocumentExtractor(),
     private readonly prisma: PrismaClient = adminPrisma
   ) {}
 
