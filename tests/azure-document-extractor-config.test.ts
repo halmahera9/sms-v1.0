@@ -34,6 +34,7 @@ function clearAzureEnv(): () => void {
     AZURE_FORM_RECOGNIZER_KEY: process.env.AZURE_FORM_RECOGNIZER_KEY,
     AZURE_DOCUMENT_INTELLIGENCE_API_VERSION: process.env.AZURE_DOCUMENT_INTELLIGENCE_API_VERSION,
     AZURE_DOCUMENT_INTELLIGENCE_MODEL_ID: process.env.AZURE_DOCUMENT_INTELLIGENCE_MODEL_ID,
+    GEMINI_API_KEY: process.env.GEMINI_API_KEY,
   };
 
   delete process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT;
@@ -42,6 +43,7 @@ function clearAzureEnv(): () => void {
   delete process.env.AZURE_FORM_RECOGNIZER_KEY;
   delete process.env.AZURE_DOCUMENT_INTELLIGENCE_API_VERSION;
   delete process.env.AZURE_DOCUMENT_INTELLIGENCE_MODEL_ID;
+  delete process.env.GEMINI_API_KEY;
 
   return () => {
     for (const [key, val] of Object.entries(saved)) {

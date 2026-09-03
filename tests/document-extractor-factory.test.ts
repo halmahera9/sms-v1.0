@@ -5,6 +5,7 @@ import {
   UnavailableDocumentExtractor,
 } from '../src/platform/services/document-extractor';
 import { AzureDocumentExtractor } from '../src/platform/services/azure-document-extractor';
+import { GeminiDocumentExtractor } from '../src/platform/services/gemini-document-extractor';
 
 let testCount = 0;
 let passCount = 0;
@@ -20,18 +21,24 @@ function assert(condition: boolean, message: string) {
   }
 }
 
-/** Clears all Azure env vars and returns a restore function. */
+/**
+ * Clears all Azure AND Gemini provider env vars and returns a restore function.
+ * Must clear both so tests expecting UnavailableDocumentExtractor are not
+ * inadvertently satisfied by an available Gemini provider.
+ */
 function clearAzureEnv(): () => void {
   const saved: Record<string, string | undefined> = {
     AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT: process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT,
     AZURE_DOCUMENT_INTELLIGENCE_KEY: process.env.AZURE_DOCUMENT_INTELLIGENCE_KEY,
     AZURE_FORM_RECOGNIZER_ENDPOINT: process.env.AZURE_FORM_RECOGNIZER_ENDPOINT,
     AZURE_FORM_RECOGNIZER_KEY: process.env.AZURE_FORM_RECOGNIZER_KEY,
+    GEMINI_API_KEY: process.env.GEMINI_API_KEY,
   };
   delete process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT;
   delete process.env.AZURE_DOCUMENT_INTELLIGENCE_KEY;
   delete process.env.AZURE_FORM_RECOGNIZER_ENDPOINT;
   delete process.env.AZURE_FORM_RECOGNIZER_KEY;
+  delete process.env.GEMINI_API_KEY;
   return () => {
     for (const [key, val] of Object.entries(saved)) {
       if (val !== undefined) {
@@ -135,8 +142,9 @@ async function runTests() {
       assert(result.success === false, 'UnavailableDocumentExtractor returns success: false');
       assert(
         typeof result.errorMessage === 'string' &&
-          result.errorMessage.includes('Azure Document Intelligence is not configured'),
-        'UnavailableDocumentExtractor error message describes the missing Azure configuration'
+          (result.errorMessage.includes('Azure Document Intelligence') ||
+            result.errorMessage.includes('No OCR provider')),
+        'UnavailableDocumentExtractor error message describes the missing configuration'
       );
       assert(
         Array.isArray(result.items) && result.items.length === 0,
@@ -160,6 +168,53 @@ async function runTests() {
       assert(
         !(extractorWithConfig instanceof DeterministicDocumentExtractor),
         'Factory never returns DeterministicDocumentExtractor (with Azure config)'
+      );
+    } finally { restore(); }
+  }
+
+  // -------------------------------------------------------------------------
+  // SECTION A-EXT: Gemini factory precedence (added alongside Gemini provider)
+  // -------------------------------------------------------------------------
+  console.log('\n--- SECTION A-EXT: Factory Tri-Provider Precedence (Azure > Gemini > Unavailable) ---');
+
+  {
+    // AX.1: Only Gemini configured → GeminiDocumentExtractor
+    const restore = clearAzureEnv();
+    try {
+      process.env.GEMINI_API_KEY = 'factory-test-gemini-key';
+      const extractor = getDocumentExtractor();
+      assert(
+        extractor instanceof GeminiDocumentExtractor,
+        'Only Gemini configured → GeminiDocumentExtractor selected'
+      );
+    } finally { restore(); }
+  }
+
+  {
+    // AX.2: Azure full + Gemini → Azure wins
+    const restore = clearAzureEnv();
+    try {
+      process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT = 'https://test.cognitiveservices.azure.com';
+      process.env.AZURE_DOCUMENT_INTELLIGENCE_KEY = 'azure-key-prec';
+      process.env.GEMINI_API_KEY = 'gemini-key-prec';
+      const extractor = getDocumentExtractor();
+      assert(
+        extractor instanceof AzureDocumentExtractor,
+        'Azure fully configured + Gemini present → AzureDocumentExtractor wins'
+      );
+    } finally { restore(); }
+  }
+
+  {
+    // AX.3: Partial Azure + Gemini → UnavailableDocumentExtractor (partial Azure fails closed, no Gemini fallthrough)
+    const restore = clearAzureEnv();
+    try {
+      process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT = 'https://test.cognitiveservices.azure.com';
+      process.env.GEMINI_API_KEY = 'gemini-key-partial-azure';
+      const extractor = getDocumentExtractor();
+      assert(
+        extractor instanceof UnavailableDocumentExtractor,
+        'Partial Azure (endpoint only) + Gemini → UnavailableDocumentExtractor (no Gemini fallthrough for partial Azure)'
       );
     } finally { restore(); }
   }

@@ -6,6 +6,7 @@ import {
 } from '../types/document-extractor';
 import { AzureDocumentExtractor } from './azure-document-extractor';
 import { resolveAzureDocumentExtractorConfig } from './azure-document-extractor-config';
+import { GeminiDocumentExtractor, resolveGeminiDocumentExtractorConfig } from './gemini-document-extractor';
 
 /**
  * Configuration options for DeterministicDocumentExtractor.
@@ -82,42 +83,58 @@ export class UnavailableDocumentExtractor implements IDocumentExtractor {
 /**
  * Canonical production factory for IDocumentExtractor.
  *
- * Selection logic (fail-closed):
- * - When both AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT (or AZURE_FORM_RECOGNIZER_ENDPOINT)
- *   and AZURE_DOCUMENT_INTELLIGENCE_KEY (or AZURE_FORM_RECOGNIZER_KEY) are present
- *   in the environment → returns AzureDocumentExtractor.
- * - Otherwise → returns UnavailableDocumentExtractor.
+ * Selection logic (fail-closed), evaluated in strict precedence order:
+ * 1. Azure Document Intelligence — when both endpoint and API key are present
+ *    (via AZURE_DOCUMENT_INTELLIGENCE_* or legacy AZURE_FORM_RECOGNIZER_*).
+ * 2. Gemini AI — when GEMINI_API_KEY is present and Azure is fully unconfigured.
+ *    NOTE: Partial Azure configuration (endpoint only or key only) does NOT fall
+ *    through to Gemini. It remains fail-closed with UnavailableDocumentExtractor.
+ * 3. UnavailableDocumentExtractor — when neither provider is configured, or
+ *    when Azure is only partially configured.
  *
  * DeterministicDocumentExtractor is intentionally excluded from this path.
  * It must only be injected explicitly in test or development fixtures.
  */
 export function getDocumentExtractor(): IDocumentExtractor {
-  const config = resolveAzureDocumentExtractorConfig();
+  // --- Priority 1: Azure Document Intelligence ---
+  const azureConfig = resolveAzureDocumentExtractorConfig();
 
-  if (config.isConfigured && config.endpoint && config.apiKey) {
+  if (azureConfig.isConfigured && azureConfig.endpoint && azureConfig.apiKey) {
     return new AzureDocumentExtractor({
-      endpoint: config.endpoint,
-      apiKey: config.apiKey,
-      apiVersion: config.apiVersion,
-      modelId: config.modelId,
+      endpoint: azureConfig.endpoint,
+      apiKey: azureConfig.apiKey,
+      apiVersion: azureConfig.apiVersion,
+      modelId: azureConfig.modelId,
     });
   }
 
-  let failureReason =
-    'Extraction Engine Unavailable: Azure Document Intelligence is not configured. ' +
-    'Provide AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT and AZURE_DOCUMENT_INTELLIGENCE_KEY.';
-
-  if (config.status === 'partially_configured') {
-    if (!config.summary.hasApiKey) {
-      failureReason =
+  // If Azure is partially configured (endpoint or key but not both), fail closed.
+  // Do NOT fall through to Gemini for partial Azure configs.
+  if (azureConfig.status === 'partially_configured') {
+    if (!azureConfig.summary.hasApiKey) {
+      return new UnavailableDocumentExtractor(
         'Extraction Engine Unavailable: Azure Document Intelligence is partially configured (missing API key). ' +
-        'Provide AZURE_DOCUMENT_INTELLIGENCE_KEY.';
+          'Provide AZURE_DOCUMENT_INTELLIGENCE_KEY.'
+      );
     } else {
-      failureReason =
+      return new UnavailableDocumentExtractor(
         'Extraction Engine Unavailable: Azure Document Intelligence is partially configured (missing endpoint). ' +
-        'Provide AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT.';
+          'Provide AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT.'
+      );
     }
   }
 
-  return new UnavailableDocumentExtractor(failureReason);
+  // --- Priority 2: Gemini AI (only when Azure is fully unconfigured) ---
+  const geminiConfig = resolveGeminiDocumentExtractorConfig();
+
+  if (geminiConfig.isConfigured) {
+    return new GeminiDocumentExtractor();
+  }
+
+  // --- Priority 3: No provider configured — fail closed ---
+  return new UnavailableDocumentExtractor(
+    'Extraction Engine Unavailable: Azure Document Intelligence is not configured and no other OCR provider is available. ' +
+      'Provide AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT and AZURE_DOCUMENT_INTELLIGENCE_KEY ' +
+      'for Azure Document Intelligence, or GEMINI_API_KEY for Gemini AI.'
+  );
 }
