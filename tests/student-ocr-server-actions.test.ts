@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import pg from 'pg';
-import { PrismaClient, AbsenceStatus, OCRExtractionStatus, UserRole, UserStatus, VerificationDecision } from '@prisma/client';
+import { PrismaClient, AbsenceStatus, DocumentProcessingStatus, OCRExtractionStatus, UserRole, UserStatus, VerificationDecision } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import {
   getOCRDocumentsAction,
@@ -322,6 +322,19 @@ async function runStudentOCRServerActionsTests() {
     assert(
       legacyDocVersion !== null && legacyDocVersion.checksumSha256 === null,
       'TEST 6D: Metadata-only upload without binary sets checksumSha256 to null (no fake SHA-256, no synthetic timestamp)'
+    );
+
+    const processingJobs = await adminPrisma.documentProcessingJob.findMany({
+      where: { tenantId: TENANT_A_ID, documentVersionId: legacyDocVersion!.id },
+    });
+    assert(
+      processingJobs.length === 1 &&
+        processingJobs[0].tenantId === TENANT_A_ID &&
+        processingJobs[0].documentVersionId === legacyDocVersion!.id &&
+        processingJobs[0].status === DocumentProcessingStatus.QUEUED &&
+        processingJobs[0].attempts === 0 &&
+        processingJobs[0].maxAttempts === 3,
+      'TEST 6E: OCR upload creates one queued DocumentProcessingJob for the uploaded version'
     );
 
     // =========================================================================

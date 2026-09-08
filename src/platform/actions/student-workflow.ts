@@ -9,6 +9,7 @@ import {
 import {
   AbsenceStatus,
   DocumentCategory,
+  DocumentProcessingStatus,
   DocumentStatus,
   OCRExtractionStatus,
   UserRole,
@@ -312,6 +313,7 @@ export async function uploadOCRDocumentAction(
 
       const versionId = randomUUID();
       const extractionId = randomUUID();
+      const processingJobId = randomUUID();
       const fileName = dto.fileName.trim();
       const mimeType = dto.mimeType || 'image/png';
 
@@ -484,6 +486,26 @@ export async function uploadOCRDocumentAction(
             verificationStatus: 'pending',
           });
         }
+
+        // Create DocumentProcessingJob for async processing
+        await tx.documentProcessingJob.create({
+          data: {
+            id: processingJobId,
+            tenantId,
+            documentId: targetDocumentId,
+            documentVersionId: versionId,
+            actorId: context.actorId,
+            targetDomain: 'student',
+            status: DocumentProcessingStatus.QUEUED,
+            attempts: 0,
+            maxAttempts: 3,
+            metadata: {
+              fileName: fileName,
+              versionNumber: nextVersion,
+              extractedItemCount: createdItems.length,
+            },
+          },
+        });
 
         // 5. Record Audit Event via PostgresAuditEventRepository
         await auditRepo.recordTx(tx, tenantId, {
