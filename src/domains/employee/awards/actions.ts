@@ -12,7 +12,7 @@ import { getAuthenticatedSession, AuthenticationError } from '@/platform/auth/se
 import { assertAuthorizedAction, AuthorizationError } from '@/platform/auth/guards';
 
 import { randomUUID } from 'crypto';
-import { DocumentCategory, DocumentStatus } from '@prisma/client';
+import { DocumentCategory, DocumentProcessingStatus, DocumentStatus } from '@prisma/client';
 import { getObjectStorageProvider, IObjectStorageProvider, buildDocumentStoragePath } from '@/platform/storage';
 import { runInTenantContext } from '@/platform/db/tenant-context';
 
@@ -293,6 +293,32 @@ export async function uploadProposalDocumentAction(
               fileSizeBytes: BigInt(uploadResult.sizeBytes),
               mimeType: uploadResult.mimeType || mimeType,
               checksumSha256: uploadResult.checksumSha256,
+            },
+          });
+
+          // B-post. Atomically persist DocumentProcessingJob (QUEUED) for async document processing
+          const processingJobId = randomUUID();
+          await tx.documentProcessingJob.create({
+            data: {
+              id: processingJobId,
+              tenantId,
+              documentId: targetDocumentId,
+              documentVersionId: versionId,
+              actorId: session.actorId,
+              targetDomain: 'employee',
+              status: DocumentProcessingStatus.QUEUED,
+              attempts: 0,
+              maxAttempts: 3,
+              metadata: {
+                proposalId: dto.proposalId,
+                requirementCode: dto.requirementCode,
+                fileName,
+                versionNumber: nextVersion,
+                storagePath: uploadResult.storagePath,
+                mimeType: uploadResult.mimeType || mimeType,
+                checksumSha256: uploadResult.checksumSha256,
+                fileSizeBytes: uploadResult.sizeBytes,
+              },
             },
           });
 
