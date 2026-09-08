@@ -229,22 +229,22 @@ export async function handleDocumentProcessingTrigger(
   }
 }
 
+export type DocumentProcessingRouteContext = {
+  params?: Promise<Record<string, string | string[]>>;
+  worker?: IDocumentProcessingWorker;
+  secret?: string;
+};
+
 export async function POST(
   request: NextRequest,
-  options?: {
-    worker?: IDocumentProcessingWorker;
-    secret?: string;
-  }
+  context?: DocumentProcessingRouteContext
 ) {
-  return handleDocumentProcessingTrigger(request, options);
+  return handleDocumentProcessingTrigger(request, context);
 }
 
 export async function GET(
   request: NextRequest,
-  options?: {
-    worker?: IDocumentProcessingWorker;
-    secret?: string;
-  }
+  context?: DocumentProcessingRouteContext
 ) {
-  return handleDocumentProcessingTrigger(request, options);
+  return handleDocumentProcessingTrigger(request, context);
 }
