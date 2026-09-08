@@ -530,7 +530,7 @@ async function runTests() {
       'Scenario 12: Secret key is redacted from error message'
     );
     assert(
-      res.errorMessage?.includes('[REDACTED]'),
+      res.errorMessage?.includes('[REDACTED]') === true,
       'Scenario 12: Placeholder [REDACTED] appears in error message'
     );
   }
