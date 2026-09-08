@@ -6,6 +6,7 @@ import {
 } from '../src/platform/services/document-extractor';
 import { AzureDocumentExtractor } from '../src/platform/services/azure-document-extractor';
 import { GeminiDocumentExtractor } from '../src/platform/services/gemini-document-extractor';
+import { LocalOcrGeminiDocumentExtractor } from '../src/platform/services/local-ocr-gemini-document-extractor';
 
 let testCount = 0;
 let passCount = 0;
@@ -22,9 +23,9 @@ function assert(condition: boolean, message: string) {
 }
 
 /**
- * Clears all Azure AND Gemini provider env vars and returns a restore function.
- * Must clear both so tests expecting UnavailableDocumentExtractor are not
- * inadvertently satisfied by an available Gemini provider.
+ * Clears all Azure, Gemini, and Tesseract provider env vars and returns a restore function.
+ * Must clear all providers so tests expecting specific precedence outcomes are not
+ * inadvertently satisfied by another available provider.
  */
 function clearAzureEnv(): () => void {
   const saved: Record<string, string | undefined> = {
@@ -33,12 +34,14 @@ function clearAzureEnv(): () => void {
     AZURE_FORM_RECOGNIZER_ENDPOINT: process.env.AZURE_FORM_RECOGNIZER_ENDPOINT,
     AZURE_FORM_RECOGNIZER_KEY: process.env.AZURE_FORM_RECOGNIZER_KEY,
     GEMINI_API_KEY: process.env.GEMINI_API_KEY,
+    TESSERACT_BINARY_PATH: process.env.TESSERACT_BINARY_PATH,
   };
   delete process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT;
   delete process.env.AZURE_DOCUMENT_INTELLIGENCE_KEY;
   delete process.env.AZURE_FORM_RECOGNIZER_ENDPOINT;
   delete process.env.AZURE_FORM_RECOGNIZER_KEY;
   delete process.env.GEMINI_API_KEY;
+  delete process.env.TESSERACT_BINARY_PATH;
   return () => {
     for (const [key, val] of Object.entries(saved)) {
       if (val !== undefined) {
@@ -173,51 +176,96 @@ async function runTests() {
   }
 
   // -------------------------------------------------------------------------
-  // SECTION A-EXT: Gemini factory precedence (added alongside Gemini provider)
+  // SECTION A-EXT: Full Factory Precedence (Azure > Gemini/Tesseract > Unavailable)
   // -------------------------------------------------------------------------
-  console.log('\n--- SECTION A-EXT: Factory Tri-Provider Precedence (Azure > Gemini > Unavailable) ---');
+  console.log('\n--- SECTION A-EXT: Full Factory Precedence ---');
 
   {
-    // AX.1: Only Gemini configured → GeminiDocumentExtractor
-    const restore = clearAzureEnv();
-    try {
-      process.env.GEMINI_API_KEY = 'factory-test-gemini-key';
-      const extractor = getDocumentExtractor();
-      assert(
-        extractor instanceof GeminiDocumentExtractor,
-        'Only Gemini configured → GeminiDocumentExtractor selected'
-      );
-    } finally { restore(); }
-  }
-
-  {
-    // AX.2: Azure full + Gemini → Azure wins
+    // C.1: Azure fully configured -> Azure wins over Gemini + Tesseract
     const restore = clearAzureEnv();
     try {
       process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT = 'https://test.cognitiveservices.azure.com';
       process.env.AZURE_DOCUMENT_INTELLIGENCE_KEY = 'azure-key-prec';
       process.env.GEMINI_API_KEY = 'gemini-key-prec';
+      process.env.TESSERACT_BINARY_PATH = process.execPath;
       const extractor = getDocumentExtractor();
       assert(
         extractor instanceof AzureDocumentExtractor,
-        'Azure fully configured + Gemini present → AzureDocumentExtractor wins'
+        'Azure fully configured + Gemini + Tesseract present → AzureDocumentExtractor wins'
       );
     } finally { restore(); }
   }
 
   {
-    // AX.3: Partial Azure + Gemini → UnavailableDocumentExtractor (partial Azure fails closed, no Gemini fallthrough)
+    // C.2a: Partial Azure (endpoint only) + Gemini + Tesseract → UnavailableDocumentExtractor (fail-closed, no fallthrough)
     const restore = clearAzureEnv();
     try {
       process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT = 'https://test.cognitiveservices.azure.com';
       process.env.GEMINI_API_KEY = 'gemini-key-partial-azure';
+      process.env.TESSERACT_BINARY_PATH = process.execPath;
       const extractor = getDocumentExtractor();
       assert(
         extractor instanceof UnavailableDocumentExtractor,
-        'Partial Azure (endpoint only) + Gemini → UnavailableDocumentExtractor (no Gemini fallthrough for partial Azure)'
+        'Partial Azure (endpoint only) + Gemini + Tesseract → UnavailableDocumentExtractor (no fallthrough)'
       );
     } finally { restore(); }
   }
+
+  {
+    // C.2b: Partial Azure (key only) + Gemini + Tesseract → UnavailableDocumentExtractor (fail-closed, no fallthrough)
+    const restore = clearAzureEnv();
+    try {
+      process.env.AZURE_DOCUMENT_INTELLIGENCE_KEY = 'azure-key-only';
+      process.env.GEMINI_API_KEY = 'gemini-key-partial-azure';
+      process.env.TESSERACT_BINARY_PATH = process.execPath;
+      const extractor = getDocumentExtractor();
+      assert(
+        extractor instanceof UnavailableDocumentExtractor,
+        'Partial Azure (key only) + Gemini + Tesseract → UnavailableDocumentExtractor (no fallthrough)'
+      );
+    } finally { restore(); }
+  }
+
+  {
+    // C.3: Azure absent + Gemini configured + Tesseract available → LocalOcrGeminiDocumentExtractor
+    const restore = clearAzureEnv();
+    try {
+      process.env.GEMINI_API_KEY = 'factory-test-gemini-key';
+      process.env.TESSERACT_BINARY_PATH = process.execPath;
+      const extractor = getDocumentExtractor();
+      assert(
+        extractor instanceof LocalOcrGeminiDocumentExtractor,
+        'Azure absent + Gemini configured + Tesseract available → LocalOcrGeminiDocumentExtractor selected'
+      );
+    } finally { restore(); }
+  }
+
+  {
+    // C.4: Azure absent + Gemini configured + Tesseract unavailable → GeminiDocumentExtractor
+    const restore = clearAzureEnv();
+    try {
+      process.env.GEMINI_API_KEY = 'factory-test-gemini-key';
+      process.env.TESSERACT_BINARY_PATH = 'nonexistent_tesseract_binary_path_for_factory_test';
+      const extractor = getDocumentExtractor();
+      assert(
+        extractor instanceof GeminiDocumentExtractor,
+        'Azure absent + Gemini configured + Tesseract unavailable → GeminiDocumentExtractor selected'
+      );
+    } finally { restore(); }
+  }
+
+  {
+    // C.5: Neither provider configured → UnavailableDocumentExtractor
+    const restore = clearAzureEnv();
+    try {
+      const extractor = getDocumentExtractor();
+      assert(
+        extractor instanceof UnavailableDocumentExtractor,
+        'Neither Azure nor Gemini configured → UnavailableDocumentExtractor selected'
+      );
+    } finally { restore(); }
+  }
+
 
   // -------------------------------------------------------------------------
   // SECTION B: Explicit injection still works for test/dev usage
@@ -281,6 +329,21 @@ async function runTests() {
       assert(
         e3 instanceof AzureDocumentExtractor && e4 instanceof AzureDocumentExtractor,
         'Both instances with full config are AzureDocumentExtractor'
+      );
+
+      delete process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT;
+      delete process.env.AZURE_DOCUMENT_INTELLIGENCE_KEY;
+      process.env.GEMINI_API_KEY = 'test-gemini-key-iso';
+      process.env.TESSERACT_BINARY_PATH = process.execPath;
+      const e5 = getDocumentExtractor();
+      const e6 = getDocumentExtractor();
+      assert(
+        e5 !== e6,
+        'getDocumentExtractor() returns distinct LocalOcrGeminiDocumentExtractor instances per call'
+      );
+      assert(
+        e5 instanceof LocalOcrGeminiDocumentExtractor && e6 instanceof LocalOcrGeminiDocumentExtractor,
+        'Both instances are LocalOcrGeminiDocumentExtractor'
       );
     } finally { restore(); }
   }

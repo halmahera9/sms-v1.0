@@ -7,6 +7,8 @@ import {
 import { AzureDocumentExtractor } from './azure-document-extractor';
 import { resolveAzureDocumentExtractorConfig } from './azure-document-extractor-config';
 import { GeminiDocumentExtractor, resolveGeminiDocumentExtractorConfig } from './gemini-document-extractor';
+import { LocalOcrGeminiDocumentExtractor } from './local-ocr-gemini-document-extractor';
+import { resolveTesseractOcrConfig } from './local-ocr-engine';
 
 /**
  * Configuration options for DeterministicDocumentExtractor.
@@ -124,10 +126,16 @@ export function getDocumentExtractor(): IDocumentExtractor {
     }
   }
 
-  // --- Priority 2: Gemini AI (only when Azure is fully unconfigured) ---
+  // --- Priority 2: Gemini AI / Local OCR + Gemini Hybrid ---
   const geminiConfig = resolveGeminiDocumentExtractorConfig();
 
   if (geminiConfig.isConfigured) {
+    const tesseractConfig = resolveTesseractOcrConfig();
+
+    if (tesseractConfig.isAvailable) {
+      return new LocalOcrGeminiDocumentExtractor();
+    }
+
     return new GeminiDocumentExtractor();
   }
 
