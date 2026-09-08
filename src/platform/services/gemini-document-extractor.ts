@@ -43,7 +43,7 @@ export interface GeminiDocumentExtractorOptions {
 
   /**
    * Gemini model to use for document extraction.
-   * Defaults to 'gemini-2.0-flash'.
+   * Defaults to 'gemini-3.5-flash'.
    */
   model?: string;
 
@@ -92,7 +92,7 @@ export class GeminiDocumentExtractor implements IDocumentExtractor {
   constructor(options: GeminiDocumentExtractorOptions = {}) {
     this.apiKey =
       options.apiKey?.trim() || process.env.GEMINI_API_KEY?.trim() || undefined;
-    this.model = options.model?.trim() || 'gemini-2.0-flash';
+    this.model = options.model?.trim() || 'gemini-3.5-flash';
     this.clientFactory = options.clientFactory;
   }
 
@@ -160,6 +160,65 @@ export class GeminiDocumentExtractor implements IDocumentExtractor {
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       // Sanitize: never include the API key in the error message
+      const sanitized = this.sanitizeErrorMessage(message);
+      return {
+        success: false,
+        items: [],
+        errorMessage: `Gemini document extraction failed: ${sanitized}`,
+      };
+    }
+  }
+
+  /**
+   * Extracts structured line items from a raw OCR text prompt instead of an inline binary buffer.
+   * Preserves zero secret leakage, fail-closed validation, and structured JSON normalization.
+   */
+  public async extractFromText(
+    ocrText: string,
+    request: DocumentExtractionRequest
+  ): Promise<DocumentExtractionResult> {
+    if (!ocrText || ocrText.trim().length === 0) {
+      return {
+        success: false,
+        items: [],
+        errorMessage: 'Validation Error: OCR text content cannot be empty.',
+      };
+    }
+
+    if (!this.apiKey) {
+      return {
+        success: false,
+        items: [],
+        errorMessage:
+          'Gemini Document Extraction configuration missing: GEMINI_API_KEY is required.',
+      };
+    }
+
+    try {
+      const client = this.clientFactory
+        ? this.clientFactory(this.apiKey)
+        : this.buildProductionClient(this.apiKey);
+
+      const systemPrompt = this.buildExtractionPrompt();
+
+      const response = await client.generateContent({
+        model: this.model,
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              {
+                text: `${systemPrompt}\n\nDOCUMENT OCR TEXT INPUT:\n${ocrText.trim()}`,
+              },
+            ],
+          },
+        ],
+      });
+
+      const rawOutput = response.text || '';
+      return this.parseGeminiResponse(rawOutput, request);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
       const sanitized = this.sanitizeErrorMessage(message);
       return {
         success: false,
