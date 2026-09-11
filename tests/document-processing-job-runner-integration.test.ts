@@ -14,7 +14,6 @@ import {
   DeterministicDocumentExtractor,
   UnavailableDocumentExtractor,
 } from '../src/platform/services/document-extractor';
-import { AzureDocumentExtractor } from '../src/platform/services/azure-document-extractor';
 import { GeminiDocumentExtractor } from '../src/platform/services/gemini-document-extractor';
 import { LocalOcrGeminiDocumentExtractor } from '../src/platform/services/local-ocr-gemini-document-extractor';
 import { InMemoryObjectStorageProvider } from '../src/platform/storage';
@@ -58,18 +57,10 @@ function assert(condition: unknown, message: string, detail?: string) {
 
 function clearExtractorEnv(): () => void {
   const saved: Record<string, string | undefined> = {
-    AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT: process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT,
-    AZURE_DOCUMENT_INTELLIGENCE_KEY: process.env.AZURE_DOCUMENT_INTELLIGENCE_KEY,
-    AZURE_FORM_RECOGNIZER_ENDPOINT: process.env.AZURE_FORM_RECOGNIZER_ENDPOINT,
-    AZURE_FORM_RECOGNIZER_KEY: process.env.AZURE_FORM_RECOGNIZER_KEY,
     GEMINI_API_KEY: process.env.GEMINI_API_KEY,
     TESSERACT_BINARY_PATH: process.env.TESSERACT_BINARY_PATH,
   };
 
-  delete process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT;
-  delete process.env.AZURE_DOCUMENT_INTELLIGENCE_KEY;
-  delete process.env.AZURE_FORM_RECOGNIZER_ENDPOINT;
-  delete process.env.AZURE_FORM_RECOGNIZER_KEY;
   delete process.env.GEMINI_API_KEY;
   delete process.env.TESSERACT_BINARY_PATH;
 
@@ -318,28 +309,6 @@ async function runIntegrationTests() {
     // SECTION 2: Canonical Factory Selection Permutations (No Singleton/Leakage)
     // -----------------------------------------------------------------------
     console.log('\n--- SECTION 2: Canonical Factory Precedence & Selection Permutations ---');
-
-    {
-      // 2.1: Azure fully configured -> AzureDocumentExtractor
-      const restore = clearExtractorEnv();
-      try {
-        process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT = 'https://int.cognitiveservices.azure.com';
-        process.env.AZURE_DOCUMENT_INTELLIGENCE_KEY = 'azure-key-int-001';
-        const extractor = getDocumentExtractor();
-        assert(extractor instanceof AzureDocumentExtractor, 'Priority 1: Primary Azure configuration yields AzureDocumentExtractor');
-      } finally { restore(); }
-    }
-
-    {
-      // 2.2: Partial Azure (endpoint only) -> UnavailableDocumentExtractor (fail-closed)
-      const restore = clearExtractorEnv();
-      try {
-        process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT = 'https://int.cognitiveservices.azure.com';
-        process.env.GEMINI_API_KEY = 'gemini-key-fallback-attempt';
-        const extractor = getDocumentExtractor();
-        assert(extractor instanceof UnavailableDocumentExtractor, 'Priority 1 Guard: Partial Azure (missing key) fails closed to UnavailableDocumentExtractor with zero Gemini fallthrough');
-      } finally { restore(); }
-    }
 
     {
       // 2.3: Azure absent + Gemini set + Tesseract available -> LocalOcrGeminiDocumentExtractor

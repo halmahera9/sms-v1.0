@@ -4,8 +4,6 @@ import {
   DocumentExtractionResult,
   ExtractedDocumentItem,
 } from '../types/document-extractor';
-import { AzureDocumentExtractor } from './azure-document-extractor';
-import { resolveAzureDocumentExtractorConfig } from './azure-document-extractor-config';
 import { GeminiDocumentExtractor, resolveGeminiDocumentExtractorConfig } from './gemini-document-extractor';
 import { LocalOcrGeminiDocumentExtractor } from './local-ocr-gemini-document-extractor';
 import { resolveTesseractOcrConfig } from './local-ocr-engine';
@@ -85,64 +83,31 @@ export class UnavailableDocumentExtractor implements IDocumentExtractor {
 /**
  * Canonical production factory for IDocumentExtractor.
  *
- * Selection logic (fail-closed), evaluated in strict precedence order:
- * 1. Azure Document Intelligence — when both endpoint and API key are present
- *    (via AZURE_DOCUMENT_INTELLIGENCE_* or legacy AZURE_FORM_RECOGNIZER_*).
- * 2. Gemini AI — when GEMINI_API_KEY is present and Azure is fully unconfigured.
- *    NOTE: Partial Azure configuration (endpoint only or key only) does NOT fall
- *    through to Gemini. It remains fail-closed with UnavailableDocumentExtractor.
- * 3. UnavailableDocumentExtractor — when neither provider is configured, or
- *    when Azure is only partially configured.
+ * Selection logic (fail-closed):
+ * 1. Local Tesseract OCR + Gemini semantic extraction when both
+ *    GEMINI_API_KEY and the Tesseract runtime are available.
+ * 2. Gemini direct multimodal extraction when Gemini is configured
+ *    but Tesseract is unavailable.
+ * 3. UnavailableDocumentExtractor when Gemini is not configured.
  *
  * DeterministicDocumentExtractor is intentionally excluded from this path.
  * It must only be injected explicitly in test or development fixtures.
  */
 export function getDocumentExtractor(): IDocumentExtractor {
-  // --- Priority 1: Azure Document Intelligence ---
-  const azureConfig = resolveAzureDocumentExtractorConfig();
-
-  if (azureConfig.isConfigured && azureConfig.endpoint && azureConfig.apiKey) {
-    return new AzureDocumentExtractor({
-      endpoint: azureConfig.endpoint,
-      apiKey: azureConfig.apiKey,
-      apiVersion: azureConfig.apiVersion,
-      modelId: azureConfig.modelId,
-    });
-  }
-
-  // If Azure is partially configured (endpoint or key but not both), fail closed.
-  // Do NOT fall through to Gemini for partial Azure configs.
-  if (azureConfig.status === 'partially_configured') {
-    if (!azureConfig.summary.hasApiKey) {
-      return new UnavailableDocumentExtractor(
-        'Extraction Engine Unavailable: Azure Document Intelligence is partially configured (missing API key). ' +
-          'Provide AZURE_DOCUMENT_INTELLIGENCE_KEY.'
-      );
-    } else {
-      return new UnavailableDocumentExtractor(
-        'Extraction Engine Unavailable: Azure Document Intelligence is partially configured (missing endpoint). ' +
-          'Provide AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT.'
-      );
-    }
-  }
-
-  // --- Priority 2: Gemini AI / Local OCR + Gemini Hybrid ---
   const geminiConfig = resolveGeminiDocumentExtractorConfig();
 
-  if (geminiConfig.isConfigured) {
-    const tesseractConfig = resolveTesseractOcrConfig();
-
-    if (tesseractConfig.isAvailable) {
-      return new LocalOcrGeminiDocumentExtractor();
-    }
-
-    return new GeminiDocumentExtractor();
+  if (!geminiConfig.isConfigured) {
+    return new UnavailableDocumentExtractor(
+      'Extraction Engine Unavailable: Gemini AI is not configured. ' +
+        'Provide GEMINI_API_KEY.'
+    );
   }
 
-  // --- Priority 3: No provider configured — fail closed ---
-  return new UnavailableDocumentExtractor(
-    'Extraction Engine Unavailable: Azure Document Intelligence is not configured and no other OCR provider is available. ' +
-      'Provide AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT and AZURE_DOCUMENT_INTELLIGENCE_KEY ' +
-      'for Azure Document Intelligence, or GEMINI_API_KEY for Gemini AI.'
-  );
+  const tesseractConfig = resolveTesseractOcrConfig();
+
+  if (tesseractConfig.isAvailable) {
+    return new LocalOcrGeminiDocumentExtractor();
+  }
+
+  return new GeminiDocumentExtractor();
 }

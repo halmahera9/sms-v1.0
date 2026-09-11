@@ -311,11 +311,7 @@ async function runTests(): Promise<void> {
     const { getDocumentExtractor, UnavailableDocumentExtractor } = await import(
       "../src/platform/services/document-extractor"
     );
-    const savedAzureEp = process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT;
-    const savedAzureKey = process.env.AZURE_DOCUMENT_INTELLIGENCE_KEY;
     const savedGemini = process.env.GEMINI_API_KEY;
-    delete process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT;
-    delete process.env.AZURE_DOCUMENT_INTELLIGENCE_KEY;
     delete process.env.GEMINI_API_KEY;
     try {
       const extractor = getDocumentExtractor();
@@ -324,8 +320,6 @@ async function runTests(): Promise<void> {
         "getDocumentExtractor() still returns UnavailableDocumentExtractor when no providers configured"
       );
     } finally {
-      if (savedAzureEp) process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT = savedAzureEp;
-      if (savedAzureKey) process.env.AZURE_DOCUMENT_INTELLIGENCE_KEY = savedAzureKey;
       if (savedGemini) process.env.GEMINI_API_KEY = savedGemini;
     }
   }

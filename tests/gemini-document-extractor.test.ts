@@ -9,7 +9,6 @@ import {
   DeterministicDocumentExtractor,
   UnavailableDocumentExtractor,
 } from '../src/platform/services/document-extractor';
-import { AzureDocumentExtractor } from '../src/platform/services/azure-document-extractor';
 import { DocumentExtractionRequest } from '../src/platform/types/document-extractor';
 
 let testCount = 0;
@@ -32,16 +31,8 @@ function assert(condition: boolean, message: string, detail?: string): void {
 
 function saveAndClearAllProviderEnv(): () => void {
   const saved: Record<string, string | undefined> = {
-    AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT: process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT,
-    AZURE_DOCUMENT_INTELLIGENCE_KEY: process.env.AZURE_DOCUMENT_INTELLIGENCE_KEY,
-    AZURE_FORM_RECOGNIZER_ENDPOINT: process.env.AZURE_FORM_RECOGNIZER_ENDPOINT,
-    AZURE_FORM_RECOGNIZER_KEY: process.env.AZURE_FORM_RECOGNIZER_KEY,
     GEMINI_API_KEY: process.env.GEMINI_API_KEY,
   };
-  delete process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT;
-  delete process.env.AZURE_DOCUMENT_INTELLIGENCE_KEY;
-  delete process.env.AZURE_FORM_RECOGNIZER_ENDPOINT;
-  delete process.env.AZURE_FORM_RECOGNIZER_KEY;
   delete process.env.GEMINI_API_KEY;
 
   return () => {
@@ -175,6 +166,7 @@ async function runTests(): Promise<void> {
     const restore = saveAndClearAllProviderEnv();
     try {
       process.env.GEMINI_API_KEY = 'test-gemini-key-factory';
+      process.env.TESSERACT_BINARY_PATH = '/nonexistent/tesseract';
       const extractor = getDocumentExtractor();
       assert(
         extractor instanceof GeminiDocumentExtractor,
@@ -184,53 +176,11 @@ async function runTests(): Promise<void> {
   }
 
   {
-    // 2.3 Azure fully configured → Azure wins over Gemini
-    const restore = saveAndClearAllProviderEnv();
-    try {
-      process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT = 'https://test.cognitiveservices.azure.com';
-      process.env.AZURE_DOCUMENT_INTELLIGENCE_KEY = 'azure-key-xyz';
-      process.env.GEMINI_API_KEY = 'test-gemini-key-secondary';
-      const extractor = getDocumentExtractor();
-      assert(
-        extractor instanceof AzureDocumentExtractor,
-        'Azure fully configured → AzureDocumentExtractor wins over Gemini'
-      );
-    } finally { restore(); }
-  }
-
-  {
-    // 2.4 Partial Azure (endpoint only) → UnavailableDocumentExtractor, NOT Gemini fallback
-    const restore = saveAndClearAllProviderEnv();
-    try {
-      process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT = 'https://test.cognitiveservices.azure.com';
-      process.env.GEMINI_API_KEY = 'test-gemini-fallback-key';
-      const extractor = getDocumentExtractor();
-      assert(
-        extractor instanceof UnavailableDocumentExtractor,
-        'Partial Azure (endpoint only) + Gemini key → UnavailableDocumentExtractor (partial Azure fails closed, no Gemini fallback)'
-      );
-    } finally { restore(); }
-  }
-
-  {
-    // 2.5 Partial Azure (key only) → UnavailableDocumentExtractor, NOT Gemini fallback
-    const restore = saveAndClearAllProviderEnv();
-    try {
-      process.env.AZURE_DOCUMENT_INTELLIGENCE_KEY = 'azure-partial-key';
-      process.env.GEMINI_API_KEY = 'test-gemini-fallback-key';
-      const extractor = getDocumentExtractor();
-      assert(
-        extractor instanceof UnavailableDocumentExtractor,
-        'Partial Azure (key only) + Gemini key → UnavailableDocumentExtractor (no Gemini fallback for partial Azure)'
-      );
-    } finally { restore(); }
-  }
-
-  {
     // 2.6 Factory never returns DeterministicDocumentExtractor (Gemini only)
     const restore = saveAndClearAllProviderEnv();
     try {
       process.env.GEMINI_API_KEY = 'test-key-det-check';
+      process.env.TESSERACT_BINARY_PATH = '/nonexistent/tesseract';
       const extractor = getDocumentExtractor();
       assert(
         !(extractor instanceof DeterministicDocumentExtractor),
@@ -558,21 +508,6 @@ async function runTests(): Promise<void> {
       assert(
         extractor instanceof GeminiDocumentExtractor,
         'GEMINI_API_KEY env → factory returns GeminiDocumentExtractor instance'
-      );
-    } finally { restore(); }
-  }
-
-  {
-    // 8.3 Azure + Gemini both set → Azure wins
-    const restore = saveAndClearAllProviderEnv();
-    try {
-      process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT = 'https://az.cognitiveservices.azure.com';
-      process.env.AZURE_DOCUMENT_INTELLIGENCE_KEY = 'azure-key-precedence';
-      process.env.GEMINI_API_KEY = 'gemini-key-precedence';
-      const extractor = getDocumentExtractor();
-      assert(
-        extractor instanceof AzureDocumentExtractor,
-        'Azure + Gemini both set → AzureDocumentExtractor wins (Azure is priority 1)'
       );
     } finally { restore(); }
   }
