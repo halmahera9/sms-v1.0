@@ -98,7 +98,7 @@ function WorkspaceContent() {
       />
 
       {/* Main Content Workspace */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <main className="flex-1 lg:ml-64 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 lg:pb-6">
         {activeTab === 'dashboard' && (
           <UnifiedDashboard onNavigateTab={setActiveTab} />
         )}
@@ -139,7 +139,7 @@ function WorkspaceContent() {
       )}
 
       {/* Footer */}
-      <footer className="bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 py-4 text-center text-xs text-slate-500 mt-auto">
+      <footer className="lg:ml-64 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 py-4 text-center text-xs text-slate-500 mt-auto">
         BANYUBIRU v0.3 — Unified Operational Intelligence Platform (Employee &amp; Student Administration)
       </footer>
     </div>
