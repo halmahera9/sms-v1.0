@@ -124,6 +124,24 @@ async function runStudentExportServerActionsTests() {
     });
 
     await adminPrisma.userActor.upsert({
+      where: { id: ACTOR_PEGAWAI_A_ID },
+      create: {
+        id: ACTOR_PEGAWAI_A_ID,
+        tenantId: TENANT_A_ID,
+        username: 'exp_peg_a',
+        email: 'exp_peg_a@test.local',
+        fullName: 'Export Pegawai A',
+        role: UserRole.PEGAWAI,
+        status: UserStatus.ACTIVE,
+      },
+      update: {
+        tenantId: TENANT_A_ID,
+        status: UserStatus.ACTIVE,
+        role: UserRole.PEGAWAI,
+      },
+    });
+
+    await adminPrisma.userActor.upsert({
       where: { id: ACTOR_INACTIVE_A_ID },
       create: {
         id: ACTOR_INACTIVE_A_ID,
