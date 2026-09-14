@@ -234,7 +234,7 @@ model Employee {
   id                String         @id @db.Uuid
   tenantId          String         @map("tenant_id") @db.Uuid
   nip               String         @db.VarChar(18)
-  nrk               String         @db.VarChar(10)
+  nrk               String?        @db.VarChar(10)
   fullName          String         @map("nama_lengkap") @db.VarChar(255)
   gelarDepan        String?        @map("gelar_depan") @db.VarChar(50)
   gelarBelakang     String?        @map("gelar_belakang") @db.VarChar(50)

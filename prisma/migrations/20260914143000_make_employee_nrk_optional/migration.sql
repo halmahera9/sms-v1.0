@@ -1,0 +1,2 @@
+ALTER TABLE "employees"
+ALTER COLUMN "nrk" DROP NOT NULL;
