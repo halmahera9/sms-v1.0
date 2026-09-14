@@ -29,7 +29,7 @@ export const CandidateList: React.FC<CandidateListProps> = ({
       const matchSearch =
         !searchTerm ||
         p.employee.nama.toLowerCase().includes(search) ||
-        p.employee.nrk.toLowerCase().includes(search) ||
+        p.employee.nrk?.toLowerCase().includes(search) ||
         p.employee.nip.toLowerCase().includes(search) ||
         p.employee.unitKerja.toLowerCase().includes(search) ||
         p.employee.jabatan.toLowerCase().includes(search);

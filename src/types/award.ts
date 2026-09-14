@@ -19,7 +19,7 @@ export type VerificationStatus = 'pending' | 'verified' | 'rejected';
 export interface Employee {
   id: string;
   nip: string;
-  nrk: string;
+  nrk: string | null;
   nama: string;
   gelar?: string;
   tempatLahir?: string;
