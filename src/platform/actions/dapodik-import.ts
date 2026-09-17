@@ -7,6 +7,7 @@ import {
 import {
   importDapodikEmployees,
   importDapodikStudents,
+  previewDapodikImport,
 } from "@/platform/services/dapodik/dapodik-import";
 
 export type DapodikImportActionResult = {
@@ -113,4 +114,26 @@ export async function importDapodikAction(
         error instanceof Error ? error.message : "Import Dapodik gagal.",
     };
   }
+}
+
+
+export async function previewDapodikAction(
+  formData: FormData,
+) {
+  const mode = formData.get("mode");
+  const file = formData.get("file");
+
+  if (mode !== "employee" && mode !== "student") {
+    throw new Error("Mode import tidak valid.");
+  }
+
+  if (!(file instanceof File) || file.size === 0) {
+    throw new Error("File Excel wajib dipilih.");
+  }
+
+  return executeInAuthenticatedContext(async (context) => {
+    assertAuthorizedAction(context, "STUDENT_WRITE");
+    const buffer = Buffer.from(await file.arrayBuffer());
+    return previewDapodikImport(context.tenantId, buffer, mode);
+  });
 }

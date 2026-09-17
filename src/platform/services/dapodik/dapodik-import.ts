@@ -2,6 +2,25 @@ import { randomUUID } from "crypto";
 import * as XLSX from "xlsx";
 import { adminPrisma } from "@/platform/db/prisma";
 
+export type DapodikPreviewItem = {
+  row: number;
+  status: "NEW" | "CHANGED" | "UNCHANGED" | "ERROR";
+  identifier: string;
+  name: string;
+  changes?: string[];
+  message?: string;
+};
+
+export type DapodikPreviewResult = {
+  mode: "student" | "employee";
+  total: number;
+  newCount: number;
+  changedCount: number;
+  unchangedCount: number;
+  errorCount: number;
+  items: DapodikPreviewItem[];
+};
+
 type ImportResult = {
   created: number;
   updated: number;
@@ -38,6 +57,185 @@ function readSheet(buffer: Buffer): Record<string, unknown>[] {
     range: 4,
     defval: "",
   });
+}
+
+export async function previewDapodikImport(
+  tenantId: string,
+  buffer: Buffer,
+  mode: "student" | "employee",
+): Promise<DapodikPreviewResult> {
+  const rows = readSheet(buffer);
+  const items: DapodikPreviewItem[] = [];
+
+  for (let index = 0; index < rows.length; index++) {
+    const row = rows[index];
+    const rowNumber = index + 6;
+
+    if (mode === "student") {
+      const nisn = text(row["NISN"]);
+      const nis = text(row["NIPD"]);
+      const fullName = text(row["Nama"]);
+      const className = text(row["Rombel Saat Ini"]);
+
+      if (!nisn || !nis || !fullName || !className) {
+        items.push({
+          row: rowNumber,
+          status: "ERROR",
+          identifier: nisn,
+          name: fullName,
+          message: "NISN, NIPD, Nama, atau Rombel Saat Ini kosong.",
+        });
+        continue;
+      }
+
+      const existing = await adminPrisma.student.findFirst({
+        where: { tenantId, nisn },
+        select: {
+          nis: true,
+          fullName: true,
+          className: true,
+        },
+      });
+
+      if (!existing) {
+        items.push({
+          row: rowNumber,
+          status: "NEW",
+          identifier: nisn,
+          name: fullName,
+          message: "Data siswa baru.",
+        });
+        continue;
+      }
+
+      const changes: string[] = [];
+
+      if (existing.nis !== nis) changes.push("NIPD");
+      if (existing.fullName !== fullName) changes.push("Nama");
+      if (existing.className !== className) changes.push("Rombel");
+
+      items.push({
+        row: rowNumber,
+        status: changes.length ? "CHANGED" : "UNCHANGED",
+        identifier: nisn,
+        name: fullName,
+        changes: changes.length ? changes : undefined,
+        message: changes.length
+          ? `Data berubah: ${changes.join(", ")}.`
+          : "Tidak ada perubahan.",
+      });
+
+      continue;
+    }
+
+    const nip = firstValue(row, [
+      "NIP",
+      "NIP Baru",
+      "NIP Baru (Jika Ada)",
+    ]);
+    const nrk = firstValue(row, [
+      "NRK",
+      "Nomor Registrasi Kepegawaian",
+    ]);
+    const fullName = firstValue(row, [
+      "Nama",
+      "Nama PTK",
+      "Nama Lengkap",
+    ]);
+    const jabatan = firstValue(row, [
+      "Jabatan",
+      "Jabatan PTK",
+      "Jabatan/Tugas",
+    ]);
+    const unitKerja = firstValue(row, [
+      "Unit Kerja",
+      "Unit Kerja PTK",
+      "Rombel",
+    ]);
+    const instansi = firstValue(row, [
+      "Instansi",
+      "Sekolah",
+      "Nama Sekolah",
+    ]);
+    const statusKepegawaian = employeeStatus(
+      firstValue(row, [
+        "Status Kepegawaian",
+        "Status Kepegawaian PTK",
+        "Status Pegawai",
+      ]),
+    );
+
+    if (!nip || !fullName || !jabatan || !unitKerja || !instansi) {
+      items.push({
+        row: rowNumber,
+        status: "ERROR",
+        identifier: nip,
+        name: fullName,
+        message: "NIP, Nama, Jabatan, Unit Kerja, atau Instansi kosong.",
+      });
+      continue;
+    }
+
+    const existing = await adminPrisma.employee.findUnique({
+      where: {
+        tenantId_nip: {
+          tenantId,
+          nip,
+        },
+      },
+      select: {
+        nrk: true,
+        fullName: true,
+        jabatan: true,
+        unitKerja: true,
+        instansi: true,
+        statusKepegawaian: true,
+      },
+    });
+
+    if (!existing) {
+      items.push({
+        row: rowNumber,
+        status: "NEW",
+        identifier: nip,
+        name: fullName,
+        message: "Data guru/pegawai baru.",
+      });
+      continue;
+    }
+
+    const changes: string[] = [];
+
+    if ((existing.nrk ?? "") !== nrk) changes.push("NRK");
+    if (existing.fullName !== fullName) changes.push("Nama");
+    if (existing.jabatan !== jabatan) changes.push("Jabatan");
+    if (existing.unitKerja !== unitKerja) changes.push("Unit Kerja");
+    if (existing.instansi !== instansi) changes.push("Instansi");
+    if (existing.statusKepegawaian !== statusKepegawaian) {
+      changes.push("Status Kepegawaian");
+    }
+
+    items.push({
+      row: rowNumber,
+      status: changes.length ? "CHANGED" : "UNCHANGED",
+      identifier: nip,
+      name: fullName,
+      changes: changes.length ? changes : undefined,
+      message: changes.length
+        ? `Data berubah: ${changes.join(", ")}.`
+        : "Tidak ada perubahan.",
+    });
+  }
+
+  return {
+    mode,
+    total: items.length,
+    newCount: items.filter((item) => item.status === "NEW").length,
+    changedCount: items.filter((item) => item.status === "CHANGED").length,
+    unchangedCount: items.filter((item) => item.status === "UNCHANGED").length,
+    errorCount: items.filter((item) => item.status === "ERROR").length,
+    items,
+  };
 }
 
 export async function importDapodikStudents(
