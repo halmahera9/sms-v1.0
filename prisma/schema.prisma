@@ -207,8 +207,9 @@ model UserActor {
   username  String     @db.VarChar(128)
   email     String     @db.VarChar(255)
   fullName  String     @map("full_name") @db.VarChar(255)
-  role      UserRole
-  status    UserStatus @default(ACTIVE)
+  role         UserRole
+  passwordHash String?    @map("password_hash") @db.VarChar(255)
+  status       UserStatus @default(ACTIVE)
   createdAt DateTime   @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 

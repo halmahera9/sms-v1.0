@@ -1,5 +1,7 @@
 'use client';
 
+import { getStudentsAction } from '@/platform/actions/student';
+
 import { useState, useEffect } from 'react';
 import { 
   Upload, 
@@ -12,11 +14,28 @@ import {
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { importDapodikAction, previewDapodikAction } from '@/platform/actions/dapodik-import';
-import { getStoredStudents, saveStudents, addAuditLog } from '@/lib/storage';
+import { saveStudents, addAuditLog } from '@/lib/storage';
 import { Student } from '@/types/sms';
 
 export default function MasterStudentsPage() {
   const [students, setStudents] = useState<Student[]>([]);
+
+
+  useEffect(() => {
+    void (async () => {
+      const result = await getStudentsAction({ limit: 200 });
+      if (result.success) {
+        setStudents(
+          (result.data ?? []).map((s) => ({
+            ...s,
+            name: s.fullName,
+            class: s.className,
+            status: s.status === "ACTIVE" ? "Aktif" : "Nonaktif",
+          }))
+        );
+      }
+    })();
+  }, []);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedClass, setSelectedClass] = useState('Semua');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -31,7 +50,16 @@ export default function MasterStudentsPage() {
   const [newGender, setNewGender] = useState<'L' | 'P'>('L');
 
   useEffect(() => {
-    Promise.resolve().then(() => setStudents(getStoredStudents()));
+    void getStudentsAction({ limit: 200 }).then((result) => {
+      if (result.success) setStudents(
+          (result.data ?? []).map((s) => ({
+            ...s,
+            name: s.fullName,
+            class: s.className,
+            status: s.status === "ACTIVE" ? "Aktif" : "Nonaktif",
+          }))
+        );
+    });
   }, []);
 
   const showNotification = (msg: string) => {
@@ -278,47 +306,92 @@ export default function MasterStudentsPage() {
         </div>
       )}
 
-      {/* Students Table */}
+      {/* Students Table - Dapodik Style */}
       <div className="panel rounded-xl overflow-hidden border border-white/10">
+        <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
+          <div>
+            <h2 className="text-sm font-semibold text-white">Daftar Peserta Didik</h2>
+            <p className="text-[11px] text-slate-500 mt-1">
+              Master data siswa · sumber PostgreSQL
+            </p>
+          </div>
+          <span className="text-[11px] font-mono text-slate-400">
+            {filteredStudents.length} data
+          </span>
+        </div>
+
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs text-slate-300">
-            <thead className="bg-slate-900/90 text-slate-400 font-mono uppercase text-[11px] border-b border-white/10">
+          <table className="min-w-[1100px] w-full text-left text-xs text-slate-300 border-collapse">
+            <thead className="sticky top-0 z-20 bg-slate-900 text-slate-400 font-mono text-[10px] uppercase border-b border-white/10">
               <tr>
-                <th className="p-4">NISN / NIS</th>
-                <th className="p-4">Nama Lengkap Siswa</th>
-                <th className="p-4">Kelas</th>
-                <th className="p-4">JK</th>
-                <th className="p-4">Status</th>
-                <th className="p-4 text-right">Aksi</th>
+                <th className="sticky left-0 z-30 bg-slate-900 px-3 py-3 text-center w-14 border-r border-white/10">
+                  No
+                </th>
+                <th className="sticky left-14 z-30 bg-slate-900 px-4 py-3 min-w-[260px] border-r border-white/10">
+                  Nama
+                </th>
+                <th className="px-4 py-3 min-w-[110px]">NIPD</th>
+                <th className="px-4 py-3 min-w-[70px] text-center">JK</th>
+                <th className="px-4 py-3 min-w-[130px]">NISN</th>
+                <th className="px-4 py-3 min-w-[180px]">Rombel Saat Ini</th>
+                <th className="px-4 py-3 min-w-[150px]">Jurusan</th>
+                <th className="px-4 py-3 min-w-[120px]">Status</th>
+                <th className="px-4 py-3 min-w-[100px] text-center">Aksi</th>
               </tr>
             </thead>
+
             <tbody className="divide-y divide-white/5">
               {filteredStudents.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="p-8 text-center text-slate-500 font-mono">
-                    Tidak ada data siswa ditemukan.
+                  <td colSpan={9} className="px-6 py-12 text-center text-slate-500 font-mono">
+                    Tidak ada data peserta didik.
                   </td>
                 </tr>
               ) : (
-                filteredStudents.map((s) => (
-                  <tr key={s.id} className="hover:bg-slate-800/50 transition-colors">
-                    <td className="p-4 font-mono">
-                      <div className="text-white font-medium">{s.nisn}</div>
-                      {s.nis && <div className="text-[10px] text-slate-400">NIS: {s.nis}</div>}
+                filteredStudents.map((s, index) => (
+                  <tr
+                    key={s.id}
+                    className="hover:bg-slate-800/50 transition-colors"
+                  >
+                    <td className="sticky left-0 z-10 bg-slate-950 px-3 py-3 text-center font-mono text-slate-500 border-r border-white/5">
+                      {index + 1}
                     </td>
-                    <td className="p-4 font-semibold text-white">{s.name}</td>
-                    <td className="p-4">
-                      <span className="px-2 py-0.5 rounded bg-sky-500/10 text-sky-300 border border-sky-500/20 font-mono text-[11px]">
-                        {s.class}
+
+                    <td className="sticky left-14 z-10 bg-slate-950 px-4 py-3 border-r border-white/5">
+                      <div className="font-medium text-white whitespace-nowrap">
+                        {s.name}
+                      </div>
+                    </td>
+
+                    <td className="px-4 py-3 font-mono text-slate-300">
+                      {s.nis || '-'}
+                    </td>
+
+                    <td className="px-4 py-3 text-center font-mono">
+                      {s.gender || '-'}
+                    </td>
+
+                    <td className="px-4 py-3 font-mono text-slate-300">
+                      {s.nisn || '-'}
+                    </td>
+
+                    <td className="px-4 py-3">
+                      <span className="inline-flex px-2 py-1 rounded bg-sky-500/10 text-sky-300 border border-sky-500/20 font-mono whitespace-nowrap">
+                        {s.class || '-'}
                       </span>
                     </td>
-                    <td className="p-4 font-mono">{s.gender || 'L'}</td>
-                    <td className="p-4">
-                      <span className="px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-[10px]">
-                        {s.status}
+
+                    <td className="px-4 py-3 text-slate-400">
+                      -
+                    </td>
+
+                    <td className="px-4 py-3">
+                      <span className="inline-flex px-2 py-1 rounded border border-white/10 text-[10px]">
+                        {s.status || '-'}
                       </span>
                     </td>
-                    <td className="p-4 text-right">
+
+                    <td className="px-4 py-3 text-center">
                       <button
                         onClick={() => handleDeleteStudent(s.id, s.name)}
                         className="p-1.5 hover:bg-rose-500/20 text-rose-400 rounded transition-colors"
@@ -333,9 +406,14 @@ export default function MasterStudentsPage() {
             </tbody>
           </table>
         </div>
-        <div className="p-4 border-t border-white/10 text-xs text-slate-400 font-mono flex justify-between">
-          <span>Menampilkan {filteredStudents.length} dari {students.length} siswa</span>
-          <span>Total Kelas: {availableClasses.length - 1}</span>
+
+        <div className="px-4 py-3 border-t border-white/10 text-[11px] text-slate-500 font-mono flex justify-between">
+          <span>
+            Menampilkan {filteredStudents.length} dari {students.length} peserta didik
+          </span>
+          <span>
+            Total Rombel: {availableClasses.length - 1}
+          </span>
         </div>
       </div>
 
