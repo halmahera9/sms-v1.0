@@ -11,6 +11,7 @@ import {
   Download
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { importDapodikAction } from '@/platform/actions/dapodik-import';
 import { getStoredStudents, saveStudents, addAuditLog } from '@/lib/storage';
 import { Student } from '@/types/sms';
 
@@ -47,50 +48,28 @@ export default function MasterStudentsPage() {
 
   const availableClasses = ['Semua', ...Array.from(new Set(students.map((s) => s.class)))];
 
-  // Excel / CSV File Import Handler
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Dapodik / Excel Preview Handler
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      try {
-        const bstr = evt.target?.result;
-        const wb = XLSX.read(bstr, { type: 'binary' });
-        const wsname = wb.SheetNames[0];
-        const ws = wb.Sheets[wsname];
-        const data = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws);
+    try {
+      const formData = new FormData();
+      formData.set("mode", "student");
+      formData.set("file", file);
 
-        if (data.length === 0) {
-          alert('File Excel kosong atau format tidak sesuai.');
-          return;
-        }
+      const { previewDapodikAction } = await import("@/platform/actions/dapodik-import");
+      const result = await previewDapodikAction(formData);
 
-        const imported: Student[] = data.map((row: Record<string, unknown>, idx: number) => ({
-          id: `std-imp-${Date.now()}-${idx}`,
-          nisn: String(row.NISN || row.nisn || `000${Date.now()}${idx}`),
-          nis: String(row.NIS || row.nis || ''),
-          name: String(row.Nama || row.NAMA || row.name || `Siswa ${idx + 1}`),
-          class: String(row.Kelas || row.KELAS || row.class || '9A'),
-          gender: String(row.JK || row.Gender || row.gender || 'L').toUpperCase().startsWith('P') ? 'P' : 'L',
-          status: 'Aktif',
-        }));
-
-        const updated = [...students, ...imported];
-        setStudents(updated);
-        saveStudents(updated);
-        addAuditLog(
-          'Operator TU - Budi',
-          'IMPORT_STUDENTS',
-          file.name,
-          `Mengimpor ${imported.length} siswa dari file spreadsheet.`
-        );
-        showNotification(`Berhasil mengimpor ${imported.length} data siswa dari ${file.name}`);
-      } catch {
-        alert('Gagal membaca file Excel. Pastikan format file .xlsx atau .csv');
-      }
-    };
-    reader.readAsBinaryString(file);
+      showNotification(
+        `Preview ${file.name}: ${result.total} baris, ${result.newCount} baru, ${result.changedCount} berubah, ${result.errorCount} bermasalah.`
+      );
+      console.log("Dapodik preview:", result);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Gagal melakukan preview Dapodik.");
+    } finally {
+      e.target.value = "";
+    }
   };
 
   // Add Student Manually
