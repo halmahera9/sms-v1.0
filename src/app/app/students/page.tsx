@@ -11,7 +11,7 @@ import {
   Download
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { importDapodikAction } from '@/platform/actions/dapodik-import';
+import { importDapodikAction, previewDapodikAction } from '@/platform/actions/dapodik-import';
 import { getStoredStudents, saveStudents, addAuditLog } from '@/lib/storage';
 import { Student } from '@/types/sms';
 
@@ -21,6 +21,7 @@ export default function MasterStudentsPage() {
   const [selectedClass, setSelectedClass] = useState('Semua');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [notification, setNotification] = useState<string | null>(null);
+  const [preview, setPreview] = useState<Awaited<ReturnType<typeof previewDapodikAction>> | null>(null);
 
   // New Student Form State
   const [newNisn, setNewNisn] = useState('');
@@ -58,13 +59,12 @@ export default function MasterStudentsPage() {
       formData.set("mode", "student");
       formData.set("file", file);
 
-      const { previewDapodikAction } = await import("@/platform/actions/dapodik-import");
       const result = await previewDapodikAction(formData);
+      setPreview(result);
 
       showNotification(
         `Preview ${file.name}: ${result.total} baris, ${result.newCount} baru, ${result.changedCount} berubah, ${result.errorCount} bermasalah.`
       );
-      console.log("Dapodik preview:", result);
     } catch (error) {
       alert(error instanceof Error ? error.message : "Gagal melakukan preview Dapodik.");
     } finally {
@@ -194,6 +194,59 @@ export default function MasterStudentsPage() {
           </select>
         </div>
       </div>
+
+      {preview && (
+        <div className="panel rounded-xl border border-white/10 overflow-hidden">
+          <div className="p-4 border-b border-white/10 flex items-center justify-between">
+            <div>
+              <h2 className="text-sm font-semibold text-white">Preview Import Dapodik</h2>
+              <p className="text-xs text-slate-400 mt-1">
+                {preview.total} data · {preview.newCount} baru · {preview.changedCount} berubah · {preview.errorCount} bermasalah
+              </p>
+            </div>
+            <button
+              onClick={() => setPreview(null)}
+              className="text-slate-400 hover:text-white"
+              aria-label="Tutup preview"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          <div className="max-h-80 overflow-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="sticky top-0 bg-slate-900 text-slate-400">
+                <tr>
+                  <th className="p-3">Baris</th>
+                  <th className="p-3">NISN</th>
+                  <th className="p-3">Nama</th>
+                  <th className="p-3">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {preview.items.map((item) => (
+                  <tr key={`${item.row}-${item.identifier}`}>
+                    <td className="p-3 text-slate-400">{item.row}</td>
+                    <td className="p-3 text-slate-300">{item.identifier}</td>
+                    <td className="p-3 text-white">{item.name}</td>
+                    <td className="p-3">
+                      <span className="font-medium">
+                        {item.status === "NEW" && "DATA BARU"}
+                        {item.status === "CHANGED" && "DATA BERUBAH"}
+                        {item.status === "UNCHANGED" && "TIDAK ADA PERUBAHAN"}
+                        {item.status === "ERROR" && "DATA BERMASALAH"}
+                      </span>
+                      {item.message && (
+                        <div className="text-[11px] text-red-300 mt-1">{item.message}</div>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Students Table */}
       <div className="panel rounded-xl overflow-hidden border border-white/10">
