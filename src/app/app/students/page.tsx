@@ -22,6 +22,7 @@ export default function MasterStudentsPage() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [notification, setNotification] = useState<string | null>(null);
   const [preview, setPreview] = useState<Awaited<ReturnType<typeof previewDapodikAction>> | null>(null);
+  const [previewFile, setPreviewFile] = useState<File | null>(null);
 
   // New Student Form State
   const [newNisn, setNewNisn] = useState('');
@@ -61,6 +62,7 @@ export default function MasterStudentsPage() {
 
       const result = await previewDapodikAction(formData);
       setPreview(result);
+      setPreviewFile(file);
 
       showNotification(
         `Preview ${file.name}: ${result.total} baris, ${result.newCount} baru, ${result.changedCount} berubah, ${result.errorCount} bermasalah.`
@@ -204,13 +206,41 @@ export default function MasterStudentsPage() {
                 {preview.total} data · {preview.newCount} baru · {preview.changedCount} berubah · {preview.errorCount} bermasalah
               </p>
             </div>
-            <button
-              onClick={() => setPreview(null)}
-              className="text-slate-400 hover:text-white"
-              aria-label="Tutup preview"
-            >
-              <X className="h-4 w-4" />
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                disabled={!previewFile || preview?.errorCount > 0}
+                onClick={async () => {
+                  if (!previewFile) return;
+                  const formData = new FormData();
+                  formData.set("mode", "student");
+                  formData.set("dryRun", "false");
+                  formData.set("file", previewFile);
+                  const result = await importDapodikAction(formData);
+                  if (!result.ok) {
+                    alert(result.errorMessage ?? "Import Dapodik gagal.");
+                    return;
+                  }
+                  setPreview(null);
+                  setPreviewFile(null);
+                  showNotification(
+                    `Import berhasil: ${result.created} baru, ${result.updated} diperbarui, ${result.skipped} dilewati.`
+                  );
+                }}
+                className="px-3 py-2 bg-emerald-500 text-slate-950 text-xs font-semibold rounded disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Setujui & Import
+              </button>
+              <button
+                onClick={() => {
+                  setPreview(null);
+                  setPreviewFile(null);
+                }}
+                className="text-slate-400 hover:text-white"
+                aria-label="Tutup preview"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
           </div>
 
           <div className="max-h-80 overflow-auto">
