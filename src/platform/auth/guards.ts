@@ -30,6 +30,7 @@ export const PLATFORM_RBAC_REGISTRY = {
 
   // Student Directory domain
   STUDENT_READ: [UserRole.ADMIN, UserRole.ADMIN_TENANT, UserRole.OPERATOR, UserRole.VERIFIKATOR],
+  EMPLOYEE_READ: [UserRole.ADMIN, UserRole.ADMIN_TENANT, UserRole.OPERATOR, UserRole.VERIFIKATOR],
   STUDENT_WRITE: [UserRole.ADMIN, UserRole.ADMIN_TENANT, UserRole.OPERATOR],
 
   // Student Export domain

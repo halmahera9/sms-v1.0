@@ -19,6 +19,7 @@ import {
 const navItems = [
   { name: 'Overview', href: '/app', icon: LayoutDashboard },
   { name: 'Master Data Siswa', href: '/app/students', icon: Users },
+  { name: 'Master Data Guru/Pegawai', href: '/app/employees', icon: Users },
   { name: 'Upload & OCR', href: '/app/ocr', icon: ScanText },
   { name: 'Verifikasi Operator', href: '/app/verify', icon: CheckSquare },
   { name: 'Ekspor Excel & PDF', href: '/app/export', icon: FileSpreadsheet },
