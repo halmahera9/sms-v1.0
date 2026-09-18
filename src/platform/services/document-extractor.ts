@@ -1,78 +1,73 @@
-import {
+import 'server-only';
+
+import crypto from 'crypto';
+
+import type {
   IDocumentExtractor,
   DocumentExtractionRequest,
   DocumentExtractionResult,
   ExtractedDocumentItem,
-} from '../types/document-extractor';
-import { GeminiDocumentExtractor, resolveGeminiDocumentExtractorConfig } from './gemini-document-extractor';
-import { LocalOcrGeminiDocumentExtractor } from './local-ocr-gemini-document-extractor';
-import { resolveTesseractOcrConfig } from './local-ocr-engine';
-import { LocalPdfDocumentExtractor } from './local-pdf-document-extractor';
+} from '@/platform/types/document-extractor';
+import { HybridDocumentExtractor } from './hybrid-document-extractor';
 
 /**
- * Configuration options for DeterministicDocumentExtractor.
- */
-export interface DeterministicExtractorOptions {
-  defaultItems?: ExtractedDocumentItem[];
-  fixtureProvider?: (
-    request: DocumentExtractionRequest
-  ) => ExtractedDocumentItem[] | Promise<ExtractedDocumentItem[]>;
-}
-
-/**
- * Deterministic Test & Development Document Extractor.
- *
- * Provides deterministic document extraction for test, staging, and development environments.
- * - Extracts items directly from configured fixtures or request metadata
- * - Validates binary buffer presence without attempting pseudo-regex OCR on binary streams
- * - Guarantees 100% predictable output compatible with DocumentIntelligenceOrchestrator
+ * Deterministic extractor retained for tests/dev fixtures.
  */
 export class DeterministicDocumentExtractor implements IDocumentExtractor {
-  constructor(private readonly options: DeterministicExtractorOptions = {}) {}
+  constructor(
+    private readonly options: {
+      defaultItems?: Array<{
+        ocrText: string;
+        confidence?: number;
+        matchedStudentName?: string;
+        matchedNisn?: string;
+        matchedStudentId?: string;
+        nisn?: string;
+        nis?: string;
+        date?: string;
+        status?: string;
+      }>;
+    } = {}
+  ) {}
 
-  public async extract(request: DocumentExtractionRequest): Promise<DocumentExtractionResult> {
-    if (!request || !request.content || request.content.byteLength === 0) {
-      return {
-        success: false,
-        items: [],
-        errorMessage: 'Validation Error: Binary content cannot be empty.',
-      };
-    }
-
-    if (this.options.fixtureProvider) {
-      const items = await this.options.fixtureProvider(request);
-      return {
-        success: true,
-        items,
-        pageCount: 1,
-      };
-    }
-
-    if (Array.isArray(request.metadata?.items)) {
-      return {
-        success: true,
-        items: request.metadata.items as ExtractedDocumentItem[],
-        pageCount: 1,
-      };
-    }
+  async extract(
+    _request: DocumentExtractionRequest
+  ): Promise<DocumentExtractionResult> {
+    const items: ExtractedDocumentItem[] = (
+      this.options.defaultItems ?? []
+    ).map((item) => ({
+      id: crypto.randomUUID(),
+      ocrText: item.ocrText,
+      name: item.ocrText,
+      matchedStudentName: item.matchedStudentName,
+      matchedNisn: item.matchedNisn,
+      matchedStudentId: item.matchedStudentId,
+      nisn: item.nisn ?? item.matchedNisn,
+      nis: item.nis,
+      date: item.date,
+      status: item.status,
+      confidence: item.confidence ?? 0,
+    }));
 
     return {
       success: true,
-      items: this.options.defaultItems || [],
-      pageCount: 1,
+      items,
+      rawText: items.map((item) => item.ocrText).join("\n"),
     };
   }
 }
 
 /**
- * Null / Unavailable Extractor for strict production deployments without active OCR engine.
+ * Explicit unavailable extractor retained for tests/fail-closed scenarios.
  */
 export class UnavailableDocumentExtractor implements IDocumentExtractor {
   constructor(
-    private readonly reason: string = 'Extraction Engine Unavailable: No OCR provider is currently configured.'
+    private readonly reason = 'Document extractor tidak tersedia.'
   ) {}
 
-  public async extract(_request: DocumentExtractionRequest): Promise<DocumentExtractionResult> {
+  async extract(
+    _request: DocumentExtractionRequest
+  ): Promise<DocumentExtractionResult> {
     return {
       success: false,
       items: [],
@@ -82,21 +77,12 @@ export class UnavailableDocumentExtractor implements IDocumentExtractor {
 }
 
 /**
- * Canonical production factory for IDocumentExtractor.
+ * Canonical production document extractor.
  *
- * Selection logic (fail-closed):
- * 1. Local Tesseract OCR + Gemini semantic extraction when both
- *    GEMINI_API_KEY and the Tesseract runtime are available.
- * 2. Gemini direct multimodal extraction when Gemini is configured
- *    but Tesseract is unavailable.
- * 3. UnavailableDocumentExtractor when Gemini is not configured.
- *
- * DeterministicDocumentExtractor is intentionally excluded from this path.
- * It must only be injected explicitly in test or development fixtures.
+ * PDF:
+ * 1. Try native text layer via pdftotext.
+ * 2. Fall back to page rasterisation + Tesseract OCR.
  */
 export function getDocumentExtractor(): IDocumentExtractor {
-  // PDF text documents can be processed locally without Gemini.
-  // This keeps the core administrative extraction pipeline operational
-  // when GEMINI_API_KEY is not configured.
-  return new LocalPdfDocumentExtractor();
+  return new HybridDocumentExtractor();
 }
