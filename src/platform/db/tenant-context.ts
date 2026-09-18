@@ -32,12 +32,18 @@ export async function runInTenantContext<T>(
     throw new Error('SECURITY ERROR: Actor ID and Tenant ID are required for tenant context execution.');
   }
 
-  return await prisma.$transaction(async (tx) => {
-    // 1. Parameterized execution of set_tenant_context PL/pgSQL helper
+  return await prisma.$transaction(
+    async (tx) => {
+      // 1. Parameterized execution of set_tenant_context PL/pgSQL helper
     // Uses PostgreSQL $1, $2 query parameters under the hood via Prisma template tag
     await tx.$executeRaw`SELECT set_tenant_context(${actorId}::uuid, ${tenantId}::uuid);`;
 
-    // 2. Execute business query logic within the active transaction
-    return await queryBlock(tx);
-  });
+      // 2. Execute business query logic within the active transaction
+      return await queryBlock(tx);
+    },
+    {
+      maxWait: 10000,
+      timeout: 60000,
+    }
+  );
 }

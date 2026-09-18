@@ -1,7 +1,6 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import { 
   Upload, 
   ScanText, 
@@ -12,111 +11,85 @@ import {
   RefreshCw,
   Image as ImageIcon
 } from 'lucide-react';
-import { getStoredStudents, getStoredDocuments, saveDocuments, addAuditLog } from '@/lib/storage';
-import { findBestStudentMatch } from '@/lib/fuzzy';
+import { getOCRDocumentsAction } from '@/platform/actions/student-workflow';
+import { processUploadedOCRDocumentAction } from '@/platform/actions/ocr-upload';
 import { OCRDocument, ExtractedItem, AbsenceStatus } from '@/types/sms';
 
 export default function OCRUploadPage() {
-  const router = useRouter();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [extractedResult, setExtractedResult] = useState<OCRDocument | null>(null);
+  const [documents, setDocuments] = useState<OCRDocument[]>([]);
 
-  // Preset sample attendance sheets for easy 1-click testing
-  const samplePresets = [
-    {
-      name: 'Daftar_Hadir_Kelas_9B_Agustus.jpg',
-      url: 'https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?auto=format&fit=crop&w=800&q=80',
-      sampleNames: ['Dini Supriyatin', 'Eko Prasetya', 'Fikry Haikal', 'Gita Gutawaa'],
-      class: '9B',
-    },
-    {
-      name: 'Formulir_Izin_Kelas_9C.png',
-      url: 'https://images.unsplash.com/photo-1517842645767-c639042777db?auto=format&fit=crop&w=800&q=80',
-      sampleNames: ['Hendra Setiawann', 'Indah Kusumah'],
-      class: '9C',
+  useEffect(() => {
+    let mounted = true;
+
+    getOCRDocumentsAction().then((result) => {
+      if (mounted && result.success) {
+        setDocuments(result.data ?? []);
+        setExtractedResult(result.data?.[0] ?? null);
+      }
+    });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const processOCR = async (file: File) => {
+    setIsProcessing(true);
+    setExtractedResult(null);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const result = await processUploadedOCRDocumentAction(formData);
+
+      if ("error" in result) {
+        throw new Error(result.error);
+      }
+
+      const documentId = result.data.documentId;
+
+      const documentsResult = await getOCRDocumentsAction();
+
+      if (documentsResult.success !== true) {
+        throw new Error(
+          typeof documentsResult.error === "string"
+            ? documentsResult.error
+            : "Gagal memuat hasil OCR"
+        );
+      }
+
+      const nextDocuments = documentsResult.data ?? [];
+      setDocuments(nextDocuments);
+
+      const latest = nextDocuments.find(
+        (doc) => doc.id === documentId
+      );
+
+      if (latest) {
+        setExtractedResult(latest);
+      }
+    } catch (error) {
+      console.error("OCR processing failed:", error);
+    } finally {
+      setIsProcessing(false);
     }
-  ];
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      setSelectedFile(file);
-      setPreviewUrl(URL.createObjectURL(file));
-      setExtractedResult(null);
-    }
-  };
 
-  const handleSelectPreset = (preset: typeof samplePresets[0]) => {
-    setPreviewUrl(preset.url);
-    setSelectedFile(new File(['sample'], preset.name, { type: 'image/jpeg' }));
-    setExtractedResult(null);
-  };
+    if (!file) return;
 
-  const processOCR = () => {
-    if (!previewUrl) return;
-    setIsProcessing(true);
+    setSelectedFile(file);
+    setPreviewUrl(URL.createObjectURL(file));
 
-    setTimeout(() => {
-      const masterStudents = getStoredStudents();
-      
-      // Determine sample names to extract
-      const rawNames = selectedFile?.name.includes('9C') 
-        ? ['Hendra Setiawann', 'Indah Kusumah']
-        : ['Dini Supriyatin', 'Eko Prasetya', 'Fikri Haekal', 'Gita Gutawaa'];
-
-      const statuses: AbsenceStatus[] = ['Sakit', 'Izin', 'Alpha', 'Sakit'];
-      const notesList = [
-        'Demam berdarah',
-        'Acara keluarga ke luar kota',
-        'Tanpa keterangan wali kelas',
-        'Lomba paduan suara'
-      ];
-
-      const extractedItems: ExtractedItem[] = rawNames.map((ocrName, idx) => {
-        const match = findBestStudentMatch(ocrName, masterStudents);
-        return {
-          id: `item-${Date.now()}-${idx}`,
-          ocrText: ocrName,
-          matchedStudentId: match.student?.id,
-          matchedStudentName: match.student?.name,
-          matchedNisn: match.student?.nisn,
-          confidence: match.confidence,
-          class: match.student?.class || '9B',
-          date: new Date().toISOString().split('T')[0],
-          status: statuses[idx % statuses.length],
-          notes: notesList[idx % notesList.length],
-          verificationStatus: 'pending',
-        };
-      });
-
-      const newDoc: OCRDocument = {
-        id: `doc-${Date.now()}`,
-        fileName: selectedFile?.name || 'Scan_Daftar_Hadir.jpg',
-        fileSize: selectedFile?.size || 1250000,
-        uploadedAt: new Date().toISOString(),
-        imageUrl: previewUrl,
-        status: 'needs_verification',
-        extractedCount: extractedItems.length,
-        verifiedCount: 0,
-        items: extractedItems,
-      };
-
-      const existingDocs = getStoredDocuments();
-      const updatedDocs = [newDoc, ...existingDocs];
-      saveDocuments(updatedDocs);
-
-      addAuditLog(
-        'Operator TU - Budi',
-        'PROCESS_OCR',
-        newDoc.fileName,
-        `Mengekstraksi ${extractedItems.length} baris data dan mencocokkan dengan Master Siswa.`
-      );
-
-      setExtractedResult(newDoc);
-      setIsProcessing(false);
-    }, 1500);
+    // Pilih file = langsung masuk pipeline OCR.
+    void processOCR(file);
   };
 
   return (
@@ -145,25 +118,9 @@ export default function OCRUploadPage() {
             <input type="file" accept="image/*, application/pdf" onChange={handleFileChange} className="hidden" />
           </label>
 
-          {/* Quick Presets */}
-          <div className="pt-2">
-            <span className="text-[11px] font-mono text-slate-400 block mb-2">Atau gunakan Contoh Sampel Dokumen:</span>
-            <div className="grid grid-cols-2 gap-2">
-              {samplePresets.map((preset, i) => (
-                <button
-                  key={i}
-                  onClick={() => handleSelectPreset(preset)}
-                  className="flex items-center gap-2 p-2.5 bg-slate-900 hover:bg-slate-800 border border-white/10 rounded text-left transition-colors"
-                >
-                  <ImageIcon className="h-4 w-4 text-sky-400 shrink-0" />
-                  <div className="truncate">
-                    <div className="text-[11px] font-semibold text-white truncate">{preset.name}</div>
-                    <div className="text-[10px] text-slate-400">Kelas {preset.class}</div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
+          <p className="pt-2 text-[11px] text-slate-500">
+            Pilih dokumen asli untuk diproses oleh pipeline OCR Banyubiru.
+          </p>
         </div>
 
         {/* Preview & Action Box */}
@@ -189,7 +146,6 @@ export default function OCRUploadPage() {
           <div className="pt-4">
             <button
               disabled={!previewUrl || isProcessing}
-              onClick={processOCR}
               className="w-full flex items-center justify-center gap-2 py-3 bg-sky-400 hover:bg-sky-300 disabled:opacity-50 text-slate-950 text-xs font-bold rounded shadow-lg shadow-sky-500/20 transition-all"
             >
               {isProcessing ? (
@@ -225,7 +181,7 @@ export default function OCRUploadPage() {
             </div>
 
             <button
-              onClick={() => router.push('/app/verify')}
+              onClick={() => window.location.href = '/app/verify'}
               className="flex items-center gap-2 bg-emerald-400 hover:bg-emerald-300 text-slate-950 px-4 py-2 text-xs font-bold rounded shadow-md shadow-emerald-500/20 transition-all"
             >
               <span>Buka Antarmuka Verifikasi</span>

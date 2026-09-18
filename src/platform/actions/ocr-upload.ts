@@ -4,7 +4,6 @@ import { randomUUID } from 'crypto';
 import { DocumentCategory, DocumentProcessingStatus, DocumentStatus } from '@prisma/client';
 import { executeInAuthenticatedContext } from '@/platform/auth/session';
 import { assertAuthorizedAction } from '@/platform/auth/guards';
-import { adminPrisma } from '@/platform/db/prisma';
 import { getObjectStorageProvider } from '@/platform/storage';
 import { DocumentProcessingJobRunner } from '@/platform/services/document-processing-runner';
 
@@ -22,7 +21,7 @@ export async function processUploadedOCRDocumentAction(
     const mimeType = file.type || 'application/octet-stream';
     const buffer = Buffer.from(await file.arrayBuffer());
 
-    return await executeInAuthenticatedContext(async (context, tx) => {
+    const created = await executeInAuthenticatedContext(async (context, tx) => {
       assertAuthorizedAction(context, 'STUDENT_WORKFLOW_UPLOAD');
 
       const documentId = randomUUID();
@@ -72,40 +71,50 @@ export async function processUploadedOCRDocumentAction(
           documentId,
           documentVersionId: versionId,
           actorId: context.actorId,
-          targetDomain: 'student',
+          targetDomain:
+            /pegawai|guru|ptk|employee/i.test(fileName)
+              ? 'employee'
+              : 'student',
           status: DocumentProcessingStatus.QUEUED,
           attempts: 0,
           maxAttempts: 3,
           metadata: {
             fileName,
             mimeType,
+            storagePath: uploaded.storagePath,
           },
         },
       });
 
-      const runner = new DocumentProcessingJobRunner(
-        undefined,
-        storage,
-        undefined,
-        adminPrisma
-      );
-
-      const result = await runner.executeJob(
-        context.tenantId,
-        jobId
-      );
-
       return {
-        success: result.success,
-        data: {
-          documentId,
-          jobId,
-          status: result.finalStatus,
-          result,
-        },
-        error: result.success ? undefined : result.error,
+        tenantId: context.tenantId,
+        documentId,
+        jobId,
       };
     });
+
+    // Transaction sudah committed. Sekarang worker aman dijalankan.
+    const runner = new DocumentProcessingJobRunner();
+    const processing = await runner.executeJob(
+      created.tenantId,
+      created.jobId
+    );
+
+    if (!processing.success) {
+      return {
+        success: false,
+        error: processing.error || 'Dokumen gagal diproses oleh OCR.',
+      };
+    }
+
+    return {
+      success: true,
+      data: {
+        documentId: created.documentId,
+        jobId: created.jobId,
+        status: processing.finalStatus,
+      },
+    };
   } catch (error) {
     console.error('[OCR Upload]', error);
 

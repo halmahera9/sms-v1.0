@@ -7,6 +7,7 @@ import {
 import { GeminiDocumentExtractor, resolveGeminiDocumentExtractorConfig } from './gemini-document-extractor';
 import { LocalOcrGeminiDocumentExtractor } from './local-ocr-gemini-document-extractor';
 import { resolveTesseractOcrConfig } from './local-ocr-engine';
+import { LocalPdfDocumentExtractor } from './local-pdf-document-extractor';
 
 /**
  * Configuration options for DeterministicDocumentExtractor.
@@ -94,20 +95,8 @@ export class UnavailableDocumentExtractor implements IDocumentExtractor {
  * It must only be injected explicitly in test or development fixtures.
  */
 export function getDocumentExtractor(): IDocumentExtractor {
-  const geminiConfig = resolveGeminiDocumentExtractorConfig();
-
-  if (!geminiConfig.isConfigured) {
-    return new UnavailableDocumentExtractor(
-      'Extraction Engine Unavailable: Gemini AI is not configured. ' +
-        'Provide GEMINI_API_KEY.'
-    );
-  }
-
-  const tesseractConfig = resolveTesseractOcrConfig();
-
-  if (tesseractConfig.isAvailable) {
-    return new LocalOcrGeminiDocumentExtractor();
-  }
-
-  return new GeminiDocumentExtractor();
+  // PDF text documents can be processed locally without Gemini.
+  // This keeps the core administrative extraction pipeline operational
+  // when GEMINI_API_KEY is not configured.
+  return new LocalPdfDocumentExtractor();
 }

@@ -1,26 +1,24 @@
 import 'server-only';
 import { IObjectStorageProvider } from './types';
+import { FileSystemObjectStorageProvider } from './filesystem';
 import { InMemoryObjectStorageProvider } from './in-memory';
 
-let globalStorageProvider: IObjectStorageProvider = new InMemoryObjectStorageProvider();
+let globalStorageProvider: IObjectStorageProvider =
+  process.env.NODE_ENV === 'test'
+    ? new InMemoryObjectStorageProvider()
+    : new FileSystemObjectStorageProvider();
 
-/**
- * Returns the active platform IObjectStorageProvider instance.
- */
 export function getObjectStorageProvider(): IObjectStorageProvider {
   return globalStorageProvider;
 }
 
-/**
- * Overrides active storage provider (useful for testing or future provider switching).
- */
 export function setObjectStorageProvider(provider: IObjectStorageProvider): void {
   globalStorageProvider = provider;
 }
 
-/**
- * Resets storage provider to a fresh InMemoryObjectStorageProvider instance.
- */
 export function resetObjectStorageProvider(): void {
-  globalStorageProvider = new InMemoryObjectStorageProvider();
+  globalStorageProvider =
+    process.env.NODE_ENV === 'test'
+      ? new InMemoryObjectStorageProvider()
+      : new FileSystemObjectStorageProvider();
 }
