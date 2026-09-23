@@ -16,6 +16,7 @@ import { TenantTransactionClient, runInTenantContext } from '../db/tenant-contex
 import { ocrItemValidationEngine } from '@/domains/student/rules';
 import { ExtractedItem as DomainExtractedItem } from '@/domains/student/types';
 import { classifyDocument, decideDocument } from './document-classifier';
+import { extractDocumentEntities } from './document-entity-extractor';
 import { OCRExtractionStatus } from '@prisma/client';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -235,6 +236,7 @@ export class DocumentIntelligenceOrchestrator implements IDocumentIntelligenceOr
 
         const documentClassification = classifyDocument(rawDocumentText);
         const decision = decideDocument(documentClassification);
+        const documentEntities = extractDocumentEntities(rawDocumentText).entities;
 
         const processedItems: ProcessedExtractedItem[] = [];
         const allCreatedExceptionIds: string[] = [];
@@ -336,6 +338,7 @@ export class DocumentIntelligenceOrchestrator implements IDocumentIntelligenceOr
             fields,
             identityResolution,
             validationResults,
+            extractedEntities: documentEntities,
             exceptionId: createdExceptions[0]?.id,
             requiresHumanReview,
           });
