@@ -43,7 +43,7 @@ export async function runInTenantContext<T>(
     },
     {
       maxWait: 10000,
-      timeout: 60000,
+      timeout: 300000,
     }
   );
 }
