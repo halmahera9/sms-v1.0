@@ -15,7 +15,7 @@ import { IExceptionRepository, PostgresExceptionRepository } from '../repositori
 import { TenantTransactionClient, runInTenantContext } from '../db/tenant-context';
 import { ocrItemValidationEngine } from '@/domains/student/rules';
 import { ExtractedItem as DomainExtractedItem } from '@/domains/student/types';
-import { classifyDocument } from './document-classifier';
+import { classifyDocument, decideDocument } from './document-classifier';
 import { OCRExtractionStatus } from '@prisma/client';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -222,15 +222,19 @@ export class DocumentIntelligenceOrchestrator implements IDocumentIntelligenceOr
         }
 
         const items = extraction?.items || [];
-        const rawDocumentText = items
-          .map((item) =>
-            [item.studentNameRaw, item.nisnRaw, item.absenceDateRaw, item.absenceTypeRaw]
-              .filter(Boolean)
-              .join(" ")
-          )
-          .join("\n");
+        const rawDocumentText =
+          typeof request.metadata?.rawText === 'string'
+            ? request.metadata.rawText
+            : items
+                .map((item) =>
+                  [item.studentNameRaw, item.nisnRaw, item.absenceDateRaw, item.absenceTypeRaw]
+                    .filter(Boolean)
+                    .join(" ")
+                )
+                .join("\n");
 
         const documentClassification = classifyDocument(rawDocumentText);
+        const decision = decideDocument(documentClassification);
 
         const processedItems: ProcessedExtractedItem[] = [];
         const allCreatedExceptionIds: string[] = [];
@@ -370,6 +374,9 @@ export class DocumentIntelligenceOrchestrator implements IDocumentIntelligenceOr
             documentType: documentClassification.documentType,
             documentTypeConfidence: documentClassification.confidence,
             documentTypeEvidence: documentClassification.evidence,
+            decision: decision.decision,
+            decisionConfidence: decision.confidence,
+            decisionReason: decision.reason,
             terminalStatus,
             summary,
             exceptionCount: allCreatedExceptionIds.length,
@@ -384,6 +391,7 @@ export class DocumentIntelligenceOrchestrator implements IDocumentIntelligenceOr
           documentVersionId,
           ocrExtractionId: extraction?.id,
           documentClassification,
+          decision,
           processedItems,
           summary,
           exceptionIds: allCreatedExceptionIds,
