@@ -30,7 +30,20 @@ export class HybridDocumentExtractor implements IDocumentExtractor {
       };
     }
 
-    if (request.mimeType !== 'application/pdf') {
+    const mimeType = request.mimeType.trim().toLowerCase();
+
+    const supportedImageTypes = new Set([
+      'image/jpeg',
+      'image/png',
+      'image/webp',
+      'image/tiff',
+    ]);
+
+    if (supportedImageTypes.has(mimeType)) {
+      return this.extractImageWithTesseract(request);
+    }
+
+    if (mimeType !== 'application/pdf') {
       return {
         success: false,
         items: [],
@@ -64,6 +77,73 @@ export class HybridDocumentExtractor implements IDocumentExtractor {
      * scanned/image-only PDF → render halaman → Tesseract.
      */
     return this.extractPdfWithTesseract(request);
+  }
+
+  private async extractImageWithTesseract(
+    request: DocumentExtractionRequest
+  ): Promise<DocumentExtractionResult> {
+    try {
+      const ocr = await this.ocrEngine.recognise({
+        imageBuffer: Buffer.from(request.content),
+        lang: 'ind+eng',
+      });
+
+      if (!ocr.success || !ocr.rawText?.trim()) {
+        return {
+          success: false,
+          items: [],
+          errorMessage:
+            ocr.errorMessage ||
+            'OCR gambar tidak menghasilkan teks.',
+          metadata: {
+            extractionStrategy: 'tesseract',
+            extractionMode: 'image-ocr',
+            mimeType: request.mimeType,
+          },
+        };
+      }
+
+      const items: ExtractedDocumentItem[] = ocr.lines
+        .map((line) => line.text.trim())
+        .filter(Boolean)
+        .map((line) => ({
+          id: randomUUID(),
+          ocrText: line,
+          name: line,
+          confidence: ocr.lines.find(
+            (item) => item.text.trim() === line
+          )?.confidence ?? 0,
+        }));
+
+      return {
+        success: true,
+        items,
+        rawText: ocr.rawText.trim(),
+        pageCount: 1,
+        metadata: {
+          extractionEngine: 'tesseract',
+          extractionStrategy: 'tesseract',
+          extractionMode: 'image-ocr',
+          mimeType: request.mimeType,
+          language: 'ind+eng',
+          itemCount: items.length,
+        },
+      };
+    } catch (error) {
+      return {
+        success: false,
+        items: [],
+        errorMessage:
+          error instanceof Error
+            ? `Tesseract image OCR gagal: ${error.message}`
+            : 'Tesseract image OCR gagal.',
+        metadata: {
+          extractionStrategy: 'tesseract',
+          extractionMode: 'image-ocr',
+          mimeType: request.mimeType,
+        },
+      };
+    }
   }
 
   private async extractPdfWithTesseract(
