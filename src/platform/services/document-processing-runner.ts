@@ -218,6 +218,7 @@ export class DocumentProcessingJobRunner implements IDocumentProcessingJobRunner
       const mergedMetadata: Record<string, unknown> = {
         ...jobMeta,
         items: extractionResult.items,
+        rawText: extractionResult.rawText,
       };
 
       // 6. Delegate to DocumentIntelligenceOrchestrator
