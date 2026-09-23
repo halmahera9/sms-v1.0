@@ -79,8 +79,15 @@ export default function MasterEmployeesPage() {
   // Download Sample Template Excel
   const handleDownloadTemplate = () => {
     const sampleData = [
-      { NISN: '0054819211', NIS: '21221011', Nama: 'Rian Ardianto', Kelas: '9A', JK: 'L' },
-      { NISN: '0054819212', NIS: '21221012', Nama: 'Siti Badriah', Kelas: '9B', JK: 'P' },
+      {
+        NIP: '197001011990031001',
+        NRK: '123456',
+        Nama: 'Contoh Nama Guru',
+        Jabatan: 'Guru Mata Pelajaran',
+        'Unit Kerja': 'SMP Negeri 99 Jakarta',
+        Instansi: 'SMP Negeri 99 Jakarta',
+        'Status Kepegawaian': 'PNS',
+      },
     ];
     const ws = XLSX.utils.json_to_sheet(sampleData);
     const wb = XLSX.utils.book_new();
