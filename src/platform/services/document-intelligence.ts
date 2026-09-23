@@ -17,6 +17,7 @@ import { ocrItemValidationEngine } from '@/domains/student/rules';
 import { ExtractedItem as DomainExtractedItem } from '@/domains/student/types';
 import { classifyDocument, decideDocument } from './document-classifier';
 import { extractDocumentEntities } from './document-entity-extractor';
+import { matchDocumentEntity } from './document-identity-matcher';
 import { OCRExtractionStatus } from '@prisma/client';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -236,7 +237,16 @@ export class DocumentIntelligenceOrchestrator implements IDocumentIntelligenceOr
 
         const documentClassification = classifyDocument(rawDocumentText);
         const decision = decideDocument(documentClassification);
+
         const documentEntities = extractDocumentEntities(rawDocumentText).entities;
+
+        for (const entity of documentEntities) {
+          entity.identityResolution = await matchDocumentEntity(
+            tx,
+            tenantId,
+            entity,
+          );
+        }
 
         const processedItems: ProcessedExtractedItem[] = [];
         const allCreatedExceptionIds: string[] = [];
