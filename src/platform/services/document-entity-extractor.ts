@@ -13,6 +13,7 @@ function addEntity(
   entityType: ExtractedEntity['entityType'],
   rawValue: string,
   confidence: number,
+  identifierType?: ExtractedEntity['identifierType'],
 ): void {
   const value = normalize(rawValue);
 
@@ -30,6 +31,7 @@ function addEntity(
 
   entities.push({
     entityType,
+    identifierType,
     rawValue: value,
     normalizedValue: value,
     confidence,
@@ -47,28 +49,28 @@ export function extractDocumentEntities(
 
   // NIP: 18 digit ASN identifier.
   for (const match of rawText.matchAll(/\b\d{18}\b/g)) {
-    addEntity(entities, 'EMPLOYEE', match[0], 0.98);
+    addEntity(entities, 'EMPLOYEE', match[0], 0.98, 'NIP');
   }
 
   // NRK: commonly 6–10 digit employee identifier.
   for (const match of rawText.matchAll(
     /\b(?:NRK|No\.?\s*NRK)\s*[:\-]?\s*(\d{6,10})\b/gi,
   )) {
-    addEntity(entities, 'EMPLOYEE', match[1], 0.95);
+    addEntity(entities, 'EMPLOYEE', match[1], 0.95, 'NRK');
   }
 
   // NISN: 10 digit student identifier.
   for (const match of rawText.matchAll(
     /\b(?:NISN)\s*[:\-]?\s*(\d{10})\b/gi,
   )) {
-    addEntity(entities, 'STUDENT', match[1], 0.98);
+    addEntity(entities, 'STUDENT', match[1], 0.98, 'NISN');
   }
 
   // NIS: shorter student identifier, only when explicitly labelled.
   for (const match of rawText.matchAll(
     /\b(?:NIS)\s*[:\-]?\s*(\d{4,12})\b/gi,
   )) {
-    addEntity(entities, 'STUDENT', match[1], 0.92);
+    addEntity(entities, 'STUDENT', match[1], 0.92, 'NIS');
   }
 
   // Indonesian date forms.
