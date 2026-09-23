@@ -157,7 +157,14 @@ export class DocumentIntelligenceOrchestrator implements IDocumentIntelligenceOr
                 tenantId,
                 documentId,
                 status: OCRExtractionStatus.COMPLETED,
-                rawJson: { itemCount: rawMetadataItems.length, uploadedAt: new Date().toISOString() },
+                rawJson: {
+                  itemCount: rawMetadataItems.length,
+                  uploadedAt: new Date().toISOString(),
+                  rawText:
+                    typeof request.metadata?.rawText === 'string'
+                      ? request.metadata.rawText
+                      : rawMetadataItems.map((item) => item.ocrText || '').join('\n'),
+                },
               },
               include: {
                 items: {
