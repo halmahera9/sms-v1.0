@@ -236,7 +236,7 @@ export default function MasterStudentsPage() {
             </div>
             <div className="flex items-center gap-2">
               <button
-                disabled={!previewFile || preview?.errorCount > 0}
+                disabled={!previewFile}
                 onClick={async () => {
                   if (!previewFile) return;
                   const formData = new FormData();

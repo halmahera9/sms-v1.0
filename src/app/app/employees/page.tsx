@@ -175,7 +175,7 @@ export default function MasterEmployeesPage() {
             </div>
             <div className="flex items-center gap-2">
               <button
-                disabled={!previewFile || preview?.errorCount > 0}
+                disabled={!previewFile}
                 onClick={async () => {
                   if (!previewFile) return;
                   const formData = new FormData();
@@ -215,8 +215,8 @@ export default function MasterEmployeesPage() {
               <thead className="sticky top-0 bg-white text-slate-600">
                 <tr>
                   <th className="p-3">Baris</th>
-                  <th className="p-3">NISN</th>
-                  <th className="p-3">Nama</th>
+                  <th className="p-3">NIP / NRK</th>
+                  <th className="p-3">Nama Guru/Pegawai</th>
                   <th className="p-3">Status</th>
                 </tr>
               </thead>
