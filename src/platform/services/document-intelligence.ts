@@ -529,10 +529,47 @@ export class DocumentIntelligenceOrchestrator implements IDocumentIntelligenceOr
         }
       }
 
+      // Fallback: exact full-name match
+      const employeeName = item.studentNameRaw?.trim();
+      if (employeeName) {
+        const matchingEmployees = await tx.employee.findMany({
+          where: {
+            tenantId,
+            fullName: employeeName,
+          },
+        });
+
+        if (matchingEmployees.length === 1) {
+          return {
+            status: 'RESOLVED',
+            matchedEntityId: matchingEmployees[0].id,
+            matchedEntityType: 'Employee',
+            confidence: Math.round(confidence * 0.9),
+            matchMethod: 'FUZZY',
+            resolutionNotes: `Resolved employee by exact full-name match: '${matchingEmployees[0].fullName}'`,
+          };
+        }
+
+        if (matchingEmployees.length > 1) {
+          return {
+            status: 'AMBIGUOUS',
+            confidence: Math.round(confidence * 0.5),
+            matchMethod: 'FUZZY',
+            candidateMatches: matchingEmployees.map((employee) => ({
+              entityId: employee.id,
+              entityType: 'Employee',
+              label: `${employee.fullName} (${employee.nip})`,
+              confidence: 50,
+            })),
+            resolutionNotes: `Ambiguous employee name: multiple employees found for '${employeeName}'.`,
+          };
+        }
+      }
+
       return {
         status: 'UNRESOLVED',
         confidence: 0,
-        resolutionNotes: `Pegawai '${identifier}' tidak ditemukan dalam master data pegawai.`,
+        resolutionNotes: `Pegawai '${identifier || employeeName || ''}' tidak ditemukan dalam master data pegawai.`,
       };
     }
 
