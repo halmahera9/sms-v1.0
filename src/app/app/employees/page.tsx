@@ -76,24 +76,127 @@ export default function MasterEmployeesPage() {
     }
   };
 
-  // Download Sample Template Excel
+  // Download Template sesuai struktur Dapodik Guru/Pegawai
   const handleDownloadTemplate = () => {
-    const sampleData = [
-      {
-        NIP: '197001011990031001',
-        NRK: '123456',
-        Nama: 'Contoh Nama Guru',
-        Jabatan: 'Guru Mata Pelajaran',
-        'Unit Kerja': 'SMP Negeri 99 Jakarta',
-        Instansi: 'SMP Negeri 99 Jakarta',
-        'Status Kepegawaian': 'PNS',
-      },
+    const headers = [
+      "No",
+      "Nama",
+      "NUPTK",
+      "JK",
+      "Tempat Lahir",
+      "Tanggal Lahir",
+      "NIP",
+      "Status Kepegawaian",
+      "Jenis PTK",
+      "Agama",
+      "Alamat Jalan",
+      "RT",
+      "RW",
+      "Nama Dusun",
+      "Desa/Kelurahan",
+      "Kecamatan",
+      "Kode Pos",
+      "Telepon",
+      "HP",
+      "Email",
+      "Tugas Tambahan",
+      "SK CPNS",
+      "Tanggal CPNS",
+      "SK Pengangkatan",
+      "TMT Pengangkatan",
+      "Lembaga Pengangkatan",
+      "Pangkat Golongan",
+      "Sumber Gaji",
+      "Nama Ibu Kandung",
+      "Status Perkawinan",
+      "Nama Suami/Istri",
+      "NIP Suami/Istri",
+      "Pekerjaan Suami/Istri",
+      "TMT PNS",
+      "Sudah Lisensi Kepala Sekolah",
+      "Pernah Diklat Kepengawasan",
+      "Keahlian Braille",
+      "Keahlian Bahasa Isyarat",
+      "NPWP",
+      "Nama Wajib Pajak",
+      "Kewarganegaraan",
+      "Bank",
+      "Nomor Rekening Bank",
+      "Rekening Atas Nama",
+      "NIK",
+      "No KK",
+      "Karpeg",
+      "Karis/Karsu",
+      "Lintang",
+      "Bujur",
+      "NUKS",
     ];
-    const ws = XLSX.utils.json_to_sheet(sampleData);
+
+    const sample = [
+      "1",
+      "Contoh Nama Guru",
+      "",
+      "L",
+      "Jakarta",
+      "1985-01-26",
+      "197001011990031001",
+      "PNS",
+      "Guru",
+      "Islam",
+      "Alamat contoh",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "contoh@sekolah.sch.id",
+      "Guru wali",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "Belum Kawin",
+      "",
+      "",
+      "",
+      "",
+      "Tidak",
+      "Tidak",
+      "Tidak",
+      "Tidak",
+      "",
+      "Contoh Nama Guru",
+      "ID",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+    ];
+
+    const ws = XLSX.utils.aoa_to_sheet([headers, sample]);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Template_Master_Pegawai');
-    XLSX.writeFile(wb, 'Template_Import_Pegawai_SMS.xlsx');
+
+    XLSX.utils.book_append_sheet(wb, ws, "Template_Dapodik_PTK");
+    ws["!freeze"] = { xSplit: 0, ySplit: 1 };
+    ws["!autofilter"] = { ref: `A1:AY2` };
+
+    XLSX.writeFile(wb, "Template_Import_Guru_Pegawai_Dapodik.xlsx");
   };
+
 
   return (
     <div className="space-y-6">
@@ -189,6 +292,11 @@ export default function MasterEmployeesPage() {
                   }
                   setPreview(null);
                   setPreviewFile(null);
+
+                  const refreshed = await getEmployeesAction({ limit: 200 });
+                  if (refreshed.success) {
+                    setEmployees(refreshed.data ?? []);
+                  }
                   showNotification(
                     `Import berhasil: ${result.created} baru, ${result.updated} diperbarui, ${result.skipped} dilewati.`
                   );
