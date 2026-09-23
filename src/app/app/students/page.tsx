@@ -137,17 +137,227 @@ export default function MasterStudentsPage() {
     showNotification(`Data ${name} berhasil dihapus.`);
   };
 
-  // Download Sample Template Excel
+  // Download Template sesuai struktur export Dapodik Peserta Didik
   const handleDownloadTemplate = () => {
-    const sampleData = [
-      { NISN: '0054819211', NIS: '21221011', Nama: 'Rian Ardianto', Kelas: '9A', JK: 'L' },
-      { NISN: '0054819212', NIS: '21221012', Nama: 'Siti Badriah', Kelas: '9B', JK: 'P' },
+    const mainHeaders = [
+      "No",
+      "Nama",
+      "NIPD",
+      "JK",
+      "NISN",
+      "Tempat Lahir",
+      "Tanggal Lahir",
+      "NIK",
+      "Agama",
+      "Alamat",
+      "RT",
+      "RW",
+      "Dusun",
+      "Kelurahan",
+      "Kecamatan",
+      "Kode Pos",
+      "Jenis Tinggal",
+      "Alat Transportasi",
+      "Telepon",
+      "HP",
+      "E-Mail",
+      "SKHUN",
+      "Penerima KPS",
+      "No. KPS",
+      "Data Ayah",
+      "",
+      "",
+      "",
+      "",
+      "Data Ibu",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "Data Wali",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "Rombel Saat Ini",
+      "No Peserta Ujian Nasional",
+      "No Seri Ijazah",
+      "Penerima KIP",
+      "Nomor KIP",
+      "Nama di KIP",
+      "Nomor KKS",
+      "No Registrasi Akta Lahir",
+      "Bank",
+      "Nomor Rekening Bank",
+      "Rekening Atas Nama",
+      "Layak PIP (usulan dari sekolah)",
+      "Alasan Layak PIP",
+      "Kebutuhan Khusus",
+      "Sekolah Asal",
+      "Anak ke-berapa",
+      "Lintang",
+      "Bujur",
+      "No KK",
+      "Berat Badan",
+      "Tinggi Badan",
+      "Lingkar Kepala",
+      "Jml. Saudara Kandung",
+      "Jarak Rumah ke Sekolah (KM)",
     ];
-    const ws = XLSX.utils.json_to_sheet(sampleData);
+
+    const subHeaders = [
+      ...Array(24).fill(""),
+      "Nama",
+      "Tahun Lahir",
+      "Jenjang Pendidikan",
+      "Pekerjaan",
+      "Penghasilan",
+      "NIK",
+      "Nama",
+      "Tahun Lahir",
+      "Jenjang Pendidikan",
+      "Pekerjaan",
+      "Penghasilan",
+      "NIK",
+      "Nama",
+      "Tahun Lahir",
+      "Jenjang Pendidikan",
+      "Pekerjaan",
+      "Penghasilan",
+      "NIK",
+      ...Array(24).fill(""),
+    ];
+
+    const sample = [
+      "1",
+      "Contoh Nama Siswa",
+      "20994",
+      "L",
+      "3124029470",
+      "JAKARTA",
+      "2012-07-19",
+      "3175025907121007",
+      "Islam",
+      "Alamat contoh",
+      "1",
+      "1",
+      "RAWAMANGUN",
+      "Rawamangun",
+      "Kec. Pulo Gadung",
+      "13220",
+      "Bersama orang tua",
+      "Jalan kaki",
+      "",
+      "081234567890",
+      "contoh@smp.belajar.id",
+      "",
+      "Tidak",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "Kelas 7A",
+      "",
+      "",
+      "Tidak",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "Tidak",
+      "",
+      "",
+      "Tidak ada",
+      "SDN Contoh",
+      "1",
+      "-6.1959",
+      "106.8799",
+      "3175020607100073",
+      "40",
+      "150",
+      "53",
+      "1",
+      "2",
+    ];
+
+    while (sample.length < mainHeaders.length) {
+      sample.push("");
+    }
+
+    const ws = XLSX.utils.aoa_to_sheet([
+      ["Daftar Peserta Didik"],
+      ["SMP Negeri 99 Jakarta"],
+      ["Kecamatan Kec. Pulo Gadung, Kota Adm. Jakarta Timur, Provinsi D.K.I. Jakarta"],
+      ["Template Import Data Peserta Didik Dapodik"],
+      mainHeaders,
+      subHeaders,
+      sample,
+    ]);
+
+    ws["!merges"] = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: 65 } },
+      { s: { r: 1, c: 0 }, e: { r: 1, c: 65 } },
+      { s: { r: 2, c: 0 }, e: { r: 2, c: 65 } },
+      { s: { r: 3, c: 0 }, e: { r: 3, c: 65 } },
+
+      // Data Ayah: Y:AD
+      { s: { r: 4, c: 24 }, e: { r: 4, c: 29 } },
+
+      // Data Ibu: AE:AJ
+      { s: { r: 4, c: 30 }, e: { r: 4, c: 35 } },
+
+      // Data Wali: AK:AP
+      { s: { r: 4, c: 36 }, e: { r: 4, c: 41 } },
+    ];
+
+    // Header utama yang tidak mempunyai sub-header dibuat merge vertikal.
+    for (const col of [
+      ...Array.from({ length: 24 }, (_, i) => i),
+      ...Array.from({ length: 24 }, (_, i) => i + 42),
+    ]) {
+      ws["!merges"].push({
+        s: { r: 4, c: col },
+        e: { r: 5, c: col },
+      });
+    }
+
+    ws["!freeze"] = { xSplit: 0, ySplit: 6 };
+    ws["!autofilter"] = { ref: "A5:BN7" };
+
+    ws["!cols"] = Array.from({ length: 66 }, (_, index) => ({
+      wch:
+        index === 1 ? 28 :
+        index === 9 ? 32 :
+        index >= 24 && index <= 41 ? 20 :
+        18,
+    }));
+
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Template_Master_Siswa');
-    XLSX.writeFile(wb, 'Template_Import_Siswa_SMS.xlsx');
+    XLSX.utils.book_append_sheet(wb, ws, "Template_Master_Siswa");
+
+    XLSX.writeFile(wb, "Template_Import_Siswa_Dapodik.xlsx");
   };
+
 
   return (
     <div className="space-y-6">
