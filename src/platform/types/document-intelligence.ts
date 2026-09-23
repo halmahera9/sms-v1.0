@@ -36,6 +36,73 @@ export type IdentityResolutionStatus = 'RESOLVED' | 'UNRESOLVED' | 'AMBIGUOUS';
  */
 export type IdentityMatchMethod = 'EXACT' | 'FUZZY' | 'MANUAL';
 
+
+/**
+ * Canonical document categories recognized by Document Intelligence.
+ */
+export type DocumentType =
+  | 'DAFTAR_HADIR'
+  | 'SURAT_TUGAS'
+  | 'SURAT_EDARAN'
+  | 'SURAT_KETERANGAN'
+  | 'SK_KEPUTUSAN'
+  | 'LAPORAN'
+  | 'FORMULIR'
+  | 'DOKUMEN_KEPEGAWAIAN'
+  | 'DOKUMEN_PESERTA_DIDIK'
+  | 'DOKUMEN_LAINNYA'
+  | 'UNKNOWN';
+
+/**
+ * Classification result produced from the document content.
+ */
+export interface DocumentClassificationOutcome {
+  documentType: DocumentType;
+  confidence: number;
+  evidence: string[];
+  requiresHumanReview: boolean;
+}
+
+/**
+ * Canonical entity extracted from document content before master-data matching.
+ */
+export interface ExtractedEntity {
+  entityType:
+    | 'STUDENT'
+    | 'EMPLOYEE'
+    | 'DATE'
+    | 'DOCUMENT_NUMBER'
+    | 'POSITION'
+    | 'UNIT'
+    | 'SUBJECT'
+    | 'OTHER';
+  rawValue: string;
+  normalizedValue?: string;
+  confidence: number;
+  identityResolution?: IdentityResolutionOutcome;
+}
+
+/**
+ * Final business decision produced after classification and master-data matching.
+ */
+export interface DocumentIntelligenceDecision {
+  decision:
+    | 'ABSENSI'
+    | 'SURAT_TUGAS'
+    | 'SURAT_EDARAN'
+    | 'SURAT_KETERANGAN'
+    | 'SK_KEPUTUSAN'
+    | 'LAPORAN'
+    | 'FORMULIR'
+    | 'DOKUMEN_KEPEGAWAIAN'
+    | 'DOKUMEN_PESERTA_DIDIK'
+    | 'DOKUMEN_LAINNYA'
+    | 'PERLU_VERIFIKASI';
+  confidence: number;
+  reason: string;
+  requiresHumanReview: boolean;
+}
+
 // ============================================================================
 // 2. IDENTITY RESOLUTION CONTRACTS
 // ============================================================================
@@ -91,6 +158,7 @@ export interface ProcessedExtractedItem {
   rawText: string;
   confidence: number;
   fields: Record<string, ExtractedField>;
+  extractedEntities?: ExtractedEntity[];
   identityResolution: IdentityResolutionOutcome;
   validationResults: ValidationResult[];
   exceptionId?: string;
@@ -134,6 +202,8 @@ export interface DocumentIntelligencePipelineResult {
   documentId: string;
   documentVersionId: string;
   ocrExtractionId?: string;
+  documentClassification?: DocumentClassificationOutcome;
+  decision?: DocumentIntelligenceDecision;
   processedItems: ProcessedExtractedItem[];
   summary: DocumentIntelligencePipelineSummary;
   exceptionIds: string[];
