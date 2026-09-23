@@ -165,13 +165,13 @@ export async function previewDapodikImport(
       ]),
     );
 
-    if (!nip || !fullName || !jabatan || !unitKerja || !instansi) {
+    if (!nip || !fullName) {
       items.push({
         row: rowNumber,
         status: "ERROR",
         identifier: nip,
         name: fullName,
-        message: "NIP, Nama, Jabatan, Unit Kerja, atau Instansi kosong.",
+        message: "NIP atau Nama kosong.",
       });
       continue;
     }
@@ -425,13 +425,8 @@ export async function importDapodikEmployees(
       continue;
     }
 
-    if (!jabatan || !unitKerja || !instansi) {
-      result.errors.push({
-        row: rowNumber,
-        message: `Data wajib Employee tidak lengkap untuk ${fullName}`,
-      });
-      continue;
-    }
+    // NIP/Nama cukup untuk membuat master pegawai.
+    // Field administratif yang belum tersedia dari file Dapodik diberi nilai default.
 
     if (dryRun) {
       const existing = await adminPrisma.employee.findUnique({
@@ -466,9 +461,9 @@ export async function importDapodikEmployees(
       fullName,
       gelarDepan: null,
       gelarBelakang: null,
-      jabatan,
-      unitKerja,
-      instansi,
+      jabatan: jabatan || "Belum diisi",
+      unitKerja: unitKerja || "SMP Negeri 99 Jakarta",
+      instansi: instansi || "SMP Negeri 99 Jakarta",
       statusKepegawaian,
     };
 
