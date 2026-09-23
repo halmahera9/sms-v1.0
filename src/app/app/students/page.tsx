@@ -250,6 +250,18 @@ export default function MasterStudentsPage() {
                   }
                   setPreview(null);
                   setPreviewFile(null);
+
+                  const refreshed = await getStudentsAction({ limit: 200 });
+                  if (refreshed.success) {
+                    setStudents(
+                      (refreshed.data ?? []).map((s) => ({
+                        ...s,
+                        name: s.fullName,
+                        class: s.className,
+                        status: s.status === "ACTIVE" ? "Aktif" : "Nonaktif",
+                      }))
+                    );
+                  }
                   showNotification(
                     `Import berhasil: ${result.created} baru, ${result.updated} diperbarui, ${result.skipped} dilewati.`
                   );
