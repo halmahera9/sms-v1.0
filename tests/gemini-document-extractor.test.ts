@@ -10,6 +10,7 @@ import {
   UnavailableDocumentExtractor,
 } from '../src/platform/services/document-extractor';
 import { DocumentExtractionRequest } from '../src/platform/types/document-extractor';
+import { HybridDocumentExtractor } from '../src/platform/services/hybrid-document-extractor';
 
 let testCount = 0;
 let passCount = 0;
@@ -145,66 +146,76 @@ async function runTests(): Promise<void> {
   }
 
   // =========================================================================
-  // SECTION 2: Factory Selection — Gemini Provider
+  // SECTION 2: Production Factory Contract
   // =========================================================================
-  console.log('\n--- SECTION 2: Factory Selection — Gemini Provider ---');
+  console.log('\n--- SECTION 2: Production Factory Contract ---');
 
   {
-    // 2.1 No providers → UnavailableDocumentExtractor
+    // 2.1 No provider env → HybridDocumentExtractor
     const restore = saveAndClearAllProviderEnv();
     try {
       const extractor = getDocumentExtractor();
       assert(
-        extractor instanceof UnavailableDocumentExtractor,
-        'No providers configured → UnavailableDocumentExtractor'
+        extractor instanceof HybridDocumentExtractor,
+        'No provider env → HybridDocumentExtractor'
       );
     } finally { restore(); }
   }
 
   {
-    // 2.2 Gemini only → GeminiDocumentExtractor
+    // 2.2 Gemini configured → HybridDocumentExtractor
     const restore = saveAndClearAllProviderEnv();
     try {
       process.env.GEMINI_API_KEY = 'test-gemini-key-factory';
       process.env.TESSERACT_BINARY_PATH = '/nonexistent/tesseract';
+
       const extractor = getDocumentExtractor();
+
       assert(
-        extractor instanceof GeminiDocumentExtractor,
-        'GEMINI_API_KEY set, Azure absent → GeminiDocumentExtractor selected'
+        extractor instanceof HybridDocumentExtractor,
+        'Gemini configured → HybridDocumentExtractor'
       );
     } finally { restore(); }
   }
 
   {
-    // 2.6 Factory never returns DeterministicDocumentExtractor (Gemini only)
+    // 2.3 Production factory never returns test-only extractors
     const restore = saveAndClearAllProviderEnv();
     try {
-      process.env.GEMINI_API_KEY = 'test-key-det-check';
-      process.env.TESSERACT_BINARY_PATH = '/nonexistent/tesseract';
       const extractor = getDocumentExtractor();
+
       assert(
         !(extractor instanceof DeterministicDocumentExtractor),
-        'Factory never returns DeterministicDocumentExtractor when Gemini is configured'
+        'Factory never returns DeterministicDocumentExtractor'
+      );
+
+      assert(
+        !(extractor instanceof UnavailableDocumentExtractor),
+        'Factory never returns UnavailableDocumentExtractor'
       );
     } finally { restore(); }
   }
 
   {
-    // 2.7 Factory returns new instances per call (no singleton)
+    // 2.4 Factory returns new Hybrid instances per call
     const restore = saveAndClearAllProviderEnv();
     try {
-      process.env.GEMINI_API_KEY = 'test-key-singleton';
       const e1 = getDocumentExtractor();
       const e2 = getDocumentExtractor();
-      assert(e1 !== e2, 'getDocumentExtractor() returns new GeminiDocumentExtractor per call');
+
       assert(
-        e1 instanceof GeminiDocumentExtractor && e2 instanceof GeminiDocumentExtractor,
-        'Both instances are GeminiDocumentExtractor'
+        e1 !== e2,
+        'getDocumentExtractor() returns new instances per call'
+      );
+
+      assert(
+        e1 instanceof HybridDocumentExtractor &&
+          e2 instanceof HybridDocumentExtractor,
+        'Both instances are HybridDocumentExtractor'
       );
     } finally { restore(); }
   }
 
-  // =========================================================================
   // SECTION 3: GeminiDocumentExtractor — Input Validation
   // =========================================================================
   console.log('\n--- SECTION 3: Input Validation ---');
@@ -498,16 +509,21 @@ async function runTests(): Promise<void> {
   }
 
   {
-    // 8.2 Only Gemini → GeminiDocumentExtractor selected and produces result shape
+    // 8.2 Only Gemini → HybridDocumentExtractor selected
     const restore = saveAndClearAllProviderEnv();
     try {
       process.env.GEMINI_API_KEY = 'env-gemini-key-for-factory-test';
-      // We can't inject a client factory through the env-based factory path,
-      // but we can confirm the selected type is correct.
+
       const extractor = getDocumentExtractor();
+
       assert(
-        extractor instanceof GeminiDocumentExtractor,
-        'GEMINI_API_KEY env → factory returns GeminiDocumentExtractor instance'
+        extractor instanceof HybridDocumentExtractor,
+        'GEMINI_API_KEY env → factory returns HybridDocumentExtractor instance'
+      );
+
+      assert(
+        !(extractor instanceof GeminiDocumentExtractor),
+        'Production factory does not expose GeminiDocumentExtractor directly'
       );
     } finally { restore(); }
   }

@@ -182,8 +182,8 @@ export class DocumentIntelligenceOrchestrator implements IDocumentIntelligenceOr
             const itemId = rawItem.id && isValidUuid(rawItem.id) ? rawItem.id : crypto.randomUUID();
             const rawStudentName = rawItem.matchedStudentName || rawItem.ocrText || rawItem.name || '';
             const rawNisn = rawItem.matchedNisn || rawItem.nisn || null;
-            const rawAbsenceDate = rawItem.date || new Date().toISOString().slice(0, 10);
-            const rawAbsenceType = rawItem.status || 'Sakit';
+            const rawAbsenceDate = rawItem.date || null;
+            const rawAbsenceType = rawItem.status || null;
             const confidence = typeof rawItem.confidence === 'number' ? rawItem.confidence : 80;
 
             let resolvedStudentId = rawItem.matchedStudentId || null;
@@ -307,9 +307,9 @@ export class DocumentIntelligenceOrchestrator implements IDocumentIntelligenceOr
             matchedStudentName: item.matchedStudent?.fullName || item.studentNameRaw,
             matchedNisn: item.matchedStudent?.nisn || item.nisnRaw || undefined,
             confidence,
-            class: item.matchedStudent?.className || 'X IPA 1',
-            date: item.absenceDateRaw || new Date().toISOString().slice(0, 10),
-            status: (item.absenceTypeRaw as any) || 'Sakit',
+            class: item.matchedStudent?.className || '',
+            date: item.absenceDateRaw || '',
+            status: (item.absenceTypeRaw as any) || 'Hadir',
             notes: undefined,
             verificationStatus: 'pending',
           };
