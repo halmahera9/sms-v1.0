@@ -640,7 +640,15 @@ The repository should keep this directory ignored by Git.
 
 The authenticated document file endpoint exists as a server boundary.
 
-The next UI-level work is to integrate this endpoint with document inspection / verification surfaces without bypassing the authenticated document boundary.
+The retrieval boundary is now integrated with existing document consumers.
+
+Student verification previews resolve stored document binaries through:
+
+GET /api/documents/[documentId]/file
+
+Employee Award document links likewise resolve through the same authenticated document boundary.
+
+Document consumers must not expose the underlying object-storage path directly to the browser.
 
 19. Roadmap
 Completed / Implemented Foundation
@@ -663,8 +671,8 @@ Priority should remain on completing and hardening the existing canonical archit
 
 Near-term priorities:
 
-integrate document file access with verification/document inspection UI;
-validate document access authorization and tenant isolation with automated tests;
+validate document access authorization and tenant isolation with focused automated coverage;
+review remaining document consumers for direct storage-path exposure;
 resolve or intentionally scope the Turbopack filesystem tracing warning;
 continue hardening Document Intelligence orchestration;
 reconcile documentation against implementation after each bounded architectural change.

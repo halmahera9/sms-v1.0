@@ -281,9 +281,31 @@ Documentation
 
 Never reverse this direction by implementing behavior merely because an old document says it should exist.
 
-Current Next Step
+Current Progress
 
-The immediate engineering focus is the canonical document binary access boundary and its integration with the existing Document Intelligence workflow.
+The canonical document binary access boundary is implemented and is now consumed by the existing Student verification preview and Employee Award document links.
+
+Current flow:
+
+Document Consumer
+      ↓
+/api/documents/[documentId]/file
+      ↓
+Authenticated Context
+      ↓
+Authorization
+      ↓
+Tenant-scoped DocumentVersion
+      ↓
+Object Storage
+      ↓
+Binary Response
+
+The underlying object-storage path is no longer exposed directly by these document consumers.
+
+Next Engineering Focus
+
+Continue hardening the existing document boundary and inspect remaining consumers for direct storage-path exposure.
 
 Before introducing new abstractions:
 
