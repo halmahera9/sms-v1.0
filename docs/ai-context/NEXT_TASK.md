@@ -9,22 +9,13 @@
 - **Client-Server Production Build Boundary (Completed in `9832e18`):** Decoupled client storage, added `server-only` guards, moved student mappers, and verified 10/10 routes passing `npm run build`.
 - **Phase 4L (Completed in `8743c74`):** Consolidated Action DTOs in `src/platform/types/actions.ts`, unified RBAC policy registry in `src/platform/auth/guards.ts`, and enforced audit trail RBAC authorization (`GAP-04`, `GAP-06`, `GAP-07` resolved).
 - **Phase 4K.1 & Phase 4K.2 (Completed in `0d6eae1`, `9b4aaf9`):** Canonical `IObjectStorageProvider`, `InMemoryObjectStorageProvider`, path validation, buffer safety, and real binary upload with provider SHA-256 persistence to `DocumentVersion` (`GAP-02` resolved).
+- **Phase 4K.3 (Completed in `55eb978`):** Award Proposal document uploads persist canonical `Document` + `DocumentVersion`, associate `AwardProposalDocument.documentId`, persist authoritative SHA-256, support versioned replacement, compensation cleanup, tenant isolation, and concurrent versioning. Verified by **81/81** canonical persistence tests (`GAP-03` resolved).
 
-The next recommended engineering tracks are:
-
----
-
-### Track 1: Phase 4K.3 — Award Proposal Document Canonical Persistence Integration (GAP-03)
-
-- **Goal:** Wire employee award requirement document uploads directly to canonical `Document` & `DocumentVersion` tables.
-- **Scope:**
-  1. Refactor `uploadProposalDocumentAction` to persist rows into canonical `documents` and `document_versions` tables.
-  2. Associate `AwardProposalDocument` with canonical `Document` entity.
-  3. Store uploaded award requirement binary files in `IObjectStorageProvider` with real SHA-256 integrity verification.
+The next recommended engineering track is:
 
 ---
 
-### Track 2: Phase 5 — UI Wiring, Production Deployment & Field Verification
+### Track 1: Phase 5 — UI Wiring, Production Deployment & Field Verification
 
 - **Goal:** Bind all production server actions and orchestrator flows to the frontend interface.
 - **Scope:**
