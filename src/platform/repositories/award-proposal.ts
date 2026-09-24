@@ -83,6 +83,12 @@ export interface IAwardProposalRepository {
   ): Promise<boolean>;
 }
 
+function buildDocumentFileUrl(documentId?: string | null): string {
+  return documentId
+    ? `/api/documents/${documentId}/file`
+    : '#';
+}
+
 export class PostgresAwardProposalRepository
   extends BasePostgresRepository<AwardProposalPersistenceModel>
   implements IAwardProposalRepository
@@ -343,7 +349,9 @@ export class PostgresAwardProposalRepository
       fileName: record.document?.title || document.fileName || `${record.requirementCode}.pdf`,
       fileSize: latestVersion ? Number(latestVersion.fileSizeBytes) : (record.document ? 0 : document.fileSize || 0),
       fileType: latestVersion?.mimeType || document.fileType || 'application/pdf',
-      fileUrl: latestVersion?.filePath || document.fileUrl || '#',
+      fileUrl: buildDocumentFileUrl(
+        record.documentId || record.document?.id
+      ),
       uploadedAt: record.createdAt ? new Date(record.createdAt).toISOString() : new Date().toISOString(),
       verificationStatus:
         record.status === 'PASSED' ? 'verified' : record.status === 'FAILED' ? 'rejected' : 'pending',
@@ -412,7 +420,9 @@ export class PostgresAwardProposalRepository
       fileName: record.document?.title || `${record.requirementCode}.pdf`,
       fileSize: latestVersion ? Number(latestVersion.fileSizeBytes) : (record.document ? 0 : 1024 * 100),
       fileType: latestVersion?.mimeType || 'application/pdf',
-      fileUrl: latestVersion?.filePath || '#',
+      fileUrl: buildDocumentFileUrl(
+        record.documentId || record.document?.id
+      ),
       uploadedAt: record.createdAt ? new Date(record.createdAt).toISOString() : new Date().toISOString(),
       verificationStatus:
         record.status === 'PASSED' ? 'verified' : record.status === 'FAILED' ? 'rejected' : 'pending',
@@ -481,7 +491,9 @@ export class PostgresAwardProposalRepository
           fileName: doc.document?.title || `${doc.requirementCode}.pdf`,
           fileSize: latestVersion ? Number(latestVersion.fileSizeBytes) : (doc.document ? 0 : 1024 * 100),
           fileType: latestVersion?.mimeType || 'application/pdf',
-          fileUrl: latestVersion?.filePath || '#',
+          fileUrl: buildDocumentFileUrl(
+            doc.documentId || doc.document?.id
+          ),
           uploadedAt: doc.createdAt ? new Date(doc.createdAt).toISOString() : new Date().toISOString(),
           verificationStatus: doc.status === 'PASSED' ? 'verified' : doc.status === 'FAILED' ? 'rejected' : 'pending',
           verifiedBy: doc.verifiedByUserId || undefined,
