@@ -223,7 +223,10 @@ export async function getOCRDocumentsAction(): Promise<ActionResponse<OCRDocumen
           fileName: doc.title,
           fileSize: latestVersion ? Number(latestVersion.fileSizeBytes) : 520000,
           uploadedAt: doc.createdAt.toISOString(),
-          imageUrl: latestVersion?.filePath || '/placeholder-doc.png',
+          imageUrl:
+            latestVersion?.filePath && !latestVersion.filePath.startsWith('/')
+              ? `/api/documents/${doc.id}/file`
+              : '/placeholder-doc.png',
           status: isComplete ? 'completed' : 'needs_verification',
           workflowState: isComplete ? 'VERIFIED' : 'NEEDS_VERIFICATION',
           extractedCount: items.length,
@@ -521,7 +524,10 @@ export async function uploadOCRDocumentAction(
           fileName: doc.title,
           fileSize: dto.fileSize || 520000,
           uploadedAt: doc.createdAt.toISOString(),
-          imageUrl: dto.imageUrl || '/placeholder-doc.png',
+          imageUrl:
+            uploadedStoragePath
+              ? `/api/documents/${doc.id}/file`
+              : '/placeholder-doc.png',
           status: 'needs_verification' as const,
           workflowState: 'NEEDS_VERIFICATION' as const,
           extractedCount: createdItems.length,
