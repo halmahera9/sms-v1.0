@@ -2,117 +2,100 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { 
-  CheckSquare, 
-  Check, 
-  Edit3, 
-  CheckCircle2, 
-  FileText, 
+import {
+  CheckSquare,
+  Check,
+  CheckCircle2,
+  FileText,
   UserCheck,
   FileSpreadsheet
 } from 'lucide-react';
-import { getStoredDocuments, saveDocuments, getStoredStudents, addAuditLog } from '@/lib/storage';
-import { OCRDocument, ExtractedItem, Student, AbsenceStatus } from '@/types/sms';
+import {
+  getOCRDocumentsAction,
+  verifyExtractedItemAction,
+} from '@/platform/actions/student-workflow';
+import type {
+  OCRDocumentDTO,
+} from '@/platform/actions/student-workflow';
+
+function isSuccessfulOCRResult(
+  result: Awaited<ReturnType<typeof getOCRDocumentsAction>>
+): result is { success: true; data: OCRDocumentDTO[] } {
+  return result.success && Array.isArray(result.data);
+}
 
 export default function VerificationPage() {
-  const [documents, setDocuments] = useState<OCRDocument[]>([]);
+  const [documents, setDocuments] = useState<OCRDocumentDTO[]>([]);
   const [selectedDocId, setSelectedDocId] = useState<string>('');
-  const [students, setStudents] = useState<Student[]>([]);
-  const [editingItemId, setEditingItemId] = useState<string | null>(null);
 
   useEffect(() => {
-    const docs = getStoredDocuments();
-    const stds = getStoredStudents();
-    Promise.resolve().then(() => {
-      setDocuments(docs);
-      setStudents(stds);
-      if (docs.length > 0) {
-        setSelectedDocId(docs[0].id);
+    let mounted = true;
+
+    async function loadDocuments() {
+      const result = await getOCRDocumentsAction();
+
+      if (!mounted || !result.success || !Array.isArray(result.data)) return;
+
+      const data = result.data;
+
+      setDocuments(data);
+
+      if (data.length > 0) {
+        setSelectedDocId(data[0].id);
       }
-    });
+    }
+
+    void loadDocuments();
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   const currentDoc = documents.find((d) => d.id === selectedDocId);
 
-  const handleVerifyItem = (itemId: string) => {
-    if (!currentDoc) return;
-
-    const updatedItems = currentDoc.items.map((item) => {
-      if (item.id === itemId) {
-        return { ...item, verificationStatus: 'verified' as const };
-      }
-      return item;
+  const handleVerifyItem = async (itemId: string) => {
+    const result = await verifyExtractedItemAction({
+      itemId,
+      decision: 'PASSED',
     });
 
-    const verifiedCount = updatedItems.filter((i) => i.verificationStatus === 'verified').length;
-    const isCompleted = verifiedCount === updatedItems.length;
+    if (!result.success) {
+      console.error(result.error);
+      return;
+    }
 
-    const updatedDoc: OCRDocument = {
-      ...currentDoc,
-      verifiedCount,
-      status: isCompleted ? 'completed' : 'needs_verification',
-      items: updatedItems,
-    };
+    const refreshed = await getOCRDocumentsAction();
 
-    const updatedDocs = documents.map((d) => (d.id === currentDoc.id ? updatedDoc : d));
-    setDocuments(updatedDocs);
-    saveDocuments(updatedDocs);
-
-    const verifiedItem = currentDoc.items.find((i) => i.id === itemId);
-    addAuditLog(
-      'Operator TU - Budi',
-      'VERIFY_ITEM',
-      verifiedItem?.matchedStudentName || itemId,
-      `Operator mengonfirmasi hasil OCR "${verifiedItem?.ocrText}" (${verifiedItem?.confidence}% confidence).`
-    );
+    if (isSuccessfulOCRResult(refreshed)) {
+      setDocuments(refreshed.data);
+    }
   };
 
-  const handleUpdateItem = (itemId: string, updates: Partial<ExtractedItem>) => {
+
+
+  const handleVerifyAll = async () => {
     if (!currentDoc) return;
 
-    const updatedItems = currentDoc.items.map((item) => {
-      if (item.id === itemId) {
-        return { ...item, ...updates, verificationStatus: 'edited' as const };
+    for (const item of currentDoc.items) {
+      if (item.verificationStatus !== 'verified') {
+        const result = await verifyExtractedItemAction({
+          itemId: item.id,
+          decision: 'PASSED',
+        });
+
+        if (!result.success) {
+          console.error(result.error);
+          return;
+        }
       }
-      return item;
-    });
+    }
 
-    const updatedDoc: OCRDocument = {
-      ...currentDoc,
-      items: updatedItems,
-    };
+    const refreshed = await getOCRDocumentsAction();
 
-    const updatedDocs = documents.map((d) => (d.id === currentDoc.id ? updatedDoc : d));
-    setDocuments(updatedDocs);
-    saveDocuments(updatedDocs);
-    setEditingItemId(null);
-  };
-
-  const handleVerifyAll = () => {
-    if (!currentDoc) return;
-
-    const updatedItems = currentDoc.items.map((item) => ({
-      ...item,
-      verificationStatus: 'verified' as const,
-    }));
-
-    const updatedDoc: OCRDocument = {
-      ...currentDoc,
-      verifiedCount: updatedItems.length,
-      status: 'completed',
-      items: updatedItems,
-    };
-
-    const updatedDocs = documents.map((d) => (d.id === currentDoc.id ? updatedDoc : d));
-    setDocuments(updatedDocs);
-    saveDocuments(updatedDocs);
-
-    addAuditLog(
-      'Operator TU - Budi',
-      'VERIFY_ALL',
-      currentDoc.fileName,
-      `Operator memverifikasi seluruh ${updatedItems.length} data siswa secara masal.`
-    );
+    if (isSuccessfulOCRResult(refreshed)) {
+      setDocuments(refreshed.data);
+    }
   };
 
   return (
@@ -162,7 +145,7 @@ export default function VerificationPage() {
             <div className="flex items-center gap-3 text-xs font-mono">
               <span className="text-slate-600">Status Dokumen:</span>
               <span className={`px-2.5 py-0.5 rounded ${
-                currentDoc.status === 'completed' 
+                currentDoc.status === 'completed'
                   ? 'bg-blue-600/20 text-slate-900 border border-slate-200'
                   : 'bg-blue-500/20 text-slate-900 border border-slate-200'
               }`}>
@@ -282,13 +265,6 @@ export default function VerificationPage() {
                       ) : (
                         <div className="flex gap-1">
                           <button
-                            onClick={() => setEditingItemId(item.id)}
-                            className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded border border-slate-200 transition-colors"
-                            title="Edit / Koreksi Kandidat Siswa"
-                          >
-                            <Edit3 className="h-3.5 w-3.5" />
-                          </button>
-                          <button
                             onClick={() => handleVerifyItem(item.id)}
                             className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-400 hover:bg-emerald-300 text-white font-bold text-xs rounded shadow-sm shadow-emerald-500/20 transition-all"
                           >
@@ -300,55 +276,7 @@ export default function VerificationPage() {
                     </div>
                   </div>
 
-                  {/* Inline Edit Form Modal/Dropdown */}
-                  {editingItemId === item.id && (
-                    <div className="mt-4 pt-4 border-t border-slate-200 grid sm:grid-cols-2 gap-3 text-xs">
-                      <div>
-                        <label className="block text-slate-600 font-mono mb-1">Pilih Siswa Dari Master Data</label>
-                        <select
-                          value={item.matchedStudentId || ''}
-                          onChange={(e) => {
-                            const selectedStd = students.find((s) => s.id === e.target.value);
-                            if (selectedStd) {
-                              handleUpdateItem(item.id, {
-                                matchedStudentId: selectedStd.id,
-                                matchedStudentName: selectedStd.name,
-                                matchedNisn: selectedStd.nisn,
-                                class: selectedStd.class,
-                                confidence: 100, // Operator override
-                              });
-                            }
-                          }}
-                          className="w-full bg-white border border-slate-200 px-3 py-1.5 text-slate-900 rounded outline-none"
-                        >
-                          <option value="">-- Pilih Siswa --</option>
-                          {students.map((s) => (
-                            <option key={s.id} value={s.id}>
-                              {s.name} ({s.nisn}) - Kelas {s.class}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
 
-                      <div>
-                        <label className="block text-slate-600 font-mono mb-1">Ubah Status Ketidakhadiran</label>
-                        <select
-                          value={item.status}
-                          onChange={(e) => {
-                            handleUpdateItem(item.id, {
-                              status: e.target.value as AbsenceStatus,
-                            });
-                          }}
-                          className="w-full bg-white border border-slate-200 px-3 py-1.5 text-slate-900 rounded outline-none"
-                        >
-                          <option value="Sakit">Sakit</option>
-                          <option value="Izin">Izin</option>
-                          <option value="Alpha">Alpha</option>
-                          <option value="Hadir">Hadir</option>
-                        </select>
-                      </div>
-                    </div>
-                  )}
                 </div>
               ))}
             </div>
