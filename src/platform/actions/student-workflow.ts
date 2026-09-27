@@ -555,6 +555,98 @@ export async function uploadOCRDocumentAction(
   }
 }
 
+
+/**
+ * Server Action: Match Extracted Item to Student
+ * Canonically assigns an ExtractedItem to an existing Student in the current tenant.
+ */
+export async function matchExtractedItemToStudentAction(
+  dto: { itemId: string; studentId: string }
+): Promise<ActionResponse<{
+  itemId: string;
+  studentId: string;
+}>> {
+  try {
+    if (!dto || !isValidUuid(dto.itemId) || !isValidUuid(dto.studentId)) {
+      throw new Error('Validation Error: ID item atau siswa tidak valid.');
+    }
+
+    const result = await executeInAuthenticatedContext(async (context, tx) => {
+      assertAuthorizedAction(context, 'STUDENT_WORKFLOW_VERIFY');
+
+      const tenantId = context.tenantId;
+
+      const item = await tx.extractedItem.findFirst({
+        where: {
+          id: dto.itemId,
+          tenantId,
+        },
+      });
+
+      if (!item) {
+        throw new Error(
+          'Validation Error: Item ekstraksi tidak ditemukan pada instansi ini.'
+        );
+      }
+
+      if (item.absenceRecordId) {
+        throw new Error(
+          'Validation Error: Item sudah diverifikasi dan tidak dapat diubah.'
+        );
+      }
+
+      const student = await tx.student.findFirst({
+        where: {
+          id: dto.studentId,
+          tenantId,
+        },
+      });
+
+      if (!student) {
+        throw new Error(
+          'Validation Error: Siswa tidak ditemukan pada instansi ini.'
+        );
+      }
+
+      await tx.extractedItem.update({
+        where: {
+          id: item.id,
+        },
+        data: {
+          matchedStudentId: student.id,
+        },
+      });
+
+      await auditRepo.recordTx(tx, tenantId, {
+        actorUserId: context.actorId,
+        action: 'MATCH_EXTRACTED_ITEM',
+        entityType: 'ExtractedItem',
+        entityId: item.id,
+        metadata: {
+          studentId: student.id,
+          studentName: student.fullName,
+          nisn: student.nisn,
+        },
+      });
+
+      return {
+        itemId: item.id,
+        studentId: student.id,
+      };
+    });
+
+    return {
+      success: true,
+      data: result,
+    };
+  } catch (err) {
+    return handleActionError<{
+      itemId: string;
+      studentId: string;
+    }>(err);
+  }
+}
+
 /**
  * Server Action: Verify Extracted Item
  * Atomically verifies an ExtractedItem, generates AbsenceRecord, records HumanVerification, and AuditEvent in PostgreSQL.
