@@ -602,32 +602,68 @@ export async function verifyExtractedItemAction(
         };
       }
 
-      // 2. Resolve Student
+      // 2. Resolve verification decision before mutating attendance data.
+      const decision: VerificationDecision =
+        dto.decision === 'FLAGGED'
+          ? VerificationDecision.FLAGGED
+          : dto.decision === 'REJECTED'
+          ? VerificationDecision.REJECTED
+          : VerificationDecision.PASSED;
+
+      // Only PASSED may create the canonical AbsenceRecord.
+      if (decision !== VerificationDecision.PASSED) {
+        await tx.humanVerification.create({
+          data: {
+            id: randomUUID(),
+            tenantId,
+            targetEntityType: 'ExtractedItem',
+            targetEntityId: item.id,
+            verifiedByUserId: context.actorId,
+            decision,
+            notes: dto.notes || 'Item ditandai oleh operator.',
+          },
+        });
+
+        await auditRepo.recordTx(tx, tenantId, {
+          actorUserId: context.actorId,
+          action: 'VERIFY_ITEM',
+          entityType: 'ExtractedItem',
+          entityId: item.id,
+          metadata: {
+            documentId: item.ocrExtraction.documentId,
+            decision,
+            note: dto.notes || 'Item ditandai oleh operator.',
+          },
+        });
+
+        return {
+          verifiedItemId: item.id,
+          absenceRecordId: '',
+          documentCompleted: false,
+        };
+      }
+
+      // Resolve matched student. Verification must never create a fake student.
       let studentId = item.matchedStudentId;
+
       if (!studentId) {
-        // Try finding student by NISN or name in tenant
         const student = item.nisnRaw
-          ? await tx.student.findFirst({ where: { tenantId, nisn: item.nisnRaw } })
-          : await tx.student.findFirst({ where: { tenantId, fullName: item.studentNameRaw } });
+          ? await tx.student.findFirst({
+              where: { tenantId, nisn: item.nisnRaw },
+            })
+          : await tx.student.findFirst({
+              where: { tenantId, fullName: item.studentNameRaw },
+            });
 
         if (student) {
           studentId = student.id;
-        } else {
-          // If student doesn't exist, create a student record to maintain referential integrity
-          const newStudentId = randomUUID();
-          const createdStudent = await tx.student.create({
-            data: {
-              id: newStudentId,
-              tenantId,
-              nisn: item.nisnRaw || '005' + Date.now().toString().slice(-7),
-              nis: '2122' + Date.now().toString().slice(-4),
-              fullName: item.studentNameRaw,
-              className: 'X IPA 1',
-              status: 'ACTIVE',
-            },
-          });
-          studentId = createdStudent.id;
         }
+      }
+
+      if (!studentId) {
+        throw new Error(
+          'Validation Error: Siswa belum teridentifikasi. Cocokkan item dengan data siswa sebelum verifikasi.'
+        );
       }
 
       // 3. Create AbsenceRecord with canonical AbsenceStatus enum
@@ -656,14 +692,7 @@ export async function verifyExtractedItemAction(
         },
       });
 
-      // 5. Create HumanVerification with canonical VerificationDecision (PASSED, FLAGGED, REJECTED)
-      const decision: VerificationDecision =
-        dto.decision === 'FLAGGED'
-          ? VerificationDecision.FLAGGED
-          : dto.decision === 'REJECTED'
-          ? VerificationDecision.REJECTED
-          : VerificationDecision.PASSED;
-
+      // 5. Create HumanVerification
       await tx.humanVerification.create({
         data: {
           id: randomUUID(),
