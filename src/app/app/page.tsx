@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { getOperationalMetricsAction } from '@/platform/actions/operational';
+import type { OperationalMetrics } from '@/platform/repositories/operational-query';
 import Link from 'next/link';
 import {
   Users,
@@ -12,56 +14,54 @@ import {
   BarChart3,
   ArrowRight,
 } from 'lucide-react';
-import { getStoredStudents, getStoredDocuments } from '@/lib/storage';
-import { Student, OCRDocument } from '@/types/sms';
 
 export default function DashboardPage() {
-  const [students, setStudents] = useState<Student[]>([]);
-  const [documents, setDocuments] = useState<OCRDocument[]>([]);
+  const [metrics, setMetrics] = useState<OperationalMetrics | null>(null);
 
   useEffect(() => {
-    setStudents(getStoredStudents());
-    setDocuments(getStoredDocuments());
+    let mounted = true;
+
+    getOperationalMetricsAction().then((result) => {
+      if (mounted && result.success && result.data) {
+        setMetrics(result.data);
+      }
+    });
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
-  const totalExtracted = documents.reduce(
-    (sum, document) => sum + document.extractedCount,
-    0,
-  );
+  const totalStudents = metrics?.totalStudents ?? 0;
+  const totalDocuments = metrics?.totalDocumentsProcessed ?? 0;
+  const pendingCount = metrics?.pendingVerifications ?? 0;
 
-  const totalVerified = documents.reduce(
-    (sum, document) => sum + document.verifiedCount,
-    0,
-  );
-
-  const pendingCount = Math.max(totalExtracted - totalVerified, 0);
-
-  const metrics = [
+  const metricsCards = [
     {
       title: 'Master Data Siswa',
-      value: students.length,
-      description: 'Siswa terdaftar dari Dapodik',
+      value: totalStudents,
+      description: 'Siswa aktif dalam database',
       href: '/app/students',
       icon: Users,
     },
     {
       title: 'Dokumen Diproses',
-      value: documents.length,
-      description: `${totalExtracted} nama berhasil diekstraksi`,
+      value: totalDocuments,
+      description: 'Dokumen tersimpan di database',
       href: '/app/ocr',
       icon: FileText,
     },
     {
       title: 'Perlu Verifikasi',
       value: pendingCount,
-      description: 'Menunggu persetujuan operator',
+      description: 'Item yang masih menunggu verifikasi',
       href: '/app/verify',
       icon: Clock3,
     },
     {
       title: 'Terverifikasi',
-      value: totalVerified,
-      description: 'Siap diekspor ke Excel & PDF',
+      value: '—',
+      description: 'Belum tersedia sebagai metrik canonical',
       href: '/app/export',
       icon: CheckCircle2,
     },
@@ -167,7 +167,7 @@ export default function DashboardPage() {
 
       {/* Metrics */}
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {metrics.map((item) => {
+        {metricsCards.map((item) => {
           const Icon = item.icon;
 
           return (
@@ -264,10 +264,10 @@ export default function DashboardPage() {
           </div>
 
           <div className="mt-5 space-y-3">
-            <Activity label="Data siswa" value={`${students.length} siswa terdaftar`} />
-            <Activity label="Dokumen" value={`${documents.length} dokumen diproses`} />
+            <Activity label="Data siswa" value={`${totalStudents} siswa aktif`} />
+            <Activity label="Dokumen" value={`${totalDocuments} dokumen tersimpan`} />
             <Activity label="Verifikasi" value={`${pendingCount} item menunggu`} />
-            <Activity label="Selesai" value={`${totalVerified} item terverifikasi`} />
+            <Activity label="Selesai" value="Metrik belum tersedia" />
           </div>
         </div>
       </section>
