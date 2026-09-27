@@ -33,6 +33,7 @@ export default function DashboardPage() {
   }, []);
 
   const totalStudents = metrics?.totalStudents ?? 0;
+  const totalEmployees = metrics?.totalEmployees ?? 0;
   const totalDocuments = metrics?.totalDocumentsProcessed ?? 0;
   const pendingCount = metrics?.pendingVerifications ?? 0;
 
@@ -59,11 +60,11 @@ export default function DashboardPage() {
       icon: Clock3,
     },
     {
-      title: 'Terverifikasi',
-      value: '—',
-      description: 'Belum tersedia sebagai metrik canonical',
-      href: '/app/export',
-      icon: CheckCircle2,
+      title: 'Guru & Pegawai',
+      value: totalEmployees,
+      description: 'Guru dan pegawai dalam database',
+      href: '/app/employees',
+      icon: Users,
     },
   ];
 
@@ -265,9 +266,9 @@ export default function DashboardPage() {
 
           <div className="mt-5 space-y-3">
             <Activity label="Data siswa" value={`${totalStudents} siswa aktif`} />
+            <Activity label="Guru & pegawai" value={`${totalEmployees} orang`} />
             <Activity label="Dokumen" value={`${totalDocuments} dokumen tersimpan`} />
             <Activity label="Verifikasi" value={`${pendingCount} item menunggu`} />
-            <Activity label="Selesai" value="Metrik belum tersedia" />
           </div>
         </div>
       </section>
