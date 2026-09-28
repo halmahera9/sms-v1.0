@@ -363,7 +363,14 @@ async function runAwardProposalDocumentUploadTests() {
     assert(uploadedPnsDoc?.fileSize === sampleImageBytes.byteLength, 'Base64 upload sets exact binary size');
     assert(uploadedPnsDoc?.checksumSha256 === expectedImageSha256, 'Base64 upload sets exact SHA-256 digest');
 
-    const downloadedImage = await storageProvider.download(TENANT_A_ID, uploadedPnsDoc!.fileUrl);
+    const dbPnsDoc = await adminPrisma.document.findUnique({
+      where: { id: uploadedPnsDoc!.documentId! },
+      include: { versions: true },
+    });
+    const dbPnsVersion = dbPnsDoc?.versions[0];
+    assert(Boolean(dbPnsVersion?.filePath), 'Canonical DocumentVersion has valid filePath');
+
+    const downloadedImage = await storageProvider.download(TENANT_A_ID, dbPnsVersion!.filePath);
     assert(
       downloadedImage.equals(sampleImageBytes),
       'Downloaded Base64-uploaded binary equals original image bytes'
