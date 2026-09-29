@@ -25,7 +25,6 @@ export class PostgresStudentRepository extends BasePostgresRepository<Student> {
       nis: entity.nis,
       fullName: entity.fullName,
       className: entity.className,
-      jurusan: entity.jurusan ?? null,
       status: entity.status,
     };
 
@@ -35,7 +34,6 @@ export class PostgresStudentRepository extends BasePostgresRepository<Student> {
       nis: entity.nis,
       fullName: entity.fullName,
       className: entity.className,
-      jurusan: entity.jurusan ?? null,
       status: entity.status,
     };
 

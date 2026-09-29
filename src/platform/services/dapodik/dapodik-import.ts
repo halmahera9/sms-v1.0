@@ -306,7 +306,6 @@ export async function importDapodikStudents(
       nis,
       fullName,
       className,
-      jurusan: null,
     };
 
     if (existing) {
@@ -317,7 +316,6 @@ export async function importDapodikStudents(
           nis: data.nis,
           fullName: data.fullName,
           className: data.className,
-          jurusan: data.jurusan,
         },
       });
 

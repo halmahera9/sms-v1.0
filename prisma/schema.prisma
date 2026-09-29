@@ -216,7 +216,6 @@ model Student {
   nis       String        @db.VarChar(20)
   fullName  String        @map("nama_lengkap") @db.VarChar(255)
   className String        @map("kelas") @db.VarChar(50)
-  jurusan   String?       @map("jurusan") @db.VarChar(100)
   status    StudentStatus @default(ACTIVE)
   createdAt DateTime      @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz

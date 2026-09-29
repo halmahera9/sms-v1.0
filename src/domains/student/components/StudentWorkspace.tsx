@@ -48,7 +48,6 @@ export const StudentWorkspace: React.FC = () => {
     nis: '',
     fullName: '',
     className: '',
-    jurusan: '',
     status: StudentStatus.ACTIVE,
   });
   const [formError, setFormError] = useState<string | null>(null);
@@ -111,8 +110,7 @@ export const StudentWorkspace: React.FC = () => {
       !searchTerm ||
       s.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       s.nisn.includes(searchTerm) ||
-      s.className.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (s.jurusan && s.jurusan.toLowerCase().includes(searchTerm.toLowerCase()))
+      s.className.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const currentDoc = documents.find((d) => d.id === selectedDocId) || (documents.length > 0 ? documents[0] : null);
@@ -124,7 +122,6 @@ export const StudentWorkspace: React.FC = () => {
       nis: '',
       fullName: '',
       className: '',
-      jurusan: '',
       status: StudentStatus.ACTIVE,
     });
     setFormError(null);
@@ -139,7 +136,6 @@ export const StudentWorkspace: React.FC = () => {
       nis: student.nis,
       fullName: student.fullName,
       className: student.className,
-      jurusan: student.jurusan || '',
       status: student.status,
     });
     setFormError(null);
@@ -400,7 +396,6 @@ export const StudentWorkspace: React.FC = () => {
                     <th className="py-3 px-4">NISN / NIS</th>
                     <th className="py-3 px-4">Nama Siswa</th>
                     <th className="py-3 px-4">Kelas</th>
-                    <th className="py-3 px-4">Jurusan</th>
                     <th className="py-3 px-4">Status</th>
                     <th className="py-3 px-4 text-right">Aksi</th>
                   </tr>
@@ -415,7 +410,6 @@ export const StudentWorkspace: React.FC = () => {
                         </td>
                         <td className="py-3 px-4 font-bold text-slate-900 dark:text-white">{std.fullName}</td>
                         <td className="py-3 px-4 font-semibold text-slate-700 dark:text-slate-300">{std.className}</td>
-                        <td className="py-3 px-4 text-slate-500">{std.jurusan || '-'}</td>
                         <td className="py-3 px-4">
                           <span
                             className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
@@ -705,18 +699,6 @@ export const StudentWorkspace: React.FC = () => {
                     placeholder="Contoh: X IPA 1"
                     value={formData.className}
                     onChange={(e) => setFormData({ ...formData, className: e.target.value })}
-                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-2 rounded-lg text-slate-900 dark:text-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-slate-700 dark:text-slate-300 font-bold mb-1">
-                    Jurusan (Opsional)
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Contoh: IPA / IPS"
-                    value={formData.jurusan || ''}
-                    onChange={(e) => setFormData({ ...formData, jurusan: e.target.value })}
                     className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-2 rounded-lg text-slate-900 dark:text-white"
                   />
                 </div>
