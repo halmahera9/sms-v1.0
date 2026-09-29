@@ -305,14 +305,19 @@ model ExtractedItem {
 }
 
 model Document {
-  id             String           @id @db.Uuid
-  tenantId       String           @map("tenant_id") @db.Uuid
-  title          String           @db.VarChar(255)
-  category       DocumentCategory
-  currentVersion Int              @default(1) @map("current_version")
-  status         DocumentStatus   @default(DRAFT)
-  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt      DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  id              String           @id @db.Uuid
+  tenantId        String           @map("tenant_id") @db.Uuid
+  title           String           @db.VarChar(255)
+  category        DocumentCategory
+  source          String           @default("UNGGAH_LANGSUNG") @map("sumber") @db.VarChar(50)
+  currentVersion  Int              @default(1) @map("current_version")
+  status          DocumentStatus   @default(DRAFT)
+  retentionUntil  DateTime?        @map("retention_until") @db.Timestamptz
+  archivedAt      DateTime?        @map("archived_at") @db.Timestamptz
+  archiveLocation String?          @map("archive_location") @db.VarChar(500)
+  isTemporary     Boolean          @default(false) @map("is_temporary")
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   tenant                  Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   versions                DocumentVersion[]
@@ -322,6 +327,8 @@ model Document {
 
   @@unique([tenantId, id])
   @@index([tenantId, category])
+  @@index([tenantId, source])
+  @@index([tenantId, status])
   @@map("documents")
 }
 
@@ -331,6 +338,8 @@ model DocumentVersion {
   documentId     String   @map("document_id") @db.Uuid
   versionNumber  Int      @map("version_number")
   filePath       String   @map("file_path") @db.VarChar(500)
+  storageKey     String?  @map("storage_key") @db.VarChar(500)
+  storageStatus  String   @default("ACTIVE") @map("storage_status") @db.VarChar(50)
   fileSizeBytes  BigInt   @map("file_size_bytes")
   mimeType       String   @map("mime_type") @db.VarChar(100)
   checksumSha256 String?  @map("checksum_sha256") @db.VarChar(64)

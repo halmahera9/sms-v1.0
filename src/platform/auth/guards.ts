@@ -49,6 +49,11 @@ export const PLATFORM_RBAC_REGISTRY = {
   PUBLIC_INVITATION_CREATE: [UserRole.ADMIN, UserRole.ADMIN_TENANT, UserRole.OPERATOR, UserRole.VERIFIKATOR],
   PUBLIC_INVITATION_REVOKE: [UserRole.ADMIN, UserRole.ADMIN_TENANT, UserRole.OPERATOR, UserRole.VERIFIKATOR],
   PUBLIC_INVITATION_READ: [UserRole.ADMIN, UserRole.ADMIN_TENANT, UserRole.OPERATOR, UserRole.VERIFIKATOR, UserRole.AUDITOR],
+
+  // Document Intake & Repository domain (P0-G)
+  DOCUMENT_READ: [UserRole.ADMIN, UserRole.ADMIN_TENANT, UserRole.OPERATOR, UserRole.VERIFIKATOR, UserRole.AUDITOR],
+  DOCUMENT_UPLOAD: [UserRole.ADMIN, UserRole.ADMIN_TENANT, UserRole.OPERATOR, UserRole.VERIFIKATOR],
+  DOCUMENT_WRITE: [UserRole.ADMIN, UserRole.ADMIN_TENANT, UserRole.OPERATOR],
 } as const satisfies Record<string, readonly UserRole[]>;
 
 export type ActionPermission = keyof typeof PLATFORM_RBAC_REGISTRY;

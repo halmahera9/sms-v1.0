@@ -41,9 +41,7 @@ const NAVIGATION_GROUPS: NavGroup[] = [
   {
     groupName: 'Dokumen',
     items: [
-      { name: 'Penerimaan Dokumen', href: '/app/ocr', icon: Inbox },
-      { name: 'Pembacaan Dokumen', href: '/app/ocr', icon: ScanText },
-      { name: 'Pengambilan Data', href: '/app/documents', icon: FileText },
+      { name: 'Dokumen Masuk', href: '/app/documents', icon: FileText },
       { name: 'Pencarian Dokumen', href: '/app/documents/search', icon: Search },
     ],
   },
