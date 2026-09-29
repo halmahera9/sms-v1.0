@@ -14,6 +14,8 @@ export const AUDIT_ACTION = {
   MATCHING_COMPLETED: 'MATCHING_COMPLETED',
   MATCHING_FAILED: 'MATCHING_FAILED',
   MATCHING_REUSED: 'MATCHING_REUSED',
+  MATCHING_CONFIRMED: 'MATCHING_CONFIRMED',
+  MATCHING_REJECTED: 'MATCHING_REJECTED',
 } as const;
 
 // ---------------------------------------------------------------------------

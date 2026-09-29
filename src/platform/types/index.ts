@@ -97,3 +97,4 @@ export * from './document-intelligence';
 export * from './document-processing';
 export * from './document-extractor';
 export * from './actions';
+export * from './matching';
