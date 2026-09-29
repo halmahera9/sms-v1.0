@@ -13,6 +13,51 @@ export class PostgresStudentRepository extends BasePostgresRepository<Student> {
     return await tx.student.findMany();
   }
 
+  // --- P0-J: Identity lookup methods (always tenant-scoped) ---
+
+  /** Exact match by NISN within tenant. */
+  public async findByNisnTx(
+    tx: TenantTransactionClient,
+    tenantId: string,
+    nisn: string
+  ): Promise<Student | null> {
+    return await tx.student.findUnique({
+      where: { tenantId_nisn: { tenantId, nisn } },
+    });
+  }
+
+  /** Exact match by NIS within tenant. */
+  public async findByNisTx(
+    tx: TenantTransactionClient,
+    tenantId: string,
+    nis: string
+  ): Promise<Student | null> {
+    return await tx.student.findUnique({
+      where: { tenantId_nis: { tenantId, nis } },
+    });
+  }
+
+  /**
+   * Lookup by normalized full name within tenant.
+   * Returns all students whose normalized name matches the given value.
+   * Normalization (trim + lowercase + collapse whitespace) is applied in-memory
+   * to avoid DB-specific function dependencies.
+   */
+  public async findByNameTx(
+    tx: TenantTransactionClient,
+    tenantId: string,
+    normalizedName: string
+  ): Promise<Student[]> {
+    const candidates = await tx.student.findMany({
+      where: { tenantId },
+    });
+    return candidates.filter(
+      (s) => normalizeIdentifierName(s.fullName) === normalizedName
+    );
+  }
+
+  // --- CRUD methods ---
+
   public async saveTx(tx: TenantTransactionClient, tenantId: string, entity: Student): Promise<Student> {
     // Application-level invariant check
     this.assertTenantConsistency(entity, tenantId);
@@ -73,4 +118,14 @@ export class PostgresStudentRepository extends BasePostgresRepository<Student> {
       throw err;
     }
   }
+}
+
+/**
+ * Normalize a name for deterministic matching.
+ * Applied to both the extracted value and the DB value before comparison.
+ * Rule: trim, lowercase, collapse internal whitespace.
+ * Exported so it can be imported by document-identity-matcher.
+ */
+export function normalizeIdentifierName(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/g, ' ');
 }

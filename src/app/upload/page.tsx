@@ -1,3 +1,4 @@
+'use client';
 // src/app/upload/page.tsx
 import React from 'react';
 import { useActionState } from 'react';

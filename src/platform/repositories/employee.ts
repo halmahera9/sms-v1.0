@@ -54,6 +54,26 @@ export class PostgresEmployeeRepository extends BasePostgresRepository<Employee>
     });
   }
 
+  /**
+   * Lookup by normalized full name within tenant.
+   * Returns all employees whose normalized name matches the given value.
+   * Note: Employee.nip is nullable — do not assume all employees have NIP.
+   */
+  public async findByNameTx(
+    tx: TenantTransactionClient,
+    tenantId: string,
+    normalizedName: string
+  ): Promise<Employee[]> {
+    const candidates = await tx.employee.findMany({
+      where: { tenantId },
+    });
+    return candidates.filter(
+      (e) => normalizeEmployeeName(e.fullName) === normalizedName
+    );
+  }
+
+  // --- CRUD methods ---
+
   public async findAllTx(tx: TenantTransactionClient): Promise<Employee[]> {
     return await tx.employee.findMany();
   }
@@ -128,4 +148,13 @@ export class PostgresEmployeeRepository extends BasePostgresRepository<Employee>
       throw err;
     }
   }
+}
+
+/**
+ * Normalize an employee name for deterministic matching.
+ * Rule: trim, lowercase, collapse internal whitespace.
+ * Exported so it can be imported by document-identity-matcher.
+ */
+export function normalizeEmployeeName(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/g, ' ');
 }
