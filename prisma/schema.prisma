@@ -152,6 +152,7 @@ model Tenant {
   workflowTransitions     WorkflowTransition[]
   publicUploadInvitations PublicUploadInvitation[]
   documentProcessingJobs  DocumentProcessingJob[]
+  letterTemplates         LetterTemplate[]
 
   @@map("tenants")
 }
@@ -231,6 +232,26 @@ model Student {
   @@map("students")
 }
 
+model LetterTemplate {
+  id         String   @id @db.Uuid
+  tenantId   String   @map("tenant_id") @db.Uuid
+  code       String   @map("kode_template") @db.VarChar(50)
+  name       String   @map("nama_template") @db.VarChar(255)
+  letterType String   @map("jenis_surat") @db.VarChar(100)
+  content    String   @map("isi_template") @db.Text
+  variables  Json     @map("variabel")
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, code])
+  @@index([tenantId, letterType])
+  @@index([tenantId, isActive])
+  @@map("letter_templates")
+}
 
 model OCRExtraction {
   id           String              @id @db.Uuid

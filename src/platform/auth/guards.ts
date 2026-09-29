@@ -22,6 +22,10 @@ export const PLATFORM_RBAC_REGISTRY = {
   EMPLOYEE_READ: [UserRole.ADMIN, UserRole.ADMIN_TENANT, UserRole.OPERATOR, UserRole.VERIFIKATOR],
   STUDENT_WRITE: [UserRole.ADMIN, UserRole.ADMIN_TENANT, UserRole.OPERATOR],
 
+  // Letter Template domain (P0-D)
+  LETTER_TEMPLATE_READ: [UserRole.ADMIN, UserRole.ADMIN_TENANT, UserRole.OPERATOR, UserRole.VERIFIKATOR, UserRole.AUDITOR],
+  LETTER_TEMPLATE_WRITE: [UserRole.ADMIN, UserRole.ADMIN_TENANT, UserRole.OPERATOR],
+
   // Student Export domain
   STUDENT_EXPORT: [UserRole.ADMIN, UserRole.ADMIN_TENANT, UserRole.OPERATOR, UserRole.VERIFIKATOR, UserRole.AUDITOR],
 

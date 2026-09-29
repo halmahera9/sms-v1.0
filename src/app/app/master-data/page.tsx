@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
   Users,
@@ -11,10 +11,52 @@ import {
   Plus,
   Search,
   CheckCircle2,
+  XCircle,
 } from 'lucide-react';
+import {
+  getLetterTemplatesAction,
+  seedDefaultLetterTemplatesAction,
+} from '@/platform/actions/letter-template';
+import type { LetterTemplateRecordDTO } from '@/platform/types/letter-template';
 
 export default function MasterDataPage() {
   const [activeTab, setActiveTab] = useState<'siswa' | 'guru_karyawan' | 'template_surat'>('template_surat');
+  const [templates, setTemplates] = useState<LetterTemplateRecordDTO[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterJenis, setFilterJenis] = useState('Semua');
+
+  const loadTemplates = async () => {
+    const res = await getLetterTemplatesAction();
+    if (res.success && res.data && res.data.length > 0) {
+      setTemplates(res.data);
+    } else {
+      // Seed default templates if database is empty for current tenant
+      await seedDefaultLetterTemplatesAction();
+      const retry = await getLetterTemplatesAction();
+      if (retry.success && retry.data) {
+        setTemplates(retry.data);
+      }
+    }
+  };
+
+  useEffect(() => {
+    void loadTemplates();
+  }, []);
+
+  const filteredTemplates = templates.filter((t) => {
+    const matchesSearch =
+      t.namaTemplate.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      t.kodeTemplate.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      t.jenisSurat.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesJenis =
+      filterJenis === 'Semua' || t.jenisSurat === filterJenis;
+    return matchesSearch && matchesJenis;
+  });
+
+  const availableJenisSurat = [
+    'Semua',
+    ...Array.from(new Set(templates.map((t) => t.jenisSurat).filter(Boolean))),
+  ];
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -31,7 +73,7 @@ export default function MasterDataPage() {
           Data Master Sekolah
         </h1>
         <p className="mt-1 text-xs sm:text-sm text-slate-600">
-          Pusat repositori data siswa, guru, karyawan, dan template surat dinas sekolah.
+          Pusat repositori data siswa, guru, karyawan, dan Template Surat dinas sekolah.
         </p>
       </div>
 
@@ -86,7 +128,7 @@ export default function MasterDataPage() {
                 Katalog Template Surat Dinas
               </h2>
               <p className="text-xs text-slate-500">
-                Format baku surat administrasi yang digunakan Banyubiru untuk menerbitkan dokumen tindak lanjut.
+                Format baku surat administrasi yang menggunakan data Siswa, Guru &amp; Karyawan, dan hasil ekstraksi dokumen.
               </p>
             </div>
             <button
@@ -94,108 +136,79 @@ export default function MasterDataPage() {
               className="inline-flex items-center gap-1.5 rounded-lg bg-[#0f2b5c] px-3.5 py-2 text-xs font-semibold text-white shadow-xs hover:bg-blue-800"
             >
               <Plus className="h-4 w-4" />
-              <span>Tambah Template Baru</span>
+              <span>Tambah Template Surat</span>
             </button>
+          </div>
+
+          {/* Filter & Search */}
+          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex flex-col sm:flex-row gap-4 justify-between items-center">
+            <div className="relative w-full sm:w-80">
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Cari Template Surat atau Kode..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 pl-9 pr-4 py-2 text-xs text-slate-900 rounded-lg outline-none focus:border-blue-600 focus:bg-white"
+              />
+            </div>
+
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <span className="text-xs text-slate-500 font-medium">Jenis Surat:</span>
+              <select
+                value={filterJenis}
+                onChange={(e) => setFilterJenis(e.target.value)}
+                className="bg-slate-50 border border-slate-200 px-3 py-2 text-xs text-slate-900 rounded-lg outline-none focus:border-blue-600"
+              >
+                {availableJenisSurat.map((jenis) => (
+                  <option key={jenis} value={jenis}>
+                    {jenis}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {/* Template Cards Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {[
-              {
-                code: 'ST-01',
-                name: 'Surat Tugas Pendidik & Tenaga Kependidikan',
-                type: 'Surat Tugas',
-                format: 'A4 / Kop Resmi Sekolah',
-                vars: ['nama_petugas', 'nip', 'tugas', 'tanggal_penugasan', 'lokasi'],
-                signer: 'Kepala Sekolah',
-                rule: 'Pencocokan nama & NIP guru dari database',
-              },
-              {
-                code: 'SK-01',
-                name: 'Surat Keterangan Aktif Belajar Siswa',
-                type: 'Surat Keterangan',
-                format: 'A4 / Kop Resmi Sekolah',
-                vars: ['nama_siswa', 'nisn', 'kelas', 'tahun_ajaran', 'nama_orang_tua'],
-                signer: 'Kepala Sekolah / Wakasek Kesiswaan',
-                rule: 'Validasi status siswa aktif di master data',
-              },
-              {
-                code: 'SP-01',
-                name: 'Surat Pernyataan Kesanggupan Tata Tertib',
-                type: 'Surat Pernyataan',
-                format: 'A4 / Formulir Standar',
-                vars: ['nama_pembuat', 'nik', 'alamat', 'perihal', 'tanggal'],
-                signer: 'Orang Tua / Wali Murid',
-                rule: 'Memerlukan verifikasi fisik bertanda tangan',
-              },
-              {
-                code: 'SD-01',
-                name: 'Surat Pengantar Berkas Dinas / Mutasi',
-                type: 'Surat Pengantar',
-                format: 'A4 / Kop Resmi Sekolah',
-                vars: ['nomor_surat', 'tujuan_dinas', 'daftar_lampiran', 'nama_siswa'],
-                signer: 'Kepala Tata Usaha',
-                rule: 'Penyertaan dokumen lampiran terverifikasi',
-              },
-              {
-                code: 'SU-01',
-                name: 'Surat Undangan Rapat Pleno Komite & Orang Tua',
-                type: 'Surat Undangan',
-                format: 'A4 / Kop Resmi Sekolah',
-                vars: ['hari_tanggal', 'waktu', 'agenda', 'tempat', 'penerima'],
-                signer: 'Kepala Sekolah & Ketua Komite',
-                rule: 'Distribusi otomatis berdasarkan daftar kelas',
-              },
-              {
-                code: 'SKP-01',
-                name: 'Surat Keputusan Penugasan Pembina Ekstrakurikuler',
-                type: 'Surat Keputusan',
-                format: 'A4 / Format SK Baku',
-                vars: ['nomor_sk', 'tentang', 'nama_pembina', 'tahun_ajaran'],
-                signer: 'Kepala Sekolah',
-                rule: 'Pencocokan guru dari database pegawai',
-              },
-            ].map((tmpl, idx) => (
+            {filteredTemplates.map((tmpl) => (
               <div
-                key={idx}
+                key={tmpl.id}
                 className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs space-y-3.5 flex flex-col justify-between"
               >
                 <div>
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-black tracking-wider text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">
-                      {tmpl.code}
+                    <span className="text-[10px] font-black tracking-wider text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-100 font-mono">
+                      {tmpl.kodeTemplate}
                     </span>
-                    <span className="text-[10px] text-slate-500 font-medium">
-                      {tmpl.type}
+                    <span className="text-[10px] bg-slate-100 text-slate-700 font-semibold px-2 py-0.5 rounded border border-slate-200">
+                      Jenis Surat: {tmpl.jenisSurat}
                     </span>
                   </div>
                   <h3 className="mt-2 text-sm font-bold text-slate-900 leading-snug">
-                    {tmpl.name}
+                    {tmpl.namaTemplate}
                   </h3>
 
-                  <div className="mt-3 space-y-1.5 text-[11px] text-slate-600">
-                    <p>
-                      <span className="font-semibold text-slate-700">Format &amp; Kop:</span> {tmpl.format}
+                  <div className="mt-3 space-y-1.5 text-[11px] text-slate-600 bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                    <p className="font-semibold text-slate-700 text-[10px] uppercase tracking-wider">
+                      Isi Template:
                     </p>
-                    <p>
-                      <span className="font-semibold text-slate-700">Penandatangan:</span> {tmpl.signer}
-                    </p>
-                    <p>
-                      <span className="font-semibold text-slate-700">Aturan Pengisian:</span> {tmpl.rule}
+                    <p className="line-clamp-3 text-[11px] font-mono text-slate-600 whitespace-pre-line">
+                      {tmpl.isiTemplate}
                     </p>
                   </div>
 
                   <div className="mt-3 pt-3 border-t border-slate-100">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-                      Variabel Data:
+                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                      Variabel ({tmpl.variabel.length}):
                     </p>
                     <div className="flex flex-wrap gap-1">
-                      {tmpl.vars.map((v, vIdx) => (
+                      {tmpl.variabel.map((v, vIdx) => (
                         <span
                           key={vIdx}
-                          className="text-[10px] bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded font-mono"
+                          className="text-[10px] bg-blue-50 text-blue-800 border border-blue-100 px-1.5 py-0.5 rounded font-mono"
                         >
-                          &#123;{v}&#125;
+                          &#123;&#123;{v}&#125;&#125;
                         </span>
                       ))}
                     </div>
@@ -203,16 +216,23 @@ export default function MasterDataPage() {
                 </div>
 
                 <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
-                  <span className="text-emerald-700 font-medium flex items-center gap-1">
-                    <CheckCircle2 className="h-3.5 w-3.5" />
-                    Siap Digunakan
-                  </span>
-                  <button
-                    type="button"
-                    className="text-blue-700 font-bold hover:text-blue-900"
+                  <span
+                    className={`font-semibold flex items-center gap-1 text-[11px] px-2 py-0.5 rounded ${
+                      tmpl.isActive
+                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                        : 'bg-rose-50 text-rose-700 border border-rose-200'
+                    }`}
                   >
-                    Atur Format &rarr;
-                  </button>
+                    {tmpl.isActive ? (
+                      <CheckCircle2 className="h-3 w-3" />
+                    ) : (
+                      <XCircle className="h-3 w-3" />
+                    )}
+                    {tmpl.statusLabel}
+                  </span>
+                  <span className="text-[11px] text-slate-400 font-mono">
+                    Template Surat
+                  </span>
                 </div>
               </div>
             ))}
