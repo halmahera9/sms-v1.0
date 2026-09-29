@@ -98,3 +98,5 @@ export * from './document-processing';
 export * from './document-extractor';
 export * from './actions';
 export * from './matching';
+// Document Workflow Persistence (P0-K.4)
+export * from './document-workflow';
