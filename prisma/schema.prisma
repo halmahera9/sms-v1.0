@@ -81,12 +81,6 @@ enum StudentStatus {
   TRANSFERRED
 }
 
-enum AbsenceStatus {
-  SAKIT
-  IZIN
-  ALPHA
-  DISPENSASI
-}
 
 enum OCRExtractionStatus {
   QUEUED
@@ -146,7 +140,6 @@ model Tenant {
   users                   UserActor[]
   employees               Employee[]
   students                Student[]
-  absenceRecords          AbsenceRecord[]
   documents               Document[]
   ocrExtractions          OCRExtraction[]
   humanVerifications      HumanVerification[]
@@ -229,7 +222,6 @@ model Student {
   updatedAt DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  absenceRecords AbsenceRecord[]
 
   @@unique([tenantId, id])
   @@unique([tenantId, nisn])
@@ -238,26 +230,6 @@ model Student {
   @@map("students")
 }
 
-model AbsenceRecord {
-  id          String        @id @db.Uuid
-  tenantId    String        @map("tenant_id") @db.Uuid
-  studentId   String        @map("student_id") @db.Uuid
-  absenceDate DateTime      @map("absence_date") @db.Date
-  status      AbsenceStatus
-  reason      String?       @db.Text
-  documentId  String?       @map("document_id") @db.Uuid
-  createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt   DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
-
-  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  student  Student   @relation(fields: [tenantId, studentId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade)
-  document Document? @relation(fields: [tenantId, documentId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade)
-
-  @@unique([tenantId, id])
-  @@unique([tenantId, studentId, absenceDate])
-  @@index([tenantId, absenceDate])
-  @@map("absence_records")
-}
 
 model OCRExtraction {
   id           String              @id @db.Uuid
@@ -315,7 +287,6 @@ model Document {
 
   tenant                  Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   versions                DocumentVersion[]
-  absenceRecords          AbsenceRecord[]
   ocrExtractions          OCRExtraction[]
   publicUploadInvitations PublicUploadInvitation[]
   processingJobs          DocumentProcessingJob[]

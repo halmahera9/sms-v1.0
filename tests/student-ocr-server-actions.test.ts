@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import pg from 'pg';
-import { PrismaClient, AbsenceStatus, DocumentProcessingStatus, OCRExtractionStatus, UserRole, UserStatus, VerificationDecision } from '@prisma/client';
+import { PrismaClient, DocumentProcessingStatus, OCRExtractionStatus, UserRole, UserStatus, VerificationDecision } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import {
   getOCRDocumentsAction,
@@ -66,9 +66,6 @@ async function runStudentOCRServerActionsTests() {
       where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID] } },
     });
     await adminPrisma.oCRExtraction.deleteMany({
-      where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID] } },
-    });
-    await adminPrisma.absenceRecord.deleteMany({
       where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID] } },
     });
     await adminPrisma.documentProcessingJob.deleteMany({
@@ -421,18 +418,9 @@ async function runStudentOCRServerActionsTests() {
       where: { id: item1Id },
     });
 
-    const absenceRec = await adminPrisma.absenceRecord.findFirst({
-      where: { tenantId: TENANT_A_ID, studentId: STUDENT_A1_ID },
-    });
-
     assert(
       item1AfterVerify?.status === 'VERIFIED',
       'TEST 10C: ExtractedItem now has status VERIFIED in PostgreSQL'
-    );
-    assert(
-      absenceRec?.studentId === STUDENT_A1_ID &&
-        absenceRec?.status === AbsenceStatus.SAKIT,
-      'TEST 10D: AbsenceRecord uses canonical AbsenceStatus.SAKIT enum'
     );
 
     // Check HumanVerification record with canonical VerificationDecision.PASSED
@@ -593,14 +581,14 @@ async function runStudentOCRServerActionsTests() {
     // TEST 16 — Canonical Enum Mapping Helpers & DISPENSASI Support
     // =========================================================================
     console.log('\n[16] Testing Canonical Enum Mapping Helpers...');
-    assert(mapToDbAbsenceStatus('Sakit') === AbsenceStatus.SAKIT, 'TEST 16A: "Sakit" maps to SAKIT');
-    assert(mapToDbAbsenceStatus('Izin') === AbsenceStatus.IZIN, 'TEST 16B: "Izin" maps to IZIN');
-    assert(mapToDbAbsenceStatus('Alpha') === AbsenceStatus.ALPHA, 'TEST 16C: "Alpha" maps to ALPHA');
-    assert(mapToDbAbsenceStatus('Dispensasi') === AbsenceStatus.DISPENSASI, 'TEST 16D: "Dispensasi" maps to DISPENSASI');
+    assert(mapToDbAbsenceStatus('Sakit') === 'SAKIT', 'TEST 16A: "Sakit" maps to SAKIT');
+    assert(mapToDbAbsenceStatus('Izin') === 'IZIN', 'TEST 16B: "Izin" maps to IZIN');
+    assert(mapToDbAbsenceStatus('Alpha') === 'ALPHA', 'TEST 16C: "Alpha" maps to ALPHA');
+    assert(mapToDbAbsenceStatus('Dispensasi') === 'DISPENSASI', 'TEST 16D: "Dispensasi" maps to DISPENSASI');
 
-    assert(mapToDtoAbsenceStatus(AbsenceStatus.SAKIT) === 'Sakit', 'TEST 16E: SAKIT maps to "Sakit" DTO');
-    assert(mapToDtoAbsenceStatus(AbsenceStatus.IZIN) === 'Izin', 'TEST 16F: IZIN maps to "Izin" DTO');
-    assert(mapToDtoAbsenceStatus(AbsenceStatus.ALPHA) === 'Alpha', 'TEST 16G: ALPHA maps to "Alpha" DTO');
+    assert(mapToDtoAbsenceStatus('SAKIT') === 'Sakit', 'TEST 16E: SAKIT maps to "Sakit" DTO');
+    assert(mapToDtoAbsenceStatus('IZIN') === 'Izin', 'TEST 16F: IZIN maps to "Izin" DTO');
+    assert(mapToDtoAbsenceStatus('ALPHA') === 'Alpha', 'TEST 16G: ALPHA maps to "Alpha" DTO');
 
     // =========================================================================
     // TEST 17 — JSON Serializability
@@ -1032,9 +1020,6 @@ async function runStudentOCRServerActionsTests() {
         where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID] } },
       });
       await adminPrisma.oCRExtraction.deleteMany({
-        where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID] } },
-      });
-      await adminPrisma.absenceRecord.deleteMany({
         where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID] } },
       });
       await adminPrisma.documentProcessingJob.deleteMany({

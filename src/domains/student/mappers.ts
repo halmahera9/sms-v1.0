@@ -1,4 +1,10 @@
-import { AbsenceStatus as DbAbsenceStatus } from '@prisma/client';
+export type DbAbsenceStatus = 'SAKIT' | 'IZIN' | 'ALPHA' | 'DISPENSASI';
+export const DbAbsenceStatus = {
+  SAKIT: 'SAKIT' as const,
+  IZIN: 'IZIN' as const,
+  ALPHA: 'ALPHA' as const,
+  DISPENSASI: 'DISPENSASI' as const,
+};
 
 /**
  * Maps raw or DTO string absence values to the canonical Prisma AbsenceStatus enum.

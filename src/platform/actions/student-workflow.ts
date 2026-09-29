@@ -7,7 +7,6 @@ import {
   assertAuthorizedAction,
 } from '@/platform/auth';
 import {
-  AbsenceStatus,
   DocumentCategory,
   DocumentProcessingStatus,
   DocumentStatus,
@@ -629,7 +628,7 @@ export async function matchExtractedItemToStudentAction(
 
 /**
  * Server Action: Verify Extracted Item
- * Atomically verifies an ExtractedItem, generates AbsenceRecord, records HumanVerification, and AuditEvent in PostgreSQL.
+ * Atomically verifies an ExtractedItem, records HumanVerification, and AuditEvent in PostgreSQL.
  */
 export async function verifyExtractedItemAction(
   dto: VerifyExtractedItemDTO
@@ -681,7 +680,7 @@ export async function verifyExtractedItemAction(
           ? VerificationDecision.REJECTED
           : VerificationDecision.PASSED;
 
-      // Only PASSED may create the canonical AbsenceRecord.
+      // Only PASSED promotes item to VERIFIED status.
       if (decision !== VerificationDecision.PASSED) {
         await tx.humanVerification.create({
           data: {
@@ -730,24 +729,7 @@ export async function verifyExtractedItemAction(
 
       const studentId = student.id;
 
-      // 3. Create AbsenceRecord with canonical AbsenceStatus enum
-      const absenceRecordId = randomUUID();
-      const absenceDate = new Date();
-      const dbAbsenceStatus = 'SAKIT' as any;
-
-      await tx.absenceRecord.create({
-        data: {
-          id: absenceRecordId,
-          tenantId,
-          studentId,
-          absenceDate,
-          status: dbAbsenceStatus,
-          reason: dto.notes || 'Verifikasi manual operator',
-          documentId: item.ocrExtraction.documentId,
-        },
-      });
-
-      // 4. Update ExtractedItem
+      // 3. Update ExtractedItem
       await tx.extractedItem.update({
         where: { id: item.id },
         data: {
@@ -755,7 +737,7 @@ export async function verifyExtractedItemAction(
         },
       });
 
-      // 5. Create HumanVerification
+      // 4. Create HumanVerification
       await tx.humanVerification.create({
         data: {
           id: randomUUID(),
@@ -768,7 +750,7 @@ export async function verifyExtractedItemAction(
         },
       });
 
-      // 6. Record Audit Event via PostgresAuditEventRepository
+      // 5. Record Audit Event via PostgresAuditEventRepository
       await auditRepo.recordTx(tx, tenantId, {
         actorUserId: context.actorId,
         action: 'VERIFY_ITEM',
@@ -776,14 +758,13 @@ export async function verifyExtractedItemAction(
         entityId: item.id,
         metadata: {
           studentId,
-          absenceRecordId,
           documentId: item.ocrExtraction.documentId,
           decision,
           note: dto.notes || 'Verifikasi manual',
         },
       });
 
-      // 7. Check if all items for the extraction are now verified
+      // 6. Check if all items for the extraction are now verified
       const unverifiedRemaining = await tx.extractedItem.count({
         where: {
           ocrExtractionId: item.ocrExtractionId,
@@ -803,7 +784,7 @@ export async function verifyExtractedItemAction(
 
       return {
         verifiedItemId: item.id,
-        absenceRecordId,
+        absenceRecordId: '',
         documentCompleted,
       };
     });

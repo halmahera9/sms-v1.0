@@ -109,7 +109,6 @@ export const STUDENT_ENTITY_TYPES = new Set([
   'Student',
   'ExtractedItem',
   'OCRExtraction',
-  'AbsenceRecord',
   'Document',
 ]);
 

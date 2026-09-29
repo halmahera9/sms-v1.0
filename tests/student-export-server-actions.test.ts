@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import pg from 'pg';
-import { PrismaClient, AbsenceStatus, DocumentCategory, DocumentStatus, OCRExtractionStatus, UserRole, UserStatus } from '@prisma/client';
+import { PrismaClient, DocumentCategory, DocumentStatus, OCRExtractionStatus, UserRole, UserStatus } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import {
   getStudentAbsenceExportDataAction,
@@ -318,92 +318,7 @@ async function runStudentExportServerActionsTests() {
       update: { title: 'Surat_Rejected_Tenant_A.pdf', status: DocumentStatus.REJECTED },
     });
 
-    // 5. Setup verified absence records
-    await adminPrisma.absenceRecord.upsert({
-      where: { id: ABS_A1_ID },
-      create: {
-        id: ABS_A1_ID,
-        tenantId: TENANT_A_ID,
-        studentId: STUDENT_A1_ID,
-        absenceDate: new Date('2026-08-28'),
-        status: AbsenceStatus.SAKIT,
-        reason: 'Sakit demam',
-        documentId: DOC_A1_ID,
-      },
-      update: { status: AbsenceStatus.SAKIT, reason: 'Sakit demam' },
-    });
-
-    await adminPrisma.absenceRecord.upsert({
-      where: { id: ABS_A2_ID },
-      create: {
-        id: ABS_A2_ID,
-        tenantId: TENANT_A_ID,
-        studentId: STUDENT_A2_ID,
-        absenceDate: new Date('2026-08-28'),
-        status: AbsenceStatus.IZIN,
-        reason: 'Izin urusan keluarga',
-        documentId: DOC_A1_ID,
-      },
-      update: { status: AbsenceStatus.IZIN, reason: 'Izin urusan keluarga' },
-    });
-
-    await adminPrisma.absenceRecord.upsert({
-      where: { id: ABS_A3_ID },
-      create: {
-        id: ABS_A3_ID,
-        tenantId: TENANT_A_ID,
-        studentId: STUDENT_A3_ID,
-        absenceDate: new Date('2026-08-27'),
-        status: AbsenceStatus.DISPENSASI,
-        reason: 'Dispensasi lomba debat',
-        documentId: DOC_A1_ID,
-      },
-      update: { status: AbsenceStatus.DISPENSASI, reason: 'Dispensasi lomba debat' },
-    });
-
-    // Direct manual operator absence entry (documentId: null) - Canonical verified record without OCR document
-    await adminPrisma.absenceRecord.upsert({
-      where: { id: ABS_DIRECT_MANUAL_A_ID },
-      create: {
-        id: ABS_DIRECT_MANUAL_A_ID,
-        tenantId: TENANT_A_ID,
-        studentId: STUDENT_A3_ID,
-        absenceDate: new Date('2026-08-28'),
-        status: AbsenceStatus.ALPHA,
-        reason: 'Pencatatan langsung absensi harian kelas oleh wali kelas',
-        documentId: null,
-      },
-      update: { status: AbsenceStatus.ALPHA, reason: 'Pencatatan langsung absensi harian kelas oleh wali kelas' },
-    });
-
-    // Non-canonical absence record referencing a REJECTED document
-    await adminPrisma.absenceRecord.upsert({
-      where: { id: ABS_REJECTED_DOC_ID },
-      create: {
-        id: ABS_REJECTED_DOC_ID,
-        tenantId: TENANT_A_ID,
-        studentId: STUDENT_UNVERIFIED_ID,
-        absenceDate: new Date('2026-08-28'),
-        status: AbsenceStatus.ALPHA,
-        reason: 'Dokumen palsu/ditolak',
-        documentId: DOC_REJECTED_ID,
-      },
-      update: { status: AbsenceStatus.ALPHA, reason: 'Dokumen palsu/ditolak' },
-    });
-
-    await adminPrisma.absenceRecord.upsert({
-      where: { id: ABS_B1_ID },
-      create: {
-        id: ABS_B1_ID,
-        tenantId: TENANT_B_ID,
-        studentId: STUDENT_B1_ID,
-        absenceDate: new Date('2026-08-28'),
-        status: AbsenceStatus.ALPHA,
-        reason: 'Tanpa keterangan',
-        documentId: DOC_B1_ID,
-      },
-      update: { status: AbsenceStatus.ALPHA, reason: 'Tanpa keterangan' },
-    });
+    // 5. Absence records removed in Banyubiru Document Intelligence domain
 
     // =========================================================================
     // TEST 1 — Unauthenticated Access Fails Closed
@@ -530,55 +445,12 @@ async function runStudentExportServerActionsTests() {
       'TEST 5A: Operator successfully queries export data'
     );
     assert(
-      opRes.data?.totalCount === 4 && opRes.data?.rows.length === 4,
-      'TEST 5B: Total count and rows length match Tenant A canonical verified records (4: 3 with verified docs + 1 direct entry)'
+      opRes.data?.totalCount === 0 && opRes.data?.rows.length === 0,
+      'TEST 5B: Total count and rows length are 0 after absence record domain removal'
     );
-
-    // Check row details
-    const row1 = opRes.data!.rows.find((r) => r.nisn === '0051111111' && r.status === 'Sakit');
     assert(
-      row1 !== undefined &&
-        row1.studentName === 'Ahmad Siswa A1' &&
-        row1.status === 'Sakit' &&
-        row1.documentReference === 'Surat_Izin_Tenant_A.pdf' &&
-        row1.verificationStatus === 'Terverifikasi',
-      'TEST 5C: Row 1 correctly maps Ahmad Siswa A1 (Sakit, Terverifikasi with Document Reference)'
-    );
-
-    // Check Dispensasi support
-    const row3 = opRes.data!.rows.find((r) => r.notes.includes('lomba debat'));
-    assert(
-      row3 !== undefined && row3.status === 'Dispensasi',
-      'TEST 5D: Canonical AbsenceStatus.DISPENSASI correctly maps to "Dispensasi"'
-    );
-
-    // Regression check: Unverified extracted item is excluded
-    const hasUnverifiedExtractedItem = opRes.data!.rows.some((r) => r.studentName.includes('Unverified'));
-    assert(
-      hasUnverifiedExtractedItem === false,
-      'TEST 5E: Enforce verified-only invariant: unverified ExtractedItems and unverified documents are excluded from export'
-    );
-
-    // Regression check: AbsenceRecord referencing a REJECTED document is excluded
-    const hasRejectedDocRecord = opRes.data!.rows.some((r) => r.notes.includes('Dokumen palsu'));
-    assert(
-      hasRejectedDocRecord === false,
-      'TEST 5F: Enforce verified-only invariant: AbsenceRecords with REJECTED documents are excluded from export'
-    );
-
-    // Explicit test for direct manual operator entry without document (documentId: null)
-    const directManualRow = opRes.data!.rows.find((r) => r.notes.includes('Pencatatan langsung'));
-    assert(
-      directManualRow !== undefined &&
-        directManualRow.documentReference === 'Pencatatan Langsung (Tanpa Dokumen)' &&
-        directManualRow.verificationStatus === 'Terverifikasi',
-      'TEST 5G: Canonical Invariant: Direct operator AbsenceRecord without document (documentId: null) is legitimate and exported as Terverifikasi'
-    );
-
-    // Check availableClasses returned
-    assert(
-      Array.isArray(opRes.data?.availableClasses) && opRes.data?.availableClasses.includes('Semua') && opRes.data?.availableClasses.includes('X IPA 1'),
-      'TEST 5H: availableClasses list includes "Semua" and distinct tenant student classes'
+      Array.isArray(opRes.data?.availableClasses) && opRes.data?.availableClasses.includes('Semua'),
+      'TEST 5C: availableClasses list includes "Semua"'
     );
 
     // =========================================================================
@@ -587,42 +459,8 @@ async function runStudentExportServerActionsTests() {
     console.log('\n[6] Testing Specific Class and Inclusive Date Range Filters...');
     const classFilteredRes = await getStudentAbsenceExportDataAction({ selectedClass: 'X IPA 2' });
     assert(
-      classFilteredRes.success && classFilteredRes.data?.rows.length === 1,
-      'TEST 6A: Class filter "X IPA 2" returns exactly 1 record'
-    );
-    assert(
-      classFilteredRes.data?.rows[0].studentName === 'Budi Siswa A2',
-      'TEST 6B: Filtered record belongs to Budi Siswa A2 in X IPA 2'
-    );
-
-    // Date range filter: single inclusive day 2026-08-28
-    const singleDayRes = await getStudentAbsenceExportDataAction({
-      startDate: '2026-08-28',
-      endDate: '2026-08-28',
-    });
-    assert(
-      singleDayRes.success && singleDayRes.data?.rows.length === 3,
-      'TEST 6C: Inclusive date filter (2026-08-28 to 2026-08-28) returns exactly 3 records from that day, excluding 2026-08-27'
-    );
-
-    // Date range filter: previous day 2026-08-27
-    const prevDayRes = await getStudentAbsenceExportDataAction({
-      startDate: '2026-08-27',
-      endDate: '2026-08-27',
-    });
-    assert(
-      prevDayRes.success && prevDayRes.data?.rows.length === 1 && prevDayRes.data?.rows[0].studentName === 'Citra Siswa A3',
-      'TEST 6D: Inclusive date filter (2026-08-27 to 2026-08-27) returns exactly 1 record (Citra Siswa A3)'
-    );
-
-    // Date range filter: multi-day inclusive span 2026-08-27 to 2026-08-28
-    const multiDayRes = await getStudentAbsenceExportDataAction({
-      startDate: '2026-08-27',
-      endDate: '2026-08-28',
-    });
-    assert(
-      multiDayRes.success && multiDayRes.data?.rows.length === 4,
-      'TEST 6E: Multi-day date filter (2026-08-27 to 2026-08-28) returns all 4 canonical records'
+      classFilteredRes.success && classFilteredRes.data?.rows.length === 0,
+      'TEST 6A: Class filter returns 0 records after AbsenceRecord removal'
     );
 
     // =========================================================================
@@ -643,12 +481,8 @@ async function runStudentExportServerActionsTests() {
 
     const tenantBRes = await getStudentAbsenceExportDataAction();
     assert(
-      tenantBRes.success && tenantBRes.data?.totalCount === 1,
-      'TEST 7A: Tenant B export only sees Tenant B records (1 record)'
-    );
-    assert(
-      tenantBRes.data?.rows[0].studentName === 'Dedi Siswa B1',
-      'TEST 7B: Tenant B record belongs to Dedi Siswa B1'
+      tenantBRes.success && tenantBRes.data?.totalCount === 0,
+      'TEST 7A: Tenant B export returns 0 records'
     );
     const hasTenantARowInB = tenantBRes.data?.rows.some((r) => r.studentName.includes('Tenant A'));
     assert(
@@ -687,10 +521,10 @@ async function runStudentExportServerActionsTests() {
     // TEST 9 — Status Mapping Helper Unit Checks
     // =========================================================================
     console.log('\n[9] Testing Status Mapping Helpers...');
-    assert(mapAbsenceStatusToDto(AbsenceStatus.SAKIT) === 'Sakit', 'TEST 9A: SAKIT maps to "Sakit"');
-    assert(mapAbsenceStatusToDto(AbsenceStatus.IZIN) === 'Izin', 'TEST 9B: IZIN maps to "Izin"');
-    assert(mapAbsenceStatusToDto(AbsenceStatus.ALPHA) === 'Alpha', 'TEST 9C: ALPHA maps to "Alpha"');
-    assert(mapAbsenceStatusToDto(AbsenceStatus.DISPENSASI) === 'Dispensasi', 'TEST 9D: DISPENSASI maps to "Dispensasi"');
+    assert(mapAbsenceStatusToDto('SAKIT') === 'Sakit', 'TEST 9A: SAKIT maps to "Sakit"');
+    assert(mapAbsenceStatusToDto('IZIN') === 'Izin', 'TEST 9B: IZIN maps to "Izin"');
+    assert(mapAbsenceStatusToDto('ALPHA') === 'Alpha', 'TEST 9C: ALPHA maps to "Alpha"');
+    assert(mapAbsenceStatusToDto('DISPENSASI') === 'Dispensasi', 'TEST 9D: DISPENSASI maps to "Dispensasi"');
 
     // =========================================================================
     // TEST 10 — JSON Serializability
@@ -720,9 +554,6 @@ async function runStudentExportServerActionsTests() {
         where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID] } },
       });
       await adminPrisma.oCRExtraction.deleteMany({
-        where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID] } },
-      });
-      await adminPrisma.absenceRecord.deleteMany({
         where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID] } },
       });
       await adminPrisma.documentProcessingJob.deleteMany({

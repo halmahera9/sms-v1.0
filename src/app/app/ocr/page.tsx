@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { getOCRDocumentsAction } from '@/platform/actions/student-workflow';
 import { processUploadedOCRDocumentAction } from '@/platform/actions/ocr-upload';
-import { OCRDocument, ExtractedItem, AbsenceStatus } from '@/types/sms';
+import { OCRDocument, ExtractedItem } from '@/types/sms';
 
 export default function OCRUploadPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
