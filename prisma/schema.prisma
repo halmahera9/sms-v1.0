@@ -510,6 +510,7 @@ model WorkflowInstance {
   entityType     String    @map("entity_type") @db.VarChar(50)
   entityId       String    @map("entity_id") @db.Uuid
   currentState   String    @map("current_state") @db.VarChar(50)
+  version        Int       @default(0) @map("version")
   lockedByUserId String?   @map("locked_by_user_id") @db.Uuid
   lockedUntil    DateTime? @map("locked_until") @db.Timestamptz
   createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
@@ -530,8 +531,11 @@ model WorkflowTransition {
   id                 String   @id @db.Uuid
   tenantId           String   @map("tenant_id") @db.Uuid
   workflowInstanceId String   @map("workflow_instance_id") @db.Uuid
+  event              String   @map("event") @db.VarChar(50)
   fromState          String   @map("from_state") @db.VarChar(50)
   toState            String   @map("to_state") @db.VarChar(50)
+  idempotencyKey     String   @map("idempotency_key") @db.VarChar(255)
+  correlationId      String?  @map("correlation_id") @db.VarChar(255)
   triggeredByUserId  String   @map("triggered_by_user_id") @db.Uuid
   reason             String?  @db.Text
   createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz
@@ -541,6 +545,7 @@ model WorkflowTransition {
   triggeredByUser  UserActor        @relation(fields: [tenantId, triggeredByUserId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade)
 
   @@unique([tenantId, id])
+  @@unique([tenantId, workflowInstanceId, idempotencyKey])
   @@map("workflow_transitions")
 }
 
