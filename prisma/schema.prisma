@@ -261,21 +261,27 @@ model LetterTemplate {
 }
 
 model OCRExtraction {
-  id           String              @id @db.Uuid
-  tenantId     String              @map("tenant_id") @db.Uuid
-  documentId   String              @map("document_id") @db.Uuid
-  status       OCRExtractionStatus @default(QUEUED)
-  rawJson      Json?               @map("raw_json")
-  errorMessage String?             @map("error_message") @db.Text
-  createdAt    DateTime            @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt    DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  id                String              @id @db.Uuid
+  tenantId          String              @map("tenant_id") @db.Uuid
+  documentId        String              @map("document_id") @db.Uuid
+  documentVersionId String?             @map("document_version_id") @db.Uuid
+  status            OCRExtractionStatus @default(QUEUED)
+  extractedText     String?             @map("extracted_text") @db.Text
+  rawJson           Json?               @map("raw_json")
+  errorMessage      String?             @map("error_message") @db.Text
+  startedAt         DateTime?           @map("started_at") @db.Timestamptz
+  completedAt       DateTime?           @map("completed_at") @db.Timestamptz
+  createdAt         DateTime            @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
-  tenant   Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  document Document        @relation(fields: [tenantId, documentId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade)
-  items    ExtractedItem[]
+  tenant          Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  document        Document         @relation(fields: [tenantId, documentId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade)
+  documentVersion DocumentVersion? @relation(fields: [tenantId, documentVersionId], references: [tenantId, id], onDelete: Cascade, onUpdate: Cascade)
+  items           ExtractedItem[]
 
   @@unique([tenantId, id])
   @@index([tenantId, status])
+  @@index([tenantId, documentVersionId])
   @@map("ocr_extractions")
 }
 
@@ -348,6 +354,7 @@ model DocumentVersion {
   tenant         Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   document       Document                @relation(fields: [tenantId, documentId], references: [tenantId, id], onDelete: Cascade, onUpdate: Cascade)
   processingJobs DocumentProcessingJob[]
+  ocrExtractions OCRExtraction[]
 
   @@unique([tenantId, id])
   @@unique([documentId, versionNumber])

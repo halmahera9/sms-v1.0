@@ -54,6 +54,10 @@ export const PLATFORM_RBAC_REGISTRY = {
   DOCUMENT_READ: [UserRole.ADMIN, UserRole.ADMIN_TENANT, UserRole.OPERATOR, UserRole.VERIFIKATOR, UserRole.AUDITOR],
   DOCUMENT_UPLOAD: [UserRole.ADMIN, UserRole.ADMIN_TENANT, UserRole.OPERATOR, UserRole.VERIFIKATOR],
   DOCUMENT_WRITE: [UserRole.ADMIN, UserRole.ADMIN_TENANT, UserRole.OPERATOR],
+
+  // Document Reading & OCR domain (P0-H)
+  OCR_READ: [UserRole.ADMIN, UserRole.ADMIN_TENANT, UserRole.OPERATOR, UserRole.VERIFIKATOR, UserRole.AUDITOR],
+  OCR_EXECUTE: [UserRole.ADMIN, UserRole.ADMIN_TENANT, UserRole.OPERATOR, UserRole.VERIFIKATOR],
 } as const satisfies Record<string, readonly UserRole[]>;
 
 export type ActionPermission = keyof typeof PLATFORM_RBAC_REGISTRY;
