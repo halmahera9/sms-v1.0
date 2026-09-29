@@ -115,11 +115,11 @@ export class PostgresOperationalQueryRepository implements IOperationalQueryRepo
         },
       }),
 
-      // 3. Pending Student OCR Item Verification
+      // 3. Pending OCR Item Verification
       tx.extractedItem.count({
         where: {
           tenantId,
-          absenceRecordId: null,
+          status: 'PENDING',
         },
       }),
 
@@ -204,11 +204,11 @@ export class PostgresOperationalQueryRepository implements IOperationalQueryRepo
     }
 
     const [unverifiedOcrItems, exceptions] = await Promise.all([
-      // 1. Extracted OCR Items needing human verification (absenceRecordId is null)
+      // 1. Extracted OCR Items needing human verification (status is PENDING)
       tx.extractedItem.findMany({
         where: {
           tenantId,
-          absenceRecordId: null,
+          status: 'PENDING',
         },
         include: {
           ocrExtraction: {
@@ -216,7 +216,6 @@ export class PostgresOperationalQueryRepository implements IOperationalQueryRepo
               document: true,
             },
           },
-          matchedStudent: true,
         },
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         take: limit,
@@ -238,11 +237,11 @@ export class PostgresOperationalQueryRepository implements IOperationalQueryRepo
 
     const items: WorkQueueItem[] = [];
 
-    // --- Map Student OCR Extractions ---
+    // --- Map OCR Extractions ---
     for (const item of unverifiedOcrItems) {
       const confidence = Number(item.confidenceScore);
-      const studentTitle = item.studentNameRaw || item.matchedStudent?.fullName || 'Siswa';
-      const subtitle = `Akurasi OCR ${confidence}%${item.matchedStudent?.className ? ` | Kelas ${item.matchedStudent.className}` : ''}`;
+      const studentTitle = item.fieldName || item.fieldKey || item.value || 'Item Dokumen';
+      const subtitle = `Akurasi OCR ${confidence}% | ${item.fieldKey}: ${item.value}`;
       items.push({
         id: `wq-std-${item.id}`,
         domain: 'STUDENT',

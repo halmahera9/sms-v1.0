@@ -229,7 +229,6 @@ model Student {
 
   tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   absenceRecords AbsenceRecord[]
-  extractedItems ExtractedItem[]
 
   @@unique([tenantId, id])
   @@unique([tenantId, nisn])
@@ -249,10 +248,9 @@ model AbsenceRecord {
   createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz
   updatedAt   DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
-  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  student       Student        @relation(fields: [tenantId, studentId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade)
-  document      Document?      @relation(fields: [tenantId, documentId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade)
-  extractedItem ExtractedItem?
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  student  Student   @relation(fields: [tenantId, studentId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade)
+  document Document? @relation(fields: [tenantId, documentId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade)
 
   @@unique([tenantId, id])
   @@unique([tenantId, studentId, absenceDate])
@@ -280,27 +278,27 @@ model OCRExtraction {
 }
 
 model ExtractedItem {
-  id               String   @id @db.Uuid
-  tenantId         String   @map("tenant_id") @db.Uuid
-  ocrExtractionId  String   @map("ocr_extraction_id") @db.Uuid
-  studentNameRaw   String   @map("student_name_raw") @db.VarChar(255)
-  nisnRaw          String?  @map("nisn_raw") @db.VarChar(20)
-  absenceDateRaw   String?  @map("absence_date_raw") @db.VarChar(50)
-  absenceTypeRaw   String?  @map("absence_type_raw") @db.VarChar(50)
-  confidenceScore  Decimal  @map("confidence_score") @db.Decimal(5, 2)
-  matchedStudentId String?  @map("matched_student_id") @db.Uuid
-  absenceRecordId  String?  @map("absence_record_id") @db.Uuid
-  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  id              String             @id @db.Uuid
+  tenantId        String             @map("tenant_id") @db.Uuid
+  ocrExtractionId String             @map("ocr_extraction_id") @db.Uuid
+  fieldKey        String             @map("field_key") @db.VarChar(100)
+  fieldName       String?            @map("field_name") @db.VarChar(100)
+  value           String             @map("value") @db.Text
+  rawValue        String?            @map("raw_value") @db.Text
+  normalizedValue String?            @map("normalized_value") @db.Text
+  confidenceScore Decimal            @default(0) @map("confidence_score") @db.Decimal(5, 2)
+  pageNumber      Int?               @map("page_number")
+  boundingBox     Json?              @map("bounding_box")
+  status          VerificationStatus @default(PENDING) @map("status")
+  createdAt       DateTime           @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
-  tenant         Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  ocrExtraction  OCRExtraction  @relation(fields: [tenantId, ocrExtractionId], references: [tenantId, id], onDelete: Cascade, onUpdate: Cascade)
-  matchedStudent Student?       @relation(fields: [tenantId, matchedStudentId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade)
-  absenceRecord  AbsenceRecord? @relation(fields: [tenantId, absenceRecordId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade)
+  tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  ocrExtraction OCRExtraction @relation(fields: [tenantId, ocrExtractionId], references: [tenantId, id], onDelete: Cascade, onUpdate: Cascade)
 
   @@unique([tenantId, id])
-  @@unique([tenantId, absenceRecordId])
-  @@index([ocrExtractionId])
+  @@index([tenantId, ocrExtractionId])
+  @@index([tenantId, fieldKey])
   @@map("extracted_items")
 }
 

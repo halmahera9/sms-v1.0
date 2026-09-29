@@ -166,9 +166,12 @@ async function runOperationalQueryRepositoryTests() {
         id: extItem1Id,
         tenantId: TENANT_A_ID,
         ocrExtractionId: ocr1Id,
-        studentNameRaw: 'Ahmad Siswa',
+        fieldKey: 'nama',
+        fieldName: 'Nama Lengkap',
+        value: 'Ahmad Siswa',
+        rawValue: 'Ahmad Siswa',
         confidenceScore: '65.50',
-        matchedStudentId: std1Id,
+        status: 'PENDING',
       },
     });
 

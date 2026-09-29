@@ -295,13 +295,14 @@ async function runStudentExportServerActionsTests() {
         id: ITEM_PENDING_ID,
         tenantId: TENANT_A_ID,
         ocrExtractionId: OCR_PENDING_ID,
-        studentNameRaw: 'Unverified Siswa A99',
-        nisnRaw: '0051111199',
+        fieldKey: 'nama',
+        fieldName: 'Nama Siswa',
+        value: 'Unverified Siswa A99',
+        rawValue: 'Unverified Siswa A99',
         confidenceScore: 88.5,
-        matchedStudentId: STUDENT_UNVERIFIED_ID,
-        absenceRecordId: null, // Unverified, has no absenceRecord
+        status: 'PENDING',
       },
-      update: { absenceRecordId: null },
+      update: { status: 'PENDING' },
     });
 
     // Rejected document fixture

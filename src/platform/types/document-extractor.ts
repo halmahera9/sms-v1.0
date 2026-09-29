@@ -4,6 +4,21 @@
  */
 export interface ExtractedDocumentItem {
   id?: string;
+  fieldKey?: string;
+  fieldName?: string;
+  value?: string;
+  rawValue?: string;
+  normalizedValue?: string;
+  confidence?: number;
+  pageNumber?: number;
+  boundingBox?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+
+  // Backward compatibility aliases
   ocrText?: string;
   matchedStudentName?: string;
   name?: string;
@@ -12,7 +27,6 @@ export interface ExtractedDocumentItem {
   matchedStudentId?: string;
   date?: string;
   status?: string;
-  confidence?: number;
 }
 
 /**

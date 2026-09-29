@@ -346,8 +346,8 @@ async function runStudentOCRServerActionsTests() {
       include: { ocrExtraction: true },
     });
     assert(
-      item1Db?.absenceRecordId === null,
-      'TEST 7A: Pending ExtractedItem has absenceRecordId === null in PostgreSQL'
+      item1Db?.status === 'PENDING',
+      'TEST 7A: Pending ExtractedItem has status PENDING in PostgreSQL'
     );
     assert(
       item1Db?.ocrExtraction.status === OCRExtractionStatus.COMPLETED,
@@ -419,16 +419,19 @@ async function runStudentOCRServerActionsTests() {
     // Verify DB state for item 1 and absence record
     const item1AfterVerify = await adminPrisma.extractedItem.findUnique({
       where: { id: item1Id },
-      include: { absenceRecord: true },
+    });
+
+    const absenceRec = await adminPrisma.absenceRecord.findFirst({
+      where: { tenantId: TENANT_A_ID, studentId: STUDENT_A1_ID },
     });
 
     assert(
-      item1AfterVerify?.absenceRecordId !== null && item1AfterVerify?.absenceRecord !== null,
-      'TEST 10C: ExtractedItem now links to newly created AbsenceRecord in PostgreSQL'
+      item1AfterVerify?.status === 'VERIFIED',
+      'TEST 10C: ExtractedItem now has status VERIFIED in PostgreSQL'
     );
     assert(
-      item1AfterVerify?.absenceRecord?.studentId === STUDENT_A1_ID &&
-        item1AfterVerify?.absenceRecord?.status === AbsenceStatus.SAKIT,
+      absenceRec?.studentId === STUDENT_A1_ID &&
+        absenceRec?.status === AbsenceStatus.SAKIT,
       'TEST 10D: AbsenceRecord uses canonical AbsenceStatus.SAKIT enum'
     );
 

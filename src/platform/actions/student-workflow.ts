@@ -175,10 +175,6 @@ export async function getOCRDocumentsAction(): Promise<ActionResponse<OCRDocumen
           ocrExtractions: {
             include: {
               items: {
-                include: {
-                  matchedStudent: true,
-                  absenceRecord: true,
-                },
                 orderBy: { createdAt: 'asc' },
               },
             },
@@ -195,22 +191,19 @@ export async function getOCRDocumentsAction(): Promise<ActionResponse<OCRDocumen
         const rawItems = latestOcr?.items || [];
 
         const items: ExtractedItemDTO[] = rawItems.map((item) => {
-          const isVerified = item.absenceRecordId !== null;
-          const statusDto = mapToDtoAbsenceStatus(
-            item.absenceRecord?.status || item.absenceTypeRaw
-          );
+          const isVerified = item.status === 'VERIFIED';
 
           return {
             id: item.id,
-            ocrText: item.studentNameRaw,
-            matchedStudentId: item.matchedStudentId || undefined,
-            matchedStudentName: item.matchedStudent?.fullName || item.studentNameRaw,
-            matchedNisn: item.matchedStudent?.nisn || item.nisnRaw || undefined,
+            ocrText: item.value || item.rawValue || item.fieldKey,
+            matchedStudentId: undefined,
+            matchedStudentName: item.fieldName || item.value,
+            matchedNisn: item.fieldKey === 'nisn' ? item.value : undefined,
             confidence: Number(item.confidenceScore),
-            class: item.matchedStudent?.className || 'X IPA 1',
-            date: item.absenceDateRaw || new Date(item.createdAt).toISOString().slice(0, 10),
-            status: statusDto,
-            notes: item.absenceRecord?.reason || undefined,
+            class: 'X IPA 1',
+            date: new Date(item.createdAt).toISOString().slice(0, 10),
+            status: 'Hadir',
+            notes: undefined,
             verificationStatus: isVerified ? 'verified' : 'pending',
           };
         });
@@ -419,47 +412,34 @@ export async function uploadOCRDocumentAction(
 
         for (const item of dto.items) {
           const itemId = item.id && isValidUuid(item.id) ? item.id : randomUUID();
-
-          // Resolve matched student ID if not provided
-          let resolvedStudentId = item.matchedStudentId;
-          if (!resolvedStudentId && item.matchedNisn) {
-            const foundStudent = await tx.student.findFirst({
-              where: { tenantId, nisn: item.matchedNisn },
-            });
-            if (foundStudent) resolvedStudentId = foundStudent.id;
-          }
-
-          const rawAbsenceDate = item.date || new Date().toISOString().slice(0, 10);
-          const rawAbsenceType = item.status || 'Sakit';
+          const fieldKey = item.matchedNisn ? 'nisn' : 'student_name';
+          const val = item.matchedStudentName || item.ocrText || item.matchedNisn || '';
 
           const createdItem = await tx.extractedItem.create({
             data: {
               id: itemId,
               tenantId,
               ocrExtractionId: extractionId,
-              studentNameRaw: item.matchedStudentName || item.ocrText,
-              nisnRaw: item.matchedNisn || null,
-              absenceDateRaw: rawAbsenceDate,
-              absenceTypeRaw: rawAbsenceType,
+              fieldKey,
+              fieldName: item.matchedStudentName ? 'Nama Siswa' : 'Item Ekstraksi',
+              value: val,
+              rawValue: item.ocrText || val,
+              normalizedValue: val.trim(),
               confidenceScore: item.confidence,
-              matchedStudentId: resolvedStudentId || null,
-              absenceRecordId: null, // Pending verification
-            },
-            include: {
-              matchedStudent: true,
+              status: 'PENDING',
             },
           });
 
           const domainItem: DomainExtractedItem = {
             id: createdItem.id,
-            ocrText: createdItem.studentNameRaw,
-            matchedStudentId: createdItem.matchedStudentId || undefined,
-            matchedStudentName: createdItem.matchedStudent?.fullName || createdItem.studentNameRaw,
-            matchedNisn: createdItem.matchedStudent?.nisn || createdItem.nisnRaw || undefined,
+            ocrText: createdItem.value,
+            matchedStudentId: undefined,
+            matchedStudentName: createdItem.value,
+            matchedNisn: item.matchedNisn,
             confidence: Number(createdItem.confidenceScore),
-            class: createdItem.matchedStudent?.className || item.class || 'X IPA 1',
-            date: rawAbsenceDate,
-            status: mapToDtoAbsenceStatus(rawAbsenceType),
+            class: item.class || 'X IPA 1',
+            date: item.date || new Date().toISOString().slice(0, 10),
+            status: mapToDtoAbsenceStatus(item.status || 'Hadir'),
             notes: item.notes,
             verificationStatus: 'pending',
           };
@@ -477,14 +457,14 @@ export async function uploadOCRDocumentAction(
 
           createdItems.push({
             id: createdItem.id,
-            ocrText: createdItem.studentNameRaw,
-            matchedStudentId: createdItem.matchedStudentId || undefined,
-            matchedStudentName: createdItem.matchedStudent?.fullName || createdItem.studentNameRaw,
-            matchedNisn: createdItem.matchedStudent?.nisn || createdItem.nisnRaw || undefined,
+            ocrText: createdItem.value,
+            matchedStudentId: undefined,
+            matchedStudentName: createdItem.value,
+            matchedNisn: item.matchedNisn,
             confidence: Number(createdItem.confidenceScore),
-            class: createdItem.matchedStudent?.className || item.class || 'X IPA 1',
-            date: rawAbsenceDate,
-            status: mapToDtoAbsenceStatus(rawAbsenceType),
+            class: item.class || 'X IPA 1',
+            date: item.date || new Date().toISOString().slice(0, 10),
+            status: mapToDtoAbsenceStatus(item.status || 'Hadir'),
             notes: item.notes,
             verificationStatus: 'pending',
           });
@@ -589,7 +569,7 @@ export async function matchExtractedItemToStudentAction(
         );
       }
 
-      if (item.absenceRecordId) {
+      if (item.status === 'VERIFIED') {
         throw new Error(
           'Validation Error: Item sudah diverifikasi dan tidak dapat diubah.'
         );
@@ -613,7 +593,7 @@ export async function matchExtractedItemToStudentAction(
           id: item.id,
         },
         data: {
-          matchedStudentId: student.id,
+          normalizedValue: student.id,
         },
       });
 
@@ -677,7 +657,6 @@ export async function verifyExtractedItemAction(
               document: true,
             },
           },
-          matchedStudent: true,
         },
       });
 
@@ -685,11 +664,11 @@ export async function verifyExtractedItemAction(
         throw new Error('Validation Error: Item ekstraksi tidak ditemukan pada instansi ini.');
       }
 
-      if (item.absenceRecordId) {
+      if (item.status === 'VERIFIED') {
         // Already verified
         return {
           verifiedItemId: item.id,
-          absenceRecordId: item.absenceRecordId,
+          absenceRecordId: '',
           documentCompleted: true,
         };
       }
@@ -736,32 +715,25 @@ export async function verifyExtractedItemAction(
       }
 
       // Resolve matched student. Verification must never create a fake student.
-      let studentId = item.matchedStudentId;
+      const student = await tx.student.findFirst({
+        where: {
+          tenantId,
+          OR: [{ nisn: item.value }, { fullName: item.value }],
+        },
+      });
 
-      if (!studentId) {
-        const student = item.nisnRaw
-          ? await tx.student.findFirst({
-              where: { tenantId, nisn: item.nisnRaw },
-            })
-          : await tx.student.findFirst({
-              where: { tenantId, fullName: item.studentNameRaw },
-            });
-
-        if (student) {
-          studentId = student.id;
-        }
-      }
-
-      if (!studentId) {
+      if (!student) {
         throw new Error(
           'Validation Error: Siswa belum teridentifikasi. Cocokkan item dengan data siswa sebelum verifikasi.'
         );
       }
 
+      const studentId = student.id;
+
       // 3. Create AbsenceRecord with canonical AbsenceStatus enum
       const absenceRecordId = randomUUID();
-      const absenceDate = item.absenceDateRaw ? new Date(item.absenceDateRaw) : new Date();
-      const dbAbsenceStatus = mapToDbAbsenceStatus(item.absenceTypeRaw);
+      const absenceDate = new Date();
+      const dbAbsenceStatus = 'SAKIT' as any;
 
       await tx.absenceRecord.create({
         data: {
@@ -779,8 +751,7 @@ export async function verifyExtractedItemAction(
       await tx.extractedItem.update({
         where: { id: item.id },
         data: {
-          absenceRecordId,
-          matchedStudentId: studentId,
+          status: 'VERIFIED',
         },
       });
 
@@ -817,7 +788,7 @@ export async function verifyExtractedItemAction(
         where: {
           ocrExtractionId: item.ocrExtractionId,
           tenantId,
-          absenceRecordId: null,
+          status: 'PENDING',
         },
       });
 

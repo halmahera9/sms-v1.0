@@ -156,6 +156,9 @@ export interface ExtractedField {
  */
 export interface ProcessedExtractedItem {
   id: string;
+  fieldKey?: string;
+  fieldName?: string;
+  value?: string;
   rawText: string;
   confidence: number;
   fields: Record<string, ExtractedField>;
