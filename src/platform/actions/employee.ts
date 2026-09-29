@@ -14,7 +14,7 @@ export type { ActionErrorCode, ActionError, ActionResponse };
 export interface EmployeeRecordDTO {
   id: string;
   tenantId: string;
-  nip: string;
+  nip: string | null;
   nrk: string | null;
   nik: string | null;
   fullName: string;

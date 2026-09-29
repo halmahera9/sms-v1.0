@@ -127,7 +127,7 @@ export async function matchDocumentEntity(
             })
           : await tx.employee.findMany({
               where: { tenantId },
-              select: { id: true, fullName: true, nip: true },
+              select: { id: true, fullName: true, nip: true, nik: true },
             });
 
       const matches = candidates.filter(
@@ -157,7 +157,9 @@ export async function matchDocumentEntity(
             const identifier =
               entity.entityType === 'STUDENT'
                 ? (candidate as { nisn: string }).nisn
-                : (candidate as { nip: string }).nip;
+                : (candidate as { nip: string | null; nik: string | null }).nip ||
+                  (candidate as { nip: string | null; nik: string | null }).nik ||
+                  '-';
 
             return {
               entityId: candidate.id,

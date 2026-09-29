@@ -66,7 +66,7 @@ export class PostgresEmployeeRepository extends BasePostgresRepository<Employee>
     const createPayload = {
       id: entity.id,
       tenantId: entity.tenantId,
-      nip: entity.nip,
+      nip: entity.nip ?? null,
       nrk: entity.nrk,
       nik: entity.nik ?? null,
       fullName: entity.fullName,
@@ -80,7 +80,7 @@ export class PostgresEmployeeRepository extends BasePostgresRepository<Employee>
 
     // Update payload EXCLUDES tenantId to ensure tenantId immutability during update
     const updatePayload = {
-      nip: entity.nip,
+      nip: entity.nip ?? null,
       nrk: entity.nrk,
       nik: entity.nik ?? null,
       fullName: entity.fullName,

@@ -379,7 +379,7 @@ export default function MasterEmployeesPage() {
                 filteredEmployees.map((s) => (
                   <tr key={s.id} className="hover:bg-slate-50 transition-colors">
                     <td className="p-4 font-mono">
-                      <div className="text-slate-900 font-medium">{s.nip}</div>
+                      <div className="text-slate-900 font-medium">{s.nip || '-'}</div>
                       {s.nik && <div className="text-[10px] text-slate-600">NIK: {s.nik}</div>}
                       {s.nrk && !s.nik && <div className="text-[10px] text-slate-600">NRK: {s.nrk}</div>}
                     </td>

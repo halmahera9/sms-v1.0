@@ -196,7 +196,7 @@ model UserActor {
 model Employee {
   id                String         @id @db.Uuid
   tenantId          String         @map("tenant_id") @db.Uuid
-  nip               String         @db.VarChar(18)
+  nip               String?        @db.VarChar(18)
   nrk               String?        @db.VarChar(10)
   nik               String?        @db.VarChar(16)
   fullName          String         @map("nama_lengkap") @db.VarChar(255)
