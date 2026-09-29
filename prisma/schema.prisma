@@ -130,12 +130,19 @@ enum PublicUploadInvitationStatus {
 // ----------------------------------------------------
 
 model Tenant {
-  id        String       @id @db.Uuid
-  name      String       @db.VarChar(255)
-  code      String       @unique @db.VarChar(64)
-  status    TenantStatus @default(ACTIVE)
-  createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  id               String       @id @db.Uuid
+  name             String       @db.VarChar(255)
+  code             String       @unique @db.VarChar(64)
+  npsn             String?      @db.VarChar(10)
+  address          String?      @map("alamat") @db.Text
+  phone            String?      @map("telepon") @db.VarChar(50)
+  email            String?      @db.VarChar(255)
+  logoPath         String?      @map("logo_path") @db.VarChar(512)
+  letterheadConfig Json?        @map("kop_surat")
+  signers          Json?        @map("penandatangan")
+  status           TenantStatus @default(ACTIVE)
+  createdAt        DateTime     @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   users                   UserActor[]
   employees               Employee[]
