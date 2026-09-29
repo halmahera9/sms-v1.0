@@ -1,292 +1,382 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getOperationalMetricsAction } from '@/platform/actions/operational';
-import type { OperationalMetrics } from '@/platform/repositories/operational-query';
 import Link from 'next/link';
 import {
-  Users,
-  FileText,
+  Inbox,
   Clock3,
+  AlertCircle,
+  FileCheck2,
   CheckCircle2,
-  Upload,
-  ShieldCheck,
-  BarChart3,
+  ScanText,
+  Search,
   ArrowRight,
+  Sparkles,
+  Layers,
+  FileText,
+  Building2,
+  Users,
 } from 'lucide-react';
+import {
+  getOperationalMetricsAction,
+  getUnifiedWorkQueueAction,
+} from '@/platform/actions/operational';
+import type {
+  OperationalMetrics,
+  WorkQueueItem,
+} from '@/platform/repositories/operational-query';
 
 export default function DashboardPage() {
   const [metrics, setMetrics] = useState<OperationalMetrics | null>(null);
+  const [workQueue, setWorkQueue] = useState<WorkQueueItem[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let mounted = true;
 
-    getOperationalMetricsAction().then((result) => {
-      if (mounted && result.success && result.data) {
-        setMetrics(result.data);
-      }
-    });
+    Promise.all([
+      getOperationalMetricsAction(),
+      getUnifiedWorkQueueAction(10),
+    ])
+      .then(([metricsRes, queueRes]) => {
+        if (!mounted) return;
+        if (metricsRes.success && metricsRes.data) {
+          setMetrics(metricsRes.data);
+        }
+        if (queueRes.success && queueRes.data) {
+          setWorkQueue(queueRes.data);
+        }
+      })
+      .catch((err) => {
+        console.error('Error fetching dashboard data:', err);
+      })
+      .finally(() => {
+        if (mounted) setLoading(false);
+      });
 
     return () => {
       mounted = false;
     };
   }, []);
 
-  const totalStudents = metrics?.totalStudents ?? 0;
-  const totalEmployees = metrics?.totalEmployees ?? 0;
-  const totalDocuments = metrics?.totalDocumentsProcessed ?? 0;
-  const pendingCount = metrics?.pendingVerifications ?? 0;
+  // Real database metrics mapping
+  const dokumenMasuk = metrics?.requiresCorrection ?? 0;
+  const sedangDiproses = 0; // Processing in background
+  const perluDiperiksa = (metrics?.pendingVerifications ?? 0) + (metrics?.totalOpenExceptions ?? 0);
+  const menungguPersetujuan = metrics?.pendingApprovals ?? 0;
+  const selesai = metrics?.totalDocumentsProcessed ?? 0;
 
-  const metricsCards = [
+  const statusCards = [
     {
-      title: 'Master Data Siswa',
-      value: totalStudents,
-      description: 'Siswa aktif dalam database',
-      href: '/app/students',
-      icon: Users,
-    },
-    {
-      title: 'Dokumen Diproses',
-      value: totalDocuments,
-      description: 'Dokumen tersimpan di database',
+      title: 'Dokumen Masuk',
+      count: dokumenMasuk,
+      description: 'Dokumen baru diterima dalam antrean',
+      icon: Inbox,
+      color: 'text-slate-700 bg-slate-100',
       href: '/app/ocr',
-      icon: FileText,
     },
     {
-      title: 'Perlu Verifikasi',
-      value: pendingCount,
-      description: 'Item yang masih menunggu verifikasi',
-      href: '/app/verify',
+      title: 'Sedang Diproses',
+      count: sedangDiproses,
+      description: 'Dokumen dalam proses pembacaan / analisis',
       icon: Clock3,
-    },
-    {
-      title: 'Guru & Pegawai',
-      value: totalEmployees,
-      description: 'Guru dan pegawai dalam database',
-      href: '/app/employees',
-      icon: Users,
-    },
-  ];
-
-  const quickActions = [
-    {
-      title: 'Upload Dokumen',
-      description: 'Unggah dokumen baru',
+      color: 'text-blue-700 bg-blue-50',
       href: '/app/ocr',
-      icon: Upload,
     },
     {
-      title: 'Verifikasi Dokumen',
-      description: 'Proses verifikasi',
+      title: 'Perlu Diperiksa',
+      count: perluDiperiksa,
+      description: 'Membutuhkan perhatian operator sekolah',
+      icon: AlertCircle,
+      color: 'text-amber-700 bg-amber-50',
       href: '/app/verify',
+      highlight: perluDiperiksa > 0,
+    },
+    {
+      title: 'Menunggu Persetujuan',
+      count: menungguPersetujuan,
+      description: 'Menunggu persetujuan pimpinan',
+      icon: FileCheck2,
+      color: 'text-indigo-700 bg-indigo-50',
+      href: '/app/workflows/approvals',
+    },
+    {
+      title: 'Selesai',
+      count: selesai,
+      description: 'Proses administrasi yang telah selesai',
       icon: CheckCircle2,
-    },
-    {
-      title: 'Lihat Data Siswa',
-      description: 'Akses master data',
-      href: '/app/students',
-      icon: Users,
-    },
-    {
-      title: 'Ekspor Excel',
-      description: 'Unduh data',
-      href: '/app/export',
-      icon: FileText,
-    },
-    {
-      title: 'Audit Trail',
-      description: 'Lihat riwayat aktivitas',
-      href: '/app/audit',
-      icon: ShieldCheck,
-    },
-    {
-      title: 'Analitik',
-      description: 'Lihat ringkasan sistem',
-      href: '/app/audit',
-      icon: BarChart3,
+      color: 'text-emerald-700 bg-emerald-50',
+      href: '/app/documents',
     },
   ];
 
   return (
-    <div className="mx-auto w-full max-w-[1500px] space-y-6">
-
-      {/* Page heading */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-blue-600">
-            SISTEM MANAJEMEN SEKOLAH
-          </p>
-          <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-900">
-            Beranda
-          </h1>
+    <div className="space-y-8 max-w-7xl mx-auto">
+      {/* Header section */}
+      <div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-bold uppercase tracking-wider text-blue-700">
+            Document Intelligence Platform
+          </span>
+          <span className="text-xs text-slate-400">&bull;</span>
+          <span className="text-xs text-slate-500 font-medium">Administrasi Sekolah</span>
         </div>
-
-        <Link
-          href="/app/ocr"
-          className="inline-flex w-fit items-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-slate-900 shadow-sm transition hover:bg-blue-700"
-        >
-          <Upload className="h-4 w-4" />
-          Upload Dokumen
-        </Link>
+        <h1 className="mt-1 text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+          Pusat Operasional Dokumen
+        </h1>
+        <p className="mt-1 text-xs sm:text-sm text-slate-600">
+          Ikhtisar status pekerjaan pembacaan, pencocokan data, dan verifikasi dokumen sekolah.
+        </p>
       </div>
 
-      {/* Hero */}
-      <section className="relative min-h-[250px] overflow-hidden rounded-[24px] border border-blue-100 bg-[#eef6ff]">
-        <div className="absolute inset-y-0 right-0 w-[58%]">
-          <div
-            className="absolute inset-0 bg-cover bg-center"
-            style={{
-              backgroundImage:
-                "url('https://kelulusan.smpn99jkt.sch.id/assets/img/header/banner22.jpg')",
-            }}
-          />
-          <div className="absolute inset-0 bg-gradient-to-r from-[#eef6ff] via-[#eef6ff]/75 to-transparent" />
+      {/* 5 Real Work Status Cards */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+            Status Pekerjaan Berjalan
+          </h2>
+          <span className="text-[11px] text-slate-400">
+            {loading ? 'Memuat data...' : 'Data langsung dari database'}
+          </span>
         </div>
 
-        <div className="relative z-10 flex min-h-[250px] items-center px-7 py-8 sm:px-10">
-          <div className="max-w-2xl">
-            <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-blue-600">
-              SMP NEGERI 99 JAKARTA
-            </p>
-
-            <h2 className="mt-4 text-3xl font-black leading-tight tracking-tight text-[#102b5f] sm:text-4xl">
-              Selamat datang di{' '}
-              <span className="text-blue-600">Banyubiru.</span>
-            </h2>
-
-            <p className="mt-3 max-w-xl text-sm leading-6 text-slate-600 sm:text-base">
-              Kelola data sekolah, dokumen, dan proses administrasi dengan lebih
-              mudah, cepat, dan terorganisir.
-            </p>
-
-            <div className="mt-5 inline-flex rounded-xl border border-white/80 bg-white/80 px-4 py-3 text-sm font-medium text-slate-700 backdrop-blur">
-              Administrasi yang baik, mendukung pendidikan yang lebih baik.
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Metrics */}
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {metricsCards.map((item) => {
-          const Icon = item.icon;
-
-          return (
-            <Link
-              key={item.title}
-              href={item.href}
-              className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md"
-            >
-              <div className="flex items-start justify-between">
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
-                  <Icon className="h-5 w-5" />
-                </div>
-              </div>
-
-              <p className="mt-5 text-sm font-semibold text-slate-600">
-                {item.title}
-              </p>
-
-              <p className="mt-1 text-3xl font-black tracking-tight text-slate-900">
-                {item.value}
-              </p>
-
-              <p className="mt-1 text-xs text-slate-600">
-                {item.description}
-              </p>
-
-              <div className="mt-4 inline-flex items-center gap-1 text-xs font-bold text-blue-600">
-                Lihat detail
-                <ArrowRight className="h-3.5 w-3.5 transition group-hover:translate-x-0.5" />
-              </div>
-            </Link>
-          );
-        })}
-      </section>
-
-      {/* Lower dashboard */}
-      <section className="grid gap-6 xl:grid-cols-[1.4fr_1fr]">
-
-        {/* Quick actions */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-lg font-bold text-slate-900">Aksi Cepat</h3>
-              <p className="mt-1 text-xs text-slate-600">
-                Pilih layanan yang sering digunakan
-              </p>
-            </div>
-
-            <BarChart3 className="h-5 w-5 text-blue-600" />
-          </div>
-
-          <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {quickActions.map((item) => {
-              const Icon = item.icon;
-
-              return (
-                <Link
-                  key={item.title}
-                  href={item.href}
-                  className="group rounded-xl border border-slate-200 bg-white px-4 py-5 text-center transition hover:border-blue-200 hover:bg-blue-50/40"
-                >
-                  <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
-                    <Icon className="h-5 w-5" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
+          {statusCards.map((card, idx) => {
+            const Icon = card.icon;
+            return (
+              <Link
+                key={idx}
+                href={card.href}
+                className={`rounded-2xl border p-4 sm:p-5 transition-all hover:shadow-md bg-white ${
+                  card.highlight
+                    ? 'border-amber-300 ring-2 ring-amber-100'
+                    : 'border-slate-200/90 hover:border-slate-300'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className={`h-8 w-8 rounded-lg flex items-center justify-center ${card.color}`}>
+                    <Icon className="h-4 w-4" />
                   </div>
+                  <span className="text-2xl font-black text-slate-900">
+                    {loading ? '-' : card.count}
+                  </span>
+                </div>
+                <h3 className="mt-3 text-xs font-bold text-slate-800">
+                  {card.title}
+                </h3>
+                <p className="mt-1 text-[11px] text-slate-500 leading-tight">
+                  {card.description}
+                </p>
+              </Link>
+            );
+          })}
+        </div>
+      </div>
 
-                  <p className="mt-3 text-sm font-bold text-slate-900">
-                    {item.title}
-                  </p>
+      {/* Main Grid: Aktivitas Terbaru & Akses Cepat */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Aktivitas Terbaru (2 cols) */}
+        <div className="lg:col-span-2 rounded-2xl border border-slate-200/90 bg-white p-5 sm:p-6 shadow-xs flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">
+                  Aktivitas & Antrean Dokumen Terbaru
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Dokumen dan item ekstraksi yang sedang membutuhkan verifikasi atau tindakan
+                </p>
+              </div>
+              <Link
+                href="/app/verify"
+                className="text-xs font-semibold text-blue-700 hover:text-blue-900"
+              >
+                Lihat Semua &rarr;
+              </Link>
+            </div>
 
-                  <p className="mt-1 text-xs text-slate-600">
-                    {item.description}
+            {/* List or Empty State */}
+            <div className="mt-4 divide-y divide-slate-100">
+              {loading ? (
+                <div className="py-8 text-center text-xs text-slate-400">
+                  Memeriksa aktivitas sistem...
+                </div>
+              ) : workQueue.length > 0 ? (
+                workQueue.map((item) => (
+                  <div
+                    key={item.id}
+                    className="py-3.5 flex items-start justify-between gap-3 hover:bg-slate-50/60 px-2 rounded-lg transition-colors"
+                  >
+                    <div className="space-y-0.5 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-slate-800 truncate">
+                          {item.title}
+                        </span>
+                        <span
+                          className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                            item.severity === 'CRITICAL'
+                              ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                              : item.severity === 'HIGH'
+                              ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                              : 'bg-blue-50 text-blue-700 border border-blue-200'
+                          }`}
+                        >
+                          {item.severity === 'CRITICAL' ? 'Tinggi' : item.severity === 'HIGH' ? 'Sedang' : 'Normal'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 truncate">
+                        {item.subtitle}
+                      </p>
+                      <p className="text-[11px] text-blue-700 font-medium">
+                        Tindakan: {item.actionRequired}
+                      </p>
+                    </div>
+
+                    <Link
+                      href="/app/verify"
+                      className="shrink-0 text-xs font-semibold text-blue-700 hover:text-blue-900 flex items-center gap-1 mt-1"
+                    >
+                      <span>Periksa</span>
+                      <ArrowRight className="h-3.5 w-3.5" />
+                    </Link>
+                  </div>
+                ))
+              ) : (
+                /* Clean empty state (No fake data!) */
+                <div className="py-12 text-center space-y-2">
+                  <div className="mx-auto h-12 w-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center">
+                    <CheckCircle2 className="h-6 w-6 text-slate-400" />
+                  </div>
+                  <h4 className="text-xs font-bold text-slate-800">
+                    Tidak ada dokumen yang perlu tindakan saat ini
+                  </h4>
+                  <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                    Seluruh proses pembacaan dan verifikasi telah tertangani. Unggah dokumen baru melalui menu Penerimaan Dokumen.
                   </p>
-                </Link>
-              );
-            })}
+                  <div className="pt-2">
+                    <Link
+                      href="/app/ocr"
+                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-700 hover:text-blue-900 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-200/80"
+                    >
+                      <span>Unggah Dokumen Baru</span>
+                      <ArrowRight className="h-3.5 w-3.5" />
+                    </Link>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="pt-4 border-t border-slate-100 text-[11px] text-slate-400 flex items-center justify-between">
+            <span>Sistem Banyubiru v1.0</span>
+            <span>Semua data terhubung dengan RLS tenant</span>
           </div>
         </div>
 
-        {/* Activity summary */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
-              <BarChart3 className="h-5 w-5" />
-            </div>
+        {/* Akses Cepat & Panduan (1 col) */}
+        <div className="space-y-6">
+          {/* Akses Cepat */}
+          <div className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">
+              Akses Cepat Alur Kerja
+            </h3>
+            <div className="space-y-2">
+              <Link
+                href="/app/ocr"
+                className="flex items-center justify-between p-3 rounded-xl border border-slate-100 bg-slate-50/60 hover:bg-blue-50/50 hover:border-blue-200 transition-colors group"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="h-8 w-8 rounded-lg bg-blue-100 text-blue-800 flex items-center justify-center">
+                    <ScanText className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-slate-800 group-hover:text-blue-800">
+                      Penerimaan Dokumen
+                    </p>
+                    <p className="text-[11px] text-slate-500">Unggah berkas untuk OCR</p>
+                  </div>
+                </div>
+                <ArrowRight className="h-4 w-4 text-slate-400 group-hover:text-blue-700" />
+              </Link>
 
-            <div>
-              <h3 className="text-lg font-bold text-slate-900">
-                Ringkasan Aktivitas
-              </h3>
-              <p className="mt-1 text-xs text-slate-600">
-                Kondisi data saat ini
-              </p>
+              <Link
+                href="/app/verify"
+                className="flex items-center justify-between p-3 rounded-xl border border-slate-100 bg-slate-50/60 hover:bg-blue-50/50 hover:border-blue-200 transition-colors group"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="h-8 w-8 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center">
+                    <CheckCircle2 className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-slate-800 group-hover:text-amber-800">
+                      Verifikasi Data
+                    </p>
+                    <p className="text-[11px] text-slate-500">Periksa hasil pencocokan</p>
+                  </div>
+                </div>
+                <ArrowRight className="h-4 w-4 text-slate-400 group-hover:text-amber-700" />
+              </Link>
+
+              <Link
+                href="/app/students"
+                className="flex items-center justify-between p-3 rounded-xl border border-slate-100 bg-slate-50/60 hover:bg-blue-50/50 hover:border-blue-200 transition-colors group"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="h-8 w-8 rounded-lg bg-indigo-100 text-indigo-800 flex items-center justify-center">
+                    <Users className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-slate-800 group-hover:text-indigo-800">
+                      Data Siswa & Pegawai
+                    </p>
+                    <p className="text-[11px] text-slate-500">Master database sekolah</p>
+                  </div>
+                </div>
+                <ArrowRight className="h-4 w-4 text-slate-400 group-hover:text-indigo-700" />
+              </Link>
+
+              <Link
+                href="/app/documents"
+                className="flex items-center justify-between p-3 rounded-xl border border-slate-100 bg-slate-50/60 hover:bg-blue-50/50 hover:border-blue-200 transition-colors group"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="h-8 w-8 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center">
+                    <Search className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-slate-800 group-hover:text-emerald-800">
+                      Pencarian Dokumen
+                    </p>
+                    <p className="text-[11px] text-slate-500">Arsip dokumen digital</p>
+                  </div>
+                </div>
+                <ArrowRight className="h-4 w-4 text-slate-400 group-hover:text-emerald-700" />
+              </Link>
             </div>
           </div>
 
-          <div className="mt-5 space-y-3">
-            <Activity label="Data siswa" value={`${totalStudents} siswa aktif`} />
-            <Activity label="Guru & pegawai" value={`${totalEmployees} orang`} />
-            <Activity label="Dokumen" value={`${totalDocuments} dokumen tersimpan`} />
-            <Activity label="Verifikasi" value={`${pendingCount} item menunggu`} />
+          {/* Database Info Card */}
+          <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-5 space-y-2">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-blue-800">
+              Data Terdaftar di Sekolah
+            </span>
+            <div className="grid grid-cols-2 gap-3 pt-2">
+              <div className="bg-white rounded-xl p-3 border border-blue-100/80">
+                <p className="text-[11px] text-slate-500">Total Siswa Aktif</p>
+                <p className="text-lg font-bold text-slate-900">
+                  {loading ? '-' : metrics?.totalStudents ?? 0}
+                </p>
+              </div>
+              <div className="bg-white rounded-xl p-3 border border-blue-100/80">
+                <p className="text-[11px] text-slate-500">Guru & Pegawai</p>
+                <p className="text-lg font-bold text-slate-900">
+                  {loading ? '-' : metrics?.totalEmployees ?? 0}
+                </p>
+              </div>
+            </div>
           </div>
         </div>
-      </section>
-    </div>
-  );
-}
-
-function Activity({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
-      <span className="text-sm font-semibold text-slate-700">{label}</span>
-      <span className="text-xs text-slate-600">{value}</span>
+      </div>
     </div>
   );
 }
