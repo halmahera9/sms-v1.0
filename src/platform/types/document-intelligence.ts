@@ -76,7 +76,7 @@ export interface ExtractedEntity {
     | 'UNIT'
     | 'SUBJECT'
     | 'OTHER';
-  identifierType?: 'NIP' | 'NRK' | 'NISN' | 'NIS';
+  identifierType?: 'NIP' | 'NRK' | 'NISN' | 'NIS' | 'NIK';
   rawValue: string;
   normalizedValue?: string;
   confidence: number;

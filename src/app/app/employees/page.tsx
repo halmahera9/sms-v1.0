@@ -45,7 +45,8 @@ export default function MasterEmployeesPage() {
   const filteredEmployees = employees.filter((s) => {
     const matchesSearch = 
       s.fullName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      s.nip?.includes(searchQuery);
+      s.nip?.includes(searchQuery) ||
+      s.nik?.includes(searchQuery);
     const matchesClass = selectedClass === 'Semua' || s.unitKerja === selectedClass;
     return matchesSearch && matchesClass;
   });
@@ -359,7 +360,7 @@ export default function MasterEmployeesPage() {
           <table className="w-full text-left text-xs text-slate-700">
             <thead className="bg-slate-50 text-slate-600 font-mono uppercase text-[11px] border-b border-slate-200">
               <tr>
-                <th className="p-4">NIP / NRK</th>
+                <th className="p-4">NIP / NIK</th>
                 <th className="p-4">Nama Guru/Pegawai</th>
                 <th className="p-4">Jabatan / Unit Kerja</th>
                 <th className="p-4">Status Kepegawaian</th>
@@ -379,7 +380,8 @@ export default function MasterEmployeesPage() {
                   <tr key={s.id} className="hover:bg-slate-50 transition-colors">
                     <td className="p-4 font-mono">
                       <div className="text-slate-900 font-medium">{s.nip}</div>
-                      {s.nrk && <div className="text-[10px] text-slate-600">NIS: {s.nrk}</div>}
+                      {s.nik && <div className="text-[10px] text-slate-600">NIK: {s.nik}</div>}
+                      {s.nrk && !s.nik && <div className="text-[10px] text-slate-600">NRK: {s.nrk}</div>}
                     </td>
                     <td className="p-4 font-semibold text-slate-900">{s.fullName}</td>
                     <td className="p-4">

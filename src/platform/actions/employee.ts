@@ -16,6 +16,7 @@ export interface EmployeeRecordDTO {
   tenantId: string;
   nip: string;
   nrk: string | null;
+  nik: string | null;
   fullName: string;
   jabatan: string;
   unitKerja: string;
@@ -120,6 +121,7 @@ export async function getEmployeesAction(
           { fullName: { contains: term, mode: 'insensitive' } },
           { nip: { contains: term } },
           { nrk: { contains: term } },
+          { nik: { contains: term } },
           { jabatan: { contains: term, mode: 'insensitive' } },
         ];
       }
@@ -135,6 +137,7 @@ export async function getEmployeesAction(
         tenantId: employee.tenantId,
         nip: employee.nip,
         nrk: employee.nrk,
+        nik: employee.nik,
         fullName: employee.fullName,
         jabatan: employee.jabatan,
         unitKerja: employee.unitKerja,

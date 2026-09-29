@@ -39,6 +39,21 @@ export class PostgresEmployeeRepository extends BasePostgresRepository<Employee>
     });
   }
 
+  public async findByNikTx(
+    tx: TenantTransactionClient,
+    tenantId: string,
+    nik: string
+  ): Promise<Employee | null> {
+    return await tx.employee.findUnique({
+      where: {
+        tenantId_nik: {
+          tenantId,
+          nik,
+        },
+      },
+    });
+  }
+
   public async findAllTx(tx: TenantTransactionClient): Promise<Employee[]> {
     return await tx.employee.findMany();
   }
@@ -53,6 +68,7 @@ export class PostgresEmployeeRepository extends BasePostgresRepository<Employee>
       tenantId: entity.tenantId,
       nip: entity.nip,
       nrk: entity.nrk,
+      nik: entity.nik ?? null,
       fullName: entity.fullName,
       gelarDepan: entity.gelarDepan ?? null,
       gelarBelakang: entity.gelarBelakang ?? null,
@@ -66,6 +82,7 @@ export class PostgresEmployeeRepository extends BasePostgresRepository<Employee>
     const updatePayload = {
       nip: entity.nip,
       nrk: entity.nrk,
+      nik: entity.nik ?? null,
       fullName: entity.fullName,
       gelarDepan: entity.gelarDepan ?? null,
       gelarBelakang: entity.gelarBelakang ?? null,

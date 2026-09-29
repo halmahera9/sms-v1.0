@@ -137,6 +137,12 @@ export async function previewDapodikImport(
       "NRK",
       "Nomor Registrasi Kepegawaian",
     ]);
+    const nik = firstValue(row, [
+      "NIK",
+      "No. KTP",
+      "Nomor KTP",
+      "Nomor Induk Kependudukan",
+    ]);
     const fullName = firstValue(row, [
       "Nama",
       "Nama PTK",
@@ -185,6 +191,7 @@ export async function previewDapodikImport(
       },
       select: {
         nrk: true,
+        nik: true,
         fullName: true,
         jabatan: true,
         unitKerja: true,
@@ -206,7 +213,8 @@ export async function previewDapodikImport(
 
     const changes: string[] = [];
 
-    if ((existing.nrk ?? "") !== nrk) changes.push("NRK");
+    if ((existing.nrk ?? "") !== nrk && nrk) changes.push("NRK");
+    if ((existing.nik ?? "") !== nik && nik) changes.push("NIK");
     if (existing.fullName !== fullName) changes.push("Nama");
     if (existing.jabatan !== jabatan) changes.push("Jabatan");
     if (existing.unitKerja !== unitKerja) changes.push("Unit Kerja");
@@ -383,6 +391,13 @@ export async function importDapodikEmployees(
       "Nomor Registrasi Kepegawaian",
     ]);
 
+    const nik = firstValue(row, [
+      "NIK",
+      "No. KTP",
+      "Nomor KTP",
+      "Nomor Induk Kependudukan",
+    ]);
+
     const fullName = firstValue(row, [
       "Nama",
       "Nama PTK",
@@ -456,6 +471,7 @@ export async function importDapodikEmployees(
     const data = {
       nip,
       nrk: nrk || null,
+      nik: nik || null,
       fullName,
       gelarDepan: null,
       gelarBelakang: null,

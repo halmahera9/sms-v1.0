@@ -63,6 +63,23 @@ export async function matchDocumentEntity(
     }
   }
 
+  if (entity.identifierType === 'NIK') {
+    const employee = await tx.employee.findFirst({
+      where: { tenantId, nik: value },
+    });
+
+    if (employee) {
+      return {
+        status: 'RESOLVED',
+        matchedEntityId: employee.id,
+        matchedEntityType: 'Employee',
+        confidence: entity.confidence,
+        matchMethod: 'EXACT',
+        resolutionNotes: `Matched Employee by NIK '${value}'.`,
+      };
+    }
+  }
+
   if (entity.identifierType === 'NISN') {
     const student = await tx.student.findFirst({
       where: { tenantId, nisn: value },
