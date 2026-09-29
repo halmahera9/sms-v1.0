@@ -143,9 +143,9 @@ async function runOperationalQueryRepositoryTests() {
     const doc3Id = crypto.randomUUID();
     await adminPrisma.document.createMany({
       data: [
-        { id: doc1Id, tenantId: TENANT_A_ID, title: 'Presensi Siswa Kelas XII-A', category: 'SURAT_PENGANTAR', currentVersion: 1, status: 'DRAFT' },
-        { id: doc2Id, tenantId: TENANT_A_ID, title: 'SK CPNS Budi Santoso', category: 'SK_CPNS', currentVersion: 1, status: 'DRAFT' },
-        { id: doc3Id, tenantId: TENANT_A_ID, title: 'SK CPNS Siti Aminah', category: 'SK_CPNS', currentVersion: 1, status: 'DRAFT' },
+        { id: doc1Id, tenantId: TENANT_A_ID, title: 'Presensi Siswa Kelas XII-A', category: 'SURAT_PERNYATAAN', currentVersion: 1, status: 'DRAFT' },
+        { id: doc2Id, tenantId: TENANT_A_ID, title: 'SK CPNS Budi Santoso', category: 'KARTU_KELUARGA', currentVersion: 1, status: 'DRAFT' },
+        { id: doc3Id, tenantId: TENANT_A_ID, title: 'SK CPNS Siti Aminah', category: 'KARTU_KELUARGA', currentVersion: 1, status: 'DRAFT' },
       ],
     });
 

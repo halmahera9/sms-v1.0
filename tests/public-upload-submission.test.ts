@@ -116,7 +116,7 @@ async function runPublicUploadSubmissionTests() {
     const createRes = await createPublicUploadInvitationAction({
       recipientEmail: 'wali.murid@example.com',
       recipientName: 'Bapak Budi',
-      documentCategory: DocumentCategory.IDENTITAS,
+      documentCategory: DocumentCategory.KTP,
       targetEntityType: 'Student',
       targetEntityId: TARGET_STUDENT_A_ID,
       expiresInHours: 24,
@@ -145,7 +145,7 @@ async function runPublicUploadSubmissionTests() {
     assert(uploadRes.data?.invitationId === invitation1Id, 'Returned invitationId matches');
     assert(!!uploadRes.data?.documentId, 'Returned canonical documentId exists');
     assert(!!uploadRes.data?.documentVersionId, 'Returned canonical documentVersionId exists');
-    assert(uploadRes.data?.documentCategory === DocumentCategory.IDENTITAS, 'Returned category matches');
+    assert(uploadRes.data?.documentCategory === DocumentCategory.KTP, 'Returned category matches');
     assert(uploadRes.data?.fileName === 'kartu-keluarga.pdf', 'Returned fileName matches');
     assert(uploadRes.data?.fileSize === samplePdfContent.byteLength, 'Returned fileSize matches bytes');
     assert(uploadRes.data?.checksumSha256 === expectedChecksum, 'Returned checksum matches calculated SHA-256');
@@ -169,7 +169,7 @@ async function runPublicUploadSubmissionTests() {
     assert(dbDoc !== null, 'Canonical Document record exists in database');
     assert(dbDoc?.tenantId === TENANT_A_ID, 'Canonical Document belongs to Tenant A (resolved server-side)');
     assert(dbDoc?.title === 'kartu-keluarga.pdf', 'Canonical Document title matches');
-    assert(dbDoc?.category === DocumentCategory.IDENTITAS, 'Canonical Document category matches');
+    assert(dbDoc?.category === DocumentCategory.KTP, 'Canonical Document category matches');
     assert(dbDoc?.currentVersion === 1, 'Canonical Document currentVersion is 1');
     assert(dbDoc?.status === DocumentStatus.PENDING_VERIFICATION, 'Canonical Document status is PENDING_VERIFICATION');
 
@@ -224,7 +224,7 @@ async function runPublicUploadSubmissionTests() {
 
     const createRevokedRes = await createPublicUploadInvitationAction({
       recipientEmail: 'revoked.user@example.com',
-      documentCategory: DocumentCategory.FOTO,
+      documentCategory: DocumentCategory.RAPOR,
       targetEntityType: 'Student',
       targetEntityId: TARGET_STUDENT_A_ID,
     });
@@ -262,7 +262,7 @@ async function runPublicUploadSubmissionTests() {
 
     const createExpiredRes = await createPublicUploadInvitationAction({
       recipientEmail: 'expired.user@example.com',
-      documentCategory: DocumentCategory.SK_PNS,
+      documentCategory: DocumentCategory.KARTU_KELUARGA,
       targetEntityType: 'Student',
       targetEntityId: TARGET_STUDENT_A_ID,
     });
@@ -365,7 +365,7 @@ async function runPublicUploadSubmissionTests() {
     const createConcurrentRes = await createPublicUploadInvitationAction({
       recipientEmail: 'concurrent.upload@example.com',
       recipientName: 'Concurrent User',
-      documentCategory: DocumentCategory.SKP_2_TAHUN,
+      documentCategory: DocumentCategory.IJAZAH,
       targetEntityType: 'Student',
       targetEntityId: TARGET_STUDENT_A_ID,
       maxUploadAttempts: 3,
@@ -414,7 +414,7 @@ async function runPublicUploadSubmissionTests() {
 
     const createStorageFailRes = await createPublicUploadInvitationAction({
       recipientEmail: 'storage.fail@example.com',
-      documentCategory: DocumentCategory.DP3,
+      documentCategory: DocumentCategory.AKTA_KELAHIRAN,
       targetEntityType: 'Student',
       targetEntityId: TARGET_STUDENT_A_ID,
     });

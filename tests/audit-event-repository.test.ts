@@ -89,7 +89,7 @@ async function runAuditEventRepositoryTests() {
         entityId: ENTITY_1_ID,
         beforeState: { status: 'SEBAGIAN' },
         afterState: { status: 'DIVERIFIKASI' },
-        metadata: { requirementCode: 'SK_CPNS' },
+        metadata: { requirementCode: 'KARTU_KELUARGA' },
       };
 
       const recorded = await auditRepo.recordTx(tx, TENANT_A_ID, input);

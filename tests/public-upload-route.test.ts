@@ -177,7 +177,7 @@ async function runPublicUploadRouteTests() {
     const createRes = await createPublicUploadInvitationAction({
       recipientEmail: 'wali.murid@example.com',
       recipientName: 'Bapak Ahmad',
-      documentCategory: DocumentCategory.IDENTITAS,
+      documentCategory: DocumentCategory.KTP,
       targetEntityType: 'Student',
       targetEntityId: TARGET_STUDENT_A_ID,
       expiresInHours: 24,
@@ -239,7 +239,7 @@ async function runPublicUploadRouteTests() {
 
     const createTrimRes = await createPublicUploadInvitationAction({
       recipientEmail: 'trim.test@example.com',
-      documentCategory: DocumentCategory.FOTO,
+      documentCategory: DocumentCategory.RAPOR,
       targetEntityType: 'Student',
       targetEntityId: TARGET_STUDENT_A_ID,
     });
@@ -352,7 +352,7 @@ async function runPublicUploadRouteTests() {
 
       const createRevRes = await createPublicUploadInvitationAction({
         recipientEmail: 'rev.route@example.com',
-        documentCategory: DocumentCategory.SK_PNS,
+        documentCategory: DocumentCategory.KARTU_KELUARGA,
         targetEntityType: 'Student',
         targetEntityId: TARGET_STUDENT_A_ID,
       });
@@ -397,7 +397,7 @@ async function runPublicUploadRouteTests() {
 
       const createExpRes = await createPublicUploadInvitationAction({
         recipientEmail: 'exp.route@example.com',
-        documentCategory: DocumentCategory.SK_CPNS,
+        documentCategory: DocumentCategory.AKTA_KELAHIRAN,
         targetEntityType: 'Student',
         targetEntityId: TARGET_STUDENT_A_ID,
       });
