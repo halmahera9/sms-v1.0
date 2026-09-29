@@ -105,8 +105,6 @@ async function runOperationalQueryRepositoryTests() {
     await adminPrisma.exceptionItem.deleteMany({ where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID, EMPTY_TENANT_ID] } } });
     await adminPrisma.workflowTransition.deleteMany({ where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID, EMPTY_TENANT_ID] } } });
     await adminPrisma.workflowInstance.deleteMany({ where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID, EMPTY_TENANT_ID] } } });
-    await adminPrisma.awardProposalDocument.deleteMany({ where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID, EMPTY_TENANT_ID] } } });
-    await adminPrisma.awardProposal.deleteMany({ where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID, EMPTY_TENANT_ID] } } });
     await adminPrisma.documentVersion.deleteMany({ where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID, EMPTY_TENANT_ID] } } });
     await adminPrisma.document.deleteMany({ where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID, EMPTY_TENANT_ID] } } });
     await adminPrisma.student.deleteMany({ where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID, EMPTY_TENANT_ID] } } });
@@ -151,51 +149,6 @@ async function runOperationalQueryRepositoryTests() {
       ],
     });
 
-    // Award Proposals:
-    // Prop 1: SIAP_GENERATE (Approval needed)
-    // Prop 2: LENGKAP (Verification needed)
-    // Prop 3: SEBAGIAN (Verification needed)
-    const prop1Id = crypto.randomUUID();
-    const prop2Id = crypto.randomUUID();
-    const prop3Id = crypto.randomUUID();
-    await adminPrisma.awardProposal.createMany({
-      data: [
-        {
-          id: prop1Id,
-          tenantId: TENANT_A_ID,
-          employeeId: emp1Id,
-          jenisPenghargaan: 'SATYALANCANA_XX',
-          tahunUsulan: 2026,
-          status: 'SIAP_GENERATE',
-          nilaiUsulan: '20',
-          masaKerjaTahun: 22,
-          masaKerjaBulan: 5,
-        },
-        {
-          id: prop2Id,
-          tenantId: TENANT_A_ID,
-          employeeId: emp2Id,
-          jenisPenghargaan: 'SATYALANCANA_X',
-          tahunUsulan: 2026,
-          status: 'LENGKAP',
-          nilaiUsulan: '10',
-          masaKerjaTahun: 12,
-          masaKerjaBulan: 3,
-        },
-        {
-          id: prop3Id,
-          tenantId: TENANT_A_ID,
-          employeeId: emp1Id,
-          jenisPenghargaan: 'MASA_KERJA',
-          tahunUsulan: 2026,
-          status: 'SEBAGIAN',
-          nilaiUsulan: '10',
-          masaKerjaTahun: 10,
-          masaKerjaBulan: 0,
-        },
-      ],
-    });
-
     // OCR Extractions:
     // OCR 1: COMPLETED with 1 unverified ExtractedItem (confidence 65.5 -> CRITICAL severity)
     // OCR 2: COMPLETED
@@ -224,7 +177,7 @@ async function runOperationalQueryRepositoryTests() {
     const wf2Id = crypto.randomUUID();
     await adminPrisma.workflowInstance.createMany({
       data: [
-        { id: wf1Id, tenantId: TENANT_A_ID, entityType: 'AwardProposal', entityId: prop1Id, currentState: 'NEEDS_VERIFICATION' },
+        { id: wf1Id, tenantId: TENANT_A_ID, entityType: 'Document', entityId: doc1Id, currentState: 'NEEDS_VERIFICATION' },
         { id: wf2Id, tenantId: TENANT_A_ID, entityType: 'StudentAbsence', entityId: std1Id, currentState: 'NEEDS_VERIFICATION' },
       ],
     });
@@ -261,11 +214,11 @@ async function runOperationalQueryRepositoryTests() {
       // 3. requiresCorrection
       assert(metrics.requiresCorrection === 1, 'Test 5: requiresCorrection matches error count (1)');
 
-      // 4. pendingApprovals = 1 (Prop 1: SIAP_GENERATE)
-      assert(metrics.pendingApprovals === 1, 'Test 6: pendingApprovals counts SIAP_GENERATE proposals (1)');
+      // 4. pendingApprovals = 0 (award domain removed)
+      assert(metrics.pendingApprovals === 0, 'Test 6: pendingApprovals is always 0 (award domain removed)');
 
-      // 5. pendingVerifications = 3 (Prop 2: LENGKAP + Prop 3: SEBAGIAN + OCR 1: NEEDS_VERIFICATION)
-      assert(metrics.pendingVerifications === 3, 'Test 7: pendingVerifications combines proposals (2) and OCR extractions (1) (total 3)');
+      // 5. pendingVerifications = 1 (OCR 1 unverified ExtractedItem only)
+      assert(metrics.pendingVerifications === 1, 'Test 7: pendingVerifications counts only unverified OCR extracted items (1)');
 
       // 6. totalEmployees = 3 (from employees table in Tenant A)
       assert(metrics.totalEmployees === 3, 'Test 8: totalEmployees directly queries employees table (3), not proposals');
@@ -299,56 +252,38 @@ async function runOperationalQueryRepositoryTests() {
       const workQueue: WorkQueueItem[] = await opRepo.getUnifiedWorkQueueItemsTx(tx, TENANT_A_ID, 20);
 
       // Expected total work queue items in Tenant A:
-      // - 3 Award Proposals (1 SIAP_GENERATE, 1 LENGKAP, 1 SEBAGIAN)
       // - 1 OCR Extracted Item (confidence 65.5%)
       // - 2 Open Exceptions (1 ERROR, 1 WARNING)
-      // Total = 6 work items
-      assert(workQueue.length === 6, `Test 17: Unified work queue projects exactly 6 items (received ${workQueue.length})`);
-
-      // Verify Award Proposal Projections
-      const siapGenerate = workQueue.find((w) => w.entityId === prop1Id);
-      assert(
-        Boolean(siapGenerate && siapGenerate.severity === 'HIGH' && siapGenerate.actionRequired === 'Persetujuan Siap Cetak PDF'),
-        'Test 18: SIAP_GENERATE proposal projected with severity HIGH and action Persetujuan Siap Cetak PDF'
-      );
-      assert(
-        Boolean(siapGenerate && siapGenerate.title === 'Budi Santoso' && siapGenerate.subtitle.includes('SATYALANCANA')),
-        'Test 19: Proposal item contains joined employee name and subtitle details'
-      );
-
-      const lengkap = workQueue.find((w) => w.entityId === prop2Id);
-      assert(
-        Boolean(lengkap && lengkap.severity === 'MEDIUM' && lengkap.actionRequired === 'Verifikasi Kelengkapan Dokumen'),
-        'Test 20: LENGKAP proposal projected with severity MEDIUM and action Verifikasi Kelengkapan Dokumen'
-      );
+      // Total = 3 work items
+      assert(workQueue.length === 3, `Test 17: Unified work queue projects exactly 3 items (received ${workQueue.length})`);
 
       // Verify OCR Projection
       const ocrItem = workQueue.find((w) => w.domain === 'STUDENT' && w.id.startsWith('wq-std-'));
       assert(
         Boolean(ocrItem && ocrItem.severity === 'CRITICAL'),
-        'Test 21: OCR item with confidence < 70% is projected with CRITICAL severity'
+        'Test 18: OCR item with confidence < 70% is projected with CRITICAL severity'
       );
       assert(
         Boolean(ocrItem && ocrItem.actionRequired === 'Verifikasi Manual Ekstraksi Ketidakhadiran'),
-        'Test 22: OCR item contains action Verifikasi Manual Ekstraksi Ketidakhadiran'
+        'Test 19: OCR item contains action Verifikasi Manual Ekstraksi Ketidakhadiran'
       );
 
       // Verify Exception Projections
       const excError = workQueue.find((w) => w.entityId === exc1Id);
       assert(
         Boolean(excError && excError.severity === 'CRITICAL' && excError.title.includes('AWARD_DOC_MISMATCH')),
-        'Test 23: ERROR exception projected with severity CRITICAL'
+        'Test 20: ERROR exception projected with severity CRITICAL'
       );
 
       const excWarning = workQueue.find((w) => w.entityId === exc2Id);
       assert(
         Boolean(excWarning && excWarning.severity === 'HIGH' && excWarning.title.includes('STUDENT_OCR_LOW_CONFIDENCE')),
-        'Test 24: WARNING exception projected with severity HIGH'
+        'Test 21: WARNING exception projected with severity HIGH'
       );
 
       // Verify Resolved exception was NOT included in work queue
       const resolvedExc = workQueue.find((w) => w.entityId === exc3Id);
-      assert(resolvedExc === undefined, 'Test 25: RESOLVED exception is strictly excluded from work queue');
+      assert(resolvedExc === undefined, 'Test 22: RESOLVED exception is strictly excluded from work queue');
     });
 
     // ==========================================

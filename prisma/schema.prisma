@@ -40,43 +40,6 @@ enum EmployeeStatus {
   NON_ASN
 }
 
-enum AwardType {
-  MASA_KERJA
-  SATYALANCANA
-  SATYALANCANA_X
-  SATYALANCANA_XX
-  SATYALANCANA_XXX
-  PEGAWAI_TELADAN
-  INOVASI_PELAYANAN
-}
-
-enum ProposalStatus {
-  NOMINATIF
-  BELUM_UPLOAD
-  SEBAGIAN
-  LENGKAP
-  DIVERIFIKASI
-  SIAP_GENERATE
-  GENERATED
-  DITANDATANGANI
-  DIKIRIM
-  SELESAI
-  DRAFT
-  SUBMITTED
-  VERIFIED_STAGE_1
-  VERIFIED_STAGE_2
-  APPROVED
-  REJECTED
-  CANCELLED
-}
-
-enum ChecklistStatus {
-  PENDING
-  PASSED
-  FAILED
-  WAIVED
-}
-
 enum DocumentCategory {
   SK_CPNS
   SK_PNS
@@ -181,7 +144,6 @@ model Tenant {
 
   users                   UserActor[]
   employees               Employee[]
-  awardProposals          AwardProposal[]
   students                Student[]
   absenceRecords          AbsenceRecord[]
   documents               Document[]
@@ -194,7 +156,6 @@ model Tenant {
   extractedItems          ExtractedItem[]
   documentVersions        DocumentVersion[]
   workflowTransitions     WorkflowTransition[]
-  awardProposalDocuments  AwardProposalDocument[]
   publicUploadInvitations PublicUploadInvitation[]
   documentProcessingJobs  DocumentProcessingJob[]
 
@@ -214,7 +175,6 @@ model UserActor {
   updatedAt DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   tenant                    Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  verifiedProposalDocuments AwardProposalDocument[]
   humanVerifications        HumanVerification[]
   lockedWorkflowInstances   WorkflowInstance[]
   workflowTransitions       WorkflowTransition[]
@@ -246,63 +206,13 @@ model Employee {
   createdAt         DateTime       @default(now()) @map("created_at") @db.Timestamptz
   updatedAt         DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
-  tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  awardProposals AwardProposal[]
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
 
   @@unique([tenantId, id])
   @@unique([tenantId, nip])
   @@unique([tenantId, nrk])
   @@index([tenantId, unitKerja])
   @@map("employees")
-}
-
-model AwardProposal {
-  id               String                  @id @db.Uuid
-  tenantId         String                  @map("tenant_id") @db.Uuid
-  employeeId       String                  @map("employee_id") @db.Uuid
-  jenisPenghargaan AwardType               @map("jenis_penghargaan")
-  tahunUsulan      Int                     @map("tahun_usulan")
-  masaKerjaTahun   Int                     @default(0) @map("masa_kerja_tahun")
-  masaKerjaBulan   Int                     @default(0) @map("masa_kerja_bulan")
-  nilaiUsulan      String?                 @map("nilai_usulan") @db.VarChar(50)
-  status           ProposalStatus          @default(DRAFT)
-  catatan          String?                 @db.Text
-  createdAt        DateTime                @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt        DateTime                @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
-
-  tenant    Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  employee  Employee                @relation(fields: [tenantId, employeeId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade)
-  documents AwardProposalDocument[]
-
-  @@unique([tenantId, id])
-  @@unique([tenantId, employeeId, jenisPenghargaan, tahunUsulan])
-  @@index([tenantId, status])
-  @@index([tenantId, jenisPenghargaan])
-  @@map("award_proposals")
-}
-
-model AwardProposalDocument {
-  id               String          @id @db.Uuid
-  tenantId         String          @map("tenant_id") @db.Uuid
-  proposalId       String          @map("proposal_id") @db.Uuid
-  documentId       String?         @map("document_id") @db.Uuid
-  requirementCode  String          @map("requirement_code") @db.VarChar(100)
-  status           ChecklistStatus @default(PENDING)
-  verifiedByUserId String?         @map("verified_by_user_id") @db.Uuid
-  verifiedAt       DateTime?       @map("verified_at") @db.Timestamptz
-  catatan          String?         @db.Text
-  createdAt        DateTime        @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt        DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
-
-  tenant         Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  proposal       AwardProposal @relation(fields: [tenantId, proposalId], references: [tenantId, id], onDelete: Cascade, onUpdate: Cascade)
-  document       Document?     @relation(fields: [tenantId, documentId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade)
-  verifiedByUser UserActor?    @relation(fields: [tenantId, verifiedByUserId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade)
-
-  @@unique([tenantId, id])
-  @@unique([proposalId, requirementCode])
-  @@index([tenantId, status])
-  @@map("award_proposal_documents")
 }
 
 model Student {
@@ -404,13 +314,12 @@ model Document {
   createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz
   updatedAt      DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
-  tenant                 Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  versions               DocumentVersion[]
-  awardProposalDocuments AwardProposalDocument[]
-  absenceRecords         AbsenceRecord[]
-  ocrExtractions         OCRExtraction[]
+  tenant                  Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  versions                DocumentVersion[]
+  absenceRecords          AbsenceRecord[]
+  ocrExtractions          OCRExtraction[]
   publicUploadInvitations PublicUploadInvitation[]
-  processingJobs         DocumentProcessingJob[]
+  processingJobs          DocumentProcessingJob[]
 
   @@unique([tenantId, id])
   @@index([tenantId, category])

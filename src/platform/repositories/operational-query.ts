@@ -43,7 +43,7 @@ export interface IOperationalQueryRepository {
   ): Promise<OperationalMetrics>;
 
   /**
-   * Projects pending administrative work items across employee awards, OCR extraction, and exceptions.
+   * Projects pending administrative work items across OCR extraction and exceptions.
    */
   getUnifiedWorkQueueItemsTx(
     tx: TenantTransactionClient,
@@ -64,14 +64,13 @@ export class PostgresOperationalQueryRepository implements IOperationalQueryRepo
    *    - Source: exception_items
    *    - Filter: tenant_id = :tenantId AND status IN ('OPEN', 'IN_REVIEW') GROUP BY severity
    * 3. pendingVerifications:
-   *    - Source 1: award_proposals WHERE tenant_id = :tenantId AND status IN ('LENGKAP', 'SEBAGIAN')
-   *    - Source 2: ocr_extractions WHERE tenant_id = :tenantId AND status = 'NEEDS_VERIFICATION'
+   *    - Source: extracted_items WHERE tenant_id = :tenantId AND absence_record_id IS NULL
    * 4. pendingApprovals:
-   *    - Source: award_proposals WHERE tenant_id = :tenantId AND status = 'SIAP_GENERATE'
+   *    - Always 0 (award proposal domain removed; future: document approvals)
    * 5. requiresCorrection:
-   *    - Source: exception_items WHERE tenant_id = :tenantId AND status IN ('OPEN', 'IN_REVIEW') AND severity = 'CRITICAL'
+   *    - Source: exception_items WHERE tenant_id = :tenantId AND severity = 'CRITICAL'
    * 6. totalEmployees:
-   *    - Source: employees (direct query on tenant employee registry, NOT inferred from proposals)
+   *    - Source: employees (direct query on tenant employee registry)
    *    - Filter: tenant_id = :tenantId
    * 7. totalStudents:
    *    - Source: students (direct query on active student registry)
@@ -91,9 +90,7 @@ export class PostgresOperationalQueryRepository implements IOperationalQueryRepo
     const [
       totalOpenExceptions,
       exceptionsGrouped,
-      pendingAwardVerifications,
       pendingOcrVerifications,
-      pendingApprovals,
       totalEmployees,
       totalStudents,
       totalDocumentsProcessed,
@@ -118,15 +115,7 @@ export class PostgresOperationalQueryRepository implements IOperationalQueryRepo
         },
       }),
 
-      // 3a. Pending Award Proposal Verification
-      tx.awardProposal.count({
-        where: {
-          tenantId,
-          status: { in: ['LENGKAP', 'SEBAGIAN'] },
-        },
-      }),
-
-      // 3b. Pending Student OCR Item Verification (items awaiting human verification to create absence records)
+      // 3. Pending Student OCR Item Verification
       tx.extractedItem.count({
         where: {
           tenantId,
@@ -134,22 +123,14 @@ export class PostgresOperationalQueryRepository implements IOperationalQueryRepo
         },
       }),
 
-      // 4. Pending Document Generation Approvals
-      tx.awardProposal.count({
-        where: {
-          tenantId,
-          status: 'SIAP_GENERATE',
-        },
-      }),
-
-      // 5. Total Employees in Tenant Registry
+      // 4. Total Employees in Tenant Registry
       tx.employee.count({
         where: {
           tenantId,
         },
       }),
 
-      // 6. Total Active Students
+      // 5. Total Active Students
       tx.student.count({
         where: {
           tenantId,
@@ -157,7 +138,7 @@ export class PostgresOperationalQueryRepository implements IOperationalQueryRepo
         },
       }),
 
-      // 7. Total Documents Processed
+      // 6. Total Documents Processed
       tx.document.count({
         where: {
           tenantId,
@@ -192,8 +173,8 @@ export class PostgresOperationalQueryRepository implements IOperationalQueryRepo
         warning: warningCount,
         info: infoCount,
       },
-      pendingVerifications: pendingAwardVerifications + pendingOcrVerifications,
-      pendingApprovals,
+      pendingVerifications: pendingOcrVerifications,
+      pendingApprovals: 0,
       requiresCorrection: errorCount,
       totalEmployees,
       totalStudents,
@@ -202,16 +183,13 @@ export class PostgresOperationalQueryRepository implements IOperationalQueryRepo
   }
 
   /**
-   * Projects pending work items from Award Proposals, OCR Extractions, and Exception Items.
+   * Projects pending work items from OCR Extractions and Exception Items.
    *
    * PROJECTION RULES:
-   * 1. Award Proposals:
-   *    - status = 'SIAP_GENERATE' => severity: HIGH, action: 'Persetujuan Siap Cetak PDF'
-   *    - status IN ('LENGKAP', 'SEBAGIAN') => severity: MEDIUM, action: 'Verifikasi Kelengkapan Dokumen'
-   * 2. OCR Extractions:
+   * 1. OCR Extractions:
    *    - absenceRecordId IS NULL + confidence < 70 => severity: CRITICAL, action: 'Verifikasi Manual Ekstraksi Ketidakhadiran'
    *    - absenceRecordId IS NULL + confidence >= 70 => severity: MEDIUM, action: 'Verifikasi Manual Ekstraksi Ketidakhadiran'
-   * 3. Exception Items:
+   * 2. Exception Items:
    *    - status IN ('OPEN', 'IN_REVIEW') => inherits ExceptionSeverity directly:
    *      CRITICAL -> CRITICAL, HIGH -> HIGH, MEDIUM -> MEDIUM, LOW -> LOW
    *      action: 'Penyelesaian Pengecualian Aturan'
@@ -225,21 +203,8 @@ export class PostgresOperationalQueryRepository implements IOperationalQueryRepo
       throw new Error(`SECURITY/SCHEMA ERROR: Operational query tenantId must be a valid UUID. Received: '${tenantId}'`);
     }
 
-    const [proposals, unverifiedOcrItems, exceptions] = await Promise.all([
-      // 1. Award Proposals needing verification or approval
-      tx.awardProposal.findMany({
-        where: {
-          tenantId,
-          status: { in: ['SIAP_GENERATE', 'LENGKAP', 'SEBAGIAN'] },
-        },
-        include: {
-          employee: true,
-        },
-        orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
-        take: limit,
-      }),
-
-      // 2. Extracted OCR Items needing human verification (absenceRecordId is null)
+    const [unverifiedOcrItems, exceptions] = await Promise.all([
+      // 1. Extracted OCR Items needing human verification (absenceRecordId is null)
       tx.extractedItem.findMany({
         where: {
           tenantId,
@@ -257,7 +222,7 @@ export class PostgresOperationalQueryRepository implements IOperationalQueryRepo
         take: limit,
       }),
 
-      // 3. Open Exception Items (Type-safe Prisma Query with Joined WorkflowInstance)
+      // 2. Open Exception Items (Type-safe Prisma Query with Joined WorkflowInstance)
       tx.exceptionItem.findMany({
         where: {
           tenantId,
@@ -272,39 +237,6 @@ export class PostgresOperationalQueryRepository implements IOperationalQueryRepo
     ]);
 
     const items: WorkQueueItem[] = [];
-
-    // --- Map Employee Award Proposals ---
-    for (const p of proposals) {
-      if (p.status === 'SIAP_GENERATE') {
-        const subtitle = `Usulan ${p.jenisPenghargaan}${p.nilaiUsulan ? ` (${p.nilaiUsulan})` : ''}${
-          p.employee?.unitKerja ? ` - ${p.employee.unitKerja}` : ''
-        }`;
-        items.push({
-          id: `wq-emp-${p.id}`,
-          domain: 'EMPLOYEE',
-          entityId: p.id,
-          title: p.employee?.fullName || 'Pegawai',
-          subtitle,
-          status: p.status,
-          severity: 'HIGH',
-          createdAt: p.updatedAt ? new Date(p.updatedAt).toISOString() : new Date().toISOString(),
-          actionRequired: 'Persetujuan Siap Cetak PDF',
-        });
-      } else if (p.status === 'LENGKAP' || p.status === 'SEBAGIAN') {
-        const subtitle = `Verifikasi Berkas ${p.jenisPenghargaan}${p.employee?.nrk ? ` (${p.employee.nrk})` : ''}`;
-        items.push({
-          id: `wq-emp-${p.id}`,
-          domain: 'EMPLOYEE',
-          entityId: p.id,
-          title: p.employee?.fullName || 'Pegawai',
-          subtitle,
-          status: p.status,
-          severity: 'MEDIUM',
-          createdAt: p.updatedAt ? new Date(p.updatedAt).toISOString() : new Date().toISOString(),
-          actionRequired: 'Verifikasi Kelengkapan Dokumen',
-        });
-      }
-    }
 
     // --- Map Student OCR Extractions ---
     for (const item of unverifiedOcrItems) {
@@ -326,10 +258,7 @@ export class PostgresOperationalQueryRepository implements IOperationalQueryRepo
 
     // --- Map Exception Items ---
     for (const exc of exceptions) {
-      const isEmployee =
-        exc.workflowInstance?.entityType === 'AwardProposal' ||
-        exc.ruleCode.startsWith('EMP_') ||
-        exc.ruleCode.startsWith('AWARD_');
+      const isEmployee = exc.ruleCode.startsWith('EMP_');
 
       items.push({
         id: `wq-exc-${exc.id}`,

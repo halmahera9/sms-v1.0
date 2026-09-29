@@ -85,7 +85,7 @@ async function runAuditEventRepositoryTests() {
         id: EXPLICIT_EVENT_ID,
         actorUserId: ACTOR_A_ID,
         action: 'VERIFY_DOCUMENTS',
-        entityType: 'AwardProposal',
+        entityType: 'Document',
         entityId: ENTITY_1_ID,
         beforeState: { status: 'SEBAGIAN' },
         afterState: { status: 'DIVERIFIKASI' },
@@ -106,7 +106,7 @@ async function runAuditEventRepositoryTests() {
       const input: AuditEventInput = {
         actor: 'system-cron',
         action: 'AUTOMATED_VALIDATION',
-        entityType: 'AwardProposal',
+        entityType: 'Document',
         entityId: ENTITY_2_ID,
         metadata: { automated: true },
       };
@@ -127,7 +127,7 @@ async function runAuditEventRepositoryTests() {
     // 4. Read Events by Entity
     console.log('\n[4] Testing findByEntityTx...');
     await runInTenantContext(ACTOR_A_ID, TENANT_A_ID, async (tx) => {
-      const entityEvents = await auditRepo.findByEntityTx(tx, TENANT_A_ID, 'AwardProposal', ENTITY_1_ID);
+      const entityEvents = await auditRepo.findByEntityTx(tx, TENANT_A_ID, 'Document', ENTITY_1_ID);
       assert(entityEvents.length === 1, 'Test 10: findByEntityTx returns exactly 1 event for ENTITY_1_ID');
       assert(entityEvents[0].id === EXPLICIT_EVENT_ID, 'Test 11: Returned event matches ENTITY_1_ID record');
     });
@@ -139,7 +139,7 @@ async function runAuditEventRepositoryTests() {
       await runInTenantContext(ACTOR_A_ID, TENANT_A_ID, async (tx) => {
         await auditRepo.recordTx(tx, TENANT_A_ID, {
           action: 'TEST_NON_UUID',
-          entityType: 'AwardProposal',
+          entityType: 'Document',
           entityId: 'legacy-prop-101', // Non-UUID
         });
       });
@@ -154,7 +154,7 @@ async function runAuditEventRepositoryTests() {
       const tenantBRecent = await auditRepo.findRecentTx(tx, TENANT_B_ID);
       assert(tenantBRecent.length === 0, 'Test 13: Tenant B cannot see Tenant A audit events (0 records)');
 
-      const tenantBEntity = await auditRepo.findByEntityTx(tx, TENANT_B_ID, 'AwardProposal', ENTITY_1_ID);
+      const tenantBEntity = await auditRepo.findByEntityTx(tx, TENANT_B_ID, 'Document', ENTITY_1_ID);
       assert(tenantBEntity.length === 0, 'Test 14: Tenant B query by entity returns 0 records');
     });
 
@@ -165,7 +165,7 @@ async function runAuditEventRepositoryTests() {
       await runInTenantContext(ACTOR_A_ID, TENANT_A_ID, async (tx) => {
         await auditRepo.recordTx(tx, TENANT_A_ID, {
           action: 'DOOMED_TRANSACTION',
-          entityType: 'AwardProposal',
+          entityType: 'Document',
           entityId: ROLLBACK_ENTITY_ID,
         });
         throw new Error('Simulated Domain Failure triggering Rollback');
@@ -176,7 +176,7 @@ async function runAuditEventRepositoryTests() {
 
     // Verify after rollback that the audit event was NOT committed
     await runInTenantContext(ACTOR_A_ID, TENANT_A_ID, async (tx) => {
-      const rolledBack = await auditRepo.findByEntityTx(tx, TENANT_A_ID, 'AwardProposal', ROLLBACK_ENTITY_ID);
+      const rolledBack = await auditRepo.findByEntityTx(tx, TENANT_A_ID, 'Document', ROLLBACK_ENTITY_ID);
       assert(rolledBack.length === 0, 'Test 15: Audit event was rolled back atomically when domain transaction failed');
     });
 
@@ -185,11 +185,11 @@ async function runAuditEventRepositoryTests() {
     const inContextEntityId = crypto.randomUUID();
     await auditRepo.recordInContext(ACTOR_A_ID, TENANT_A_ID, {
       action: 'IN_CONTEXT_TEST',
-      entityType: 'AwardProposal',
+      entityType: 'Document',
       entityId: inContextEntityId,
     });
 
-    const foundInContext = await auditRepo.findByEntityInContext(ACTOR_A_ID, TENANT_A_ID, 'AwardProposal', inContextEntityId);
+    const foundInContext = await auditRepo.findByEntityInContext(ACTOR_A_ID, TENANT_A_ID, 'Document', inContextEntityId);
     assert(foundInContext.length === 1 && foundInContext[0].action === 'IN_CONTEXT_TEST', 'Test 16: recordInContext and findByEntityInContext work seamlessly');
 
   } finally {

@@ -87,7 +87,7 @@ async function runAuditServerActionsTests() {
         tenantId: TENANT_A_ID,
         actorUserId: ACTOR_A_ID,
         action: 'VERIFY_DOCUMENT',
-        entityType: 'AwardProposal',
+        entityType: 'Document',
         entityId: entityAId,
         payloadJson: {
           actor: 'audit_actor_a',
@@ -104,7 +104,7 @@ async function runAuditServerActionsTests() {
         tenantId: TENANT_B_ID,
         actorUserId: ACTOR_B_ID,
         action: 'VERIFY_DOCUMENT',
-        entityType: 'AwardProposal',
+        entityType: 'Document',
         entityId: entityBId,
         payloadJson: {
           actor: 'audit_actor_b',

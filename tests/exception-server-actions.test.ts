@@ -172,7 +172,7 @@ async function runExceptionServerActionsTests() {
       create: {
         id: wfAId,
         tenantId: TENANT_A_ID,
-        entityType: 'AwardProposal',
+        entityType: 'Document',
         entityId: entityAId,
         currentState: 'NEEDS_VERIFICATION',
       },
@@ -238,7 +238,7 @@ async function runExceptionServerActionsTests() {
       create: {
         id: wfBId,
         tenantId: TENANT_B_ID,
-        entityType: 'AwardProposal',
+        entityType: 'Document',
         entityId: entityBId,
         currentState: 'NEEDS_VERIFICATION',
       },
@@ -424,12 +424,12 @@ async function runExceptionServerActionsTests() {
     // ---------------------------------------------------------------------------------
     // TEST 11: Domain Mapping Determinism
     // ---------------------------------------------------------------------------------
-    const awardExc = res10.data!.find((e) => e.entityType === 'AwardProposal')!;
+    const docExc = res10.data!.find((e) => e.entityType === 'Document')!;
     const studentExc = res10.data!.find((e) => e.entityType === 'Student')!;
 
     assert(
-      awardExc.domain === 'EMPLOYEE' && studentExc.domain === 'STUDENT',
-      'Domain mapping correctly maps AwardProposal to EMPLOYEE and Student to STUDENT'
+      docExc.domain === 'EMPLOYEE' && studentExc.domain === 'STUDENT',
+      'Domain mapping correctly maps Document to EMPLOYEE and Student to STUDENT'
     );
 
     // ---------------------------------------------------------------------------------
@@ -603,7 +603,7 @@ async function runExceptionServerActionsTests() {
     // ---------------------------------------------------------------------------------
     resetSessionProvider();
     const res20 = await createExceptionAction({
-      entityType: 'AwardProposal',
+      entityType: 'Document',
       entityId: crypto.randomUUID(),
       ruleCode: 'DOC_COMPLETENESS_RULE',
       severity: Severity.CRITICAL,
@@ -629,7 +629,7 @@ async function runExceptionServerActionsTests() {
 
     const entityAdminId = crypto.randomUUID();
     const res21 = await createExceptionAction({
-      entityType: 'AwardProposal',
+      entityType: 'Document',
       entityId: entityAdminId,
       ruleCode: 'DOC_COMPLETENESS_RULE',
       severity: Severity.CRITICAL,
@@ -684,7 +684,7 @@ async function runExceptionServerActionsTests() {
 
     const entityVerifId = crypto.randomUUID();
     const res23 = await createExceptionAction({
-      entityType: 'AwardProposal',
+      entityType: 'Document',
       entityId: entityVerifId,
       ruleCode: 'SE_BKD_22_2026_RULE',
       severity: Severity.MEDIUM,
@@ -714,7 +714,7 @@ async function runExceptionServerActionsTests() {
     });
 
     const res24 = await createExceptionAction({
-      entityType: 'AwardProposal',
+      entityType: 'Document',
       entityId: crypto.randomUUID(),
       ruleCode: 'DOC_COMPLETENESS_RULE',
       severity: Severity.CRITICAL,
@@ -740,7 +740,7 @@ async function runExceptionServerActionsTests() {
     });
 
     const res25 = await createExceptionAction({
-      entityType: 'AwardProposal',
+      entityType: 'Document',
       entityId: crypto.randomUUID(),
       ruleCode: 'DOC_COMPLETENESS_RULE',
       severity: Severity.CRITICAL,
@@ -766,7 +766,7 @@ async function runExceptionServerActionsTests() {
     });
 
     const res26 = await createExceptionAction({
-      entityType: 'AwardProposal',
+      entityType: 'Document',
       entityId: crypto.randomUUID(),
       ruleCode: 'DOC_COMPLETENESS_RULE',
       severity: Severity.CRITICAL,
@@ -786,7 +786,7 @@ async function runExceptionServerActionsTests() {
 
     const isolatedEntityId = crypto.randomUUID();
     const res27Create = await createExceptionAction({
-      entityType: 'AwardProposal',
+      entityType: 'Document',
       entityId: isolatedEntityId,
       ruleCode: 'MASA_KERJA_ELIGIBILITY_RULE',
       severity: Severity.HIGH,
@@ -816,7 +816,7 @@ async function runExceptionServerActionsTests() {
 
     const res28NullDto = await createExceptionAction(null as any);
     const res28BadEntityId = await createExceptionAction({
-      entityType: 'AwardProposal',
+      entityType: 'Document',
       entityId: 'not-a-valid-uuid',
       ruleCode: 'DOC_COMPLETENESS_RULE',
       severity: Severity.CRITICAL,
@@ -828,20 +828,20 @@ async function runExceptionServerActionsTests() {
       severity: Severity.CRITICAL,
     });
     const res28EmptyRuleCode = await createExceptionAction({
-      entityType: 'AwardProposal',
+      entityType: 'Document',
       entityId: crypto.randomUUID(),
       ruleCode: '',
       severity: Severity.CRITICAL,
     });
     const res28BadSeverity = await createExceptionAction({
-      entityType: 'AwardProposal',
+      entityType: 'Document',
       entityId: crypto.randomUUID(),
       ruleCode: 'DOC_COMPLETENESS_RULE',
       severity: 'SUPER_CRITICAL' as any,
     });
     const res28BadId = await createExceptionAction({
       id: 'invalid-id-uuid',
-      entityType: 'AwardProposal',
+      entityType: 'Document',
       entityId: crypto.randomUUID(),
       ruleCode: 'DOC_COMPLETENESS_RULE',
       severity: Severity.CRITICAL,
@@ -862,13 +862,13 @@ async function runExceptionServerActionsTests() {
     // ---------------------------------------------------------------------------------
     const sharedEntityId = crypto.randomUUID();
     const res29First = await createExceptionAction({
-      entityType: 'AwardProposal',
+      entityType: 'Document',
       entityId: sharedEntityId,
       ruleCode: 'DOC_COMPLETENESS_RULE',
       severity: Severity.CRITICAL,
     });
     const res29Second = await createExceptionAction({
-      entityType: 'AwardProposal',
+      entityType: 'Document',
       entityId: sharedEntityId,
       ruleCode: 'DOC_FORMAT_RULE',
       severity: Severity.LOW,
@@ -896,7 +896,7 @@ async function runExceptionServerActionsTests() {
 
     const res30 = await createExceptionAction(
       {
-        entityType: 'AwardProposal',
+        entityType: 'Document',
         entityId: crypto.randomUUID(),
         ruleCode: 'DOC_COMPLETENESS_RULE',
         severity: Severity.CRITICAL,
@@ -979,7 +979,7 @@ async function runExceptionServerActionsTests() {
     });
 
     const excAdminTarget = await createExceptionAction({
-      entityType: 'AwardProposal',
+      entityType: 'Document',
       entityId: crypto.randomUUID(),
       ruleCode: 'DOC_COMPLETENESS_RULE',
       severity: Severity.HIGH,

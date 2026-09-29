@@ -244,7 +244,7 @@ export async function getAuthenticatedActorContext(): Promise<AuthenticatedActor
 }
 
 /**
- * Backward-compatible alias for existing Award Server Actions and tests.
+ * Backward-compatible alias for existing server actions and tests.
  */
 export const getAuthenticatedSession = getAuthenticatedActorContext;
 
