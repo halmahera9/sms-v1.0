@@ -13,7 +13,7 @@
  * - Atomic database operations within tenant transaction
  */
 
-import { Prisma, WorkflowInstance, WorkflowTransition, PrismaClient } from '@prisma/client';
+import { DocumentVersion } from '@prisma/client';
 import { randomUUID } from 'crypto';
 
 /**
@@ -34,71 +34,6 @@ export class PostgresWorkflowRepository {
   constructor(private readonly prisma: any) {}
 
   /**
-   * Find or create WorkflowInstance for (tenantId, entityType, entityId).
-   * Initial state must be provided if creating.
-   * Tenant-scoped; uses authenticated RLS context.
-   *
-   * @param tenantId authenticated tenant
-   * @param entityType typically "DOCUMENT_VERSION"
-   * @param entityId typically documentVersionId
-   * @param initialState required if instance doesn't exist
-   * @returns WorkflowInstance or null if not found and initialState not provided
-   */
-  async getOrCreateWorkflowInstance(
-    tenantId: string,
-    entityType: string,
-    entityId: string,
-    initialState?: string
-  ): Promise<WorkflowInstance | null> {
-    // Attempt to find existing instance
-    const existing = await this.prisma.workflowInstance.findUnique({
-      where: {
-        tenantId_entityType_entityId: {
-          tenantId,
-          entityType,
-          entityId,
-        },
-      },
-    });
-
-    if (existing) {
-      return existing;
-    }
-
-    if (!initialState) {
-      return null;
-    }
-
-    // Create new instance (will fail if race condition creates first)
-    try {
-      const newInstance = await this.prisma.workflowInstance.create({
-        data: {
-          id: randomUUID(),
-          tenantId,
-          entityType,
-          entityId,
-          currentState: initialState,
-          version: 0,
-        },
-      });
-      return newInstance;
-    } catch (err) {
-      // Likely unique constraint violation from concurrent create
-      // Retry read to get winning instance
-      const retried = await this.prisma.workflowInstance.findUnique({
-        where: {
-          tenantId_entityType_entityId: {
-            tenantId,
-            entityType,
-            entityId,
-          },
-        },
-      });
-      return retried || null;
-    }
-  }
-
-  /**
    * Read WorkflowInstance by tenant and version.
    * Fail-closed: return null if not found (no implicit create).
    */
@@ -116,8 +51,19 @@ export class PostgresWorkflowRepository {
     });
   }
 
+  async getWorkflowInstanceByEntity(tenantId: string, entityType: string, entityId: string): Promise<WorkflowInstance | null> {
+    return this.prisma.workflowInstance.findUnique({
+      where: { tenantId_entityType_entityId: { tenantId, entityType, entityId } },
+    });
+  }
+
+  async getDocumentVersion(tenantId: string, documentVersionId: string): Promise<DocumentVersion | null> {
+    return this.prisma.documentVersion.findFirst({
+      where: { tenantId, id: documentVersionId },
+    });
+  }
+
   /**
-   * Lookup persisted transition by idempotency key.
    * Returns the transition if found; null otherwise.
    * Used to detect replays before CAS validation.
    */
@@ -201,6 +147,7 @@ export class PostgresWorkflowRepository {
    * @param tenantId authenticated tenant
    * @param workflowInstanceId workflow instance ID
    * @param event transition event
+   * @param expectedVersion expected persisted workflow version and idempotency identity
    * @param fromState previous state
    * @param toState new state
    * @param idempotencyKey request idempotency key
@@ -213,6 +160,7 @@ export class PostgresWorkflowRepository {
     tenantId: string,
     workflowInstanceId: string,
     event: string,
+    expectedVersion: number,
     fromState: string,
     toState: string,
     idempotencyKey: string,
@@ -226,6 +174,7 @@ export class PostgresWorkflowRepository {
         tenantId,
         workflowInstanceId,
         event,
+        expectedVersion,
         fromState,
         toState,
         idempotencyKey,
@@ -235,38 +184,4 @@ export class PostgresWorkflowRepository {
       },
     });
   }
-}
-
-/**
- * Tenant transaction context for P0-K.4 service.
- * Wraps Prisma transaction client with repository instance.
- */
-export interface WorkflowRepositoryTxContext {
-  readonly prisma: Prisma.TransactionClient;
-  readonly repository: PostgresWorkflowRepository;
-}
-
-/**
- * Execute workflow operation within tenant transaction.
- * All persistence operations are atomic and tenant-scoped.
- *
- * @param prismaClient base Prisma client (must support transactions)
- * @param tenantId authenticated tenant for RLS
- * @param operation async function receiving transaction context
- * @returns result of operation
- */
-export async function runWorkflowInTenantTx<T>(
-  prismaClient: PrismaClient,
-  tenantId: string,
-  operation: (ctx: WorkflowRepositoryTxContext) => Promise<T>
-): Promise<T> {
-  return prismaClient.$transaction(async (txClient: any) => {
-    // Set tenant context via connection variable (PostgreSQL RLS)
-    await txClient.$executeRawUnsafe(
-      `SELECT set_config('app.current_tenant_id', '${tenantId}', false);`
-    );
-
-    const repository = new PostgresWorkflowRepository(txClient);
-    return operation({ prisma: txClient, repository });
-  });
 }

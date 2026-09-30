@@ -532,6 +532,7 @@ model WorkflowTransition {
   tenantId           String   @map("tenant_id") @db.Uuid
   workflowInstanceId String   @map("workflow_instance_id") @db.Uuid
   event              String   @map("event") @db.VarChar(50)
+  expectedVersion    Int      @map("expected_version")
   fromState          String   @map("from_state") @db.VarChar(50)
   toState            String   @map("to_state") @db.VarChar(50)
   idempotencyKey     String   @map("idempotency_key") @db.VarChar(255)

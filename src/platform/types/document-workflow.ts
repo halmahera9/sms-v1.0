@@ -122,9 +122,7 @@ export interface DocumentWorkflowTransitionResolver {
   ): ResolvedDocumentWorkflowTransition | Promise<ResolvedDocumentWorkflowTransition>;
 }
 
-/** No caller-supplied currentState, nextState, or toState is permitted. */
-export interface DocumentWorkflowTransitionInput {
-  readonly tenantId: string;
+export interface DocumentWorkflowTransitionRequest {
   readonly documentVersionId: string;
   readonly event: DocumentWorkflowEvent;
   readonly expectedVersion: number;
@@ -133,11 +131,13 @@ export interface DocumentWorkflowTransitionInput {
   readonly reason?: string;
 }
 
-/** Server-only identity/context, derived from authenticated tenant context. */
-export interface DocumentWorkflowServiceInput extends DocumentWorkflowTransitionInput {
-  readonly actorId: string;
-  readonly documentId: string;
-  readonly guardEvidence?: Readonly<Record<string, unknown>>;
+/** Server-side request payload; actor and tenant are provided only by authenticated callback context. */
+export type DocumentWorkflowServiceInput = DocumentWorkflowTransitionRequest;
+
+export interface PersistedDocumentWorkflowTransitionIdentity {
+  readonly idempotencyKey: string;
+  readonly event: DocumentWorkflowEvent;
+  readonly expectedVersion: number;
 }
 
 export interface DocumentWorkflowTransitionResult {
@@ -173,6 +173,8 @@ export type DocumentWorkflowTransitionResponse =
 
 export interface DocumentWorkflowServiceContract {
   transitionDocumentWorkflow(
+    authContext: import('../auth/session').AuthenticatedActorContext,
+    tx: import('../db/tenant-context').TenantTransactionClient,
     input: DocumentWorkflowServiceInput,
     resolver: DocumentWorkflowTransitionResolver
   ): Promise<DocumentWorkflowTransitionResponse>;
@@ -190,8 +192,8 @@ export interface DocumentWorkflowServiceContract {
  *   conditionally writes resolver.toState and increments version exactly once;
  *   zero rows is CONCURRENCY_CONFLICT.
  * - Replay lookup by (tenantId, workflowInstanceId, idempotencyKey) precedes
- *   stale-version/CAS rejection. Request identity minimally includes event and
- *   expectedVersion. Equivalent request returns stored result with isReplay=true
+ *   stale-version/CAS rejection. Request identity is idempotencyKey, event,
+ *   and expectedVersion. Equivalent request returns stored result with isReplay=true
  *   and no mutation/audit. Different request returns IDEMPOTENCY_CONFLICT.
  *   correlationId and reason are metadata only, not request identity.
  * - Actor provenance is authenticated/tenant context only. No hard-coded system
