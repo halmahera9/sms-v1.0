@@ -30,6 +30,9 @@ import {
   AlertCircle,
   Loader2,
   RefreshCw,
+  ArrowUpDown,
+  ChevronUp,
+  ChevronDown,
 } from 'lucide-react';
 import { getStudentAbsenceExportDataAction } from '@/platform/actions/student-export';
 import { mapDtoRowsToExportRows, downloadStudentAbsenceExcel } from '../export';
@@ -48,7 +51,6 @@ export const StudentWorkspace: React.FC = () => {
     nis: '',
     fullName: '',
     className: '',
-    jurusan: '',
     status: StudentStatus.ACTIVE,
   });
   const [formError, setFormError] = useState<string | null>(null);
@@ -59,6 +61,12 @@ export const StudentWorkspace: React.FC = () => {
   const [loadingDocs, setLoadingDocs] = useState<boolean>(true);
   const [docError, setDocError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  type StudentSortKey = 'nisn' | 'nis' | 'fullName' | 'className' | 'status';
+
+  const [studentPageSize, setStudentPageSize] = useState<50 | 100 | 'all'>(50);
+  const [studentCurrentPage, setStudentCurrentPage] = useState(1);
+  const [studentSortKey, setStudentSortKey] = useState<StudentSortKey>('fullName');
+  const [studentSortDirection, setStudentSortDirection] = useState<'asc' | 'desc'>('asc');
   const [selectedDocId, setSelectedDocId] = useState<string>('');
   const [uploadResultDoc, setUploadResultDoc] = useState<OCRDocumentDTO | null>(null);
   const [isUploading, setIsUploading] = useState<boolean>(false);
@@ -106,14 +114,56 @@ export const StudentWorkspace: React.FC = () => {
     fetchDocuments();
   }, []);
 
-  const filteredStudents = students.filter(
-    (s) =>
-      !searchTerm ||
-      s.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      s.nisn.includes(searchTerm) ||
-      s.className.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (s.jurusan && s.jurusan.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const filteredStudents = students
+    .filter(
+      (s) =>
+        !searchTerm ||
+        s.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        s.nisn.includes(searchTerm) ||
+        s.nis.includes(searchTerm) ||
+        s.className.toLowerCase().includes(searchTerm.toLowerCase())
+    )
+    .sort((a, b) => {
+      const aValue = String(a[studentSortKey] ?? '');
+      const bValue = String(b[studentSortKey] ?? '');
+
+      const comparison = aValue.localeCompare(bValue, 'id', {
+        numeric: true,
+        sensitivity: 'base',
+      });
+
+      return studentSortDirection === 'asc' ? comparison : -comparison;
+    });
+
+  const studentTotalPages =
+    studentPageSize === 'all'
+      ? 1
+      : Math.max(1, Math.ceil(filteredStudents.length / studentPageSize));
+
+  const safeStudentPage = Math.min(studentCurrentPage, studentTotalPages);
+
+  const displayedStudents =
+    studentPageSize === 'all'
+      ? filteredStudents
+      : filteredStudents.slice(
+          (safeStudentPage - 1) * studentPageSize,
+          safeStudentPage * studentPageSize
+        );
+
+  const handleStudentSort = (key: StudentSortKey) => {
+    if (studentSortKey === key) {
+      setStudentSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'));
+      return;
+    }
+
+    setStudentSortKey(key);
+    setStudentSortDirection('asc');
+  };
+
+  const handleStudentPageSize = (size: 50 | 100 | 'all') => {
+    setStudentPageSize(size);
+    setStudentCurrentPage(1);
+  };
 
   const currentDoc = documents.find((d) => d.id === selectedDocId) || (documents.length > 0 ? documents[0] : null);
 
@@ -124,7 +174,6 @@ export const StudentWorkspace: React.FC = () => {
       nis: '',
       fullName: '',
       className: '',
-      jurusan: '',
       status: StudentStatus.ACTIVE,
     });
     setFormError(null);
@@ -139,7 +188,6 @@ export const StudentWorkspace: React.FC = () => {
       nis: student.nis,
       fullName: student.fullName,
       className: student.className,
-      jurusan: student.jurusan || '',
       status: student.status,
     });
     setFormError(null);
@@ -258,16 +306,16 @@ export const StudentWorkspace: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 font-sans">
       {/* Workspace Header */}
       <div className="bg-slate-900 text-white p-6 rounded-2xl border border-slate-800 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="inline-flex items-center space-x-2 bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 px-3 py-1 rounded-full text-xs font-semibold mb-2">
+          <div className="inline-flex items-center space-x-2 bg-blue-50 text-blue-700 border border-blue-100 px-3 py-1 rounded-full text-xs font-semibold mb-2">
             <Users className="w-3.5 h-3.5" />
             <span>Student Administration Domain Module</span>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-white">Unified Student Workspace</h1>
-          <p className="text-xs text-slate-400 mt-1">
+          <h1 className="text-xl font-semibold tracking-tight text-slate-900">Unified Student Workspace</h1>
+          <p className="text-sm text-slate-500 mt-1">
             Pengelolaan Master Data Siswa (Dapodik), Ekstraksi OCR Dokumen Izin/Sakit, dan Antrean Verifikasi Ketidakhadiran.
           </p>
         </div>
@@ -276,7 +324,7 @@ export const StudentWorkspace: React.FC = () => {
           <button
             onClick={handleSimulateOCRUpload}
             disabled={isUploading}
-            className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg text-xs font-bold shadow flex items-center space-x-2 transition-all disabled:opacity-50"
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-xs font-semibold shadow-sm flex items-center space-x-2 transition-all disabled:opacity-50"
           >
             {isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
             <span>{isUploading ? 'Memproses OCR...' : 'Upload OCR Baru'}</span>
@@ -285,12 +333,12 @@ export const StudentWorkspace: React.FC = () => {
       </div>
 
       {/* Sub-Navigation Tabs */}
-      <div className="flex border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-xl px-4 pt-2 space-x-2 shadow-sm">
+      <div className="flex border-b border-slate-200  bg-white rounded-xl px-4 pt-2 space-x-2 shadow-sm">
         <button
           onClick={() => setActiveSubTab('students')}
           className={`pb-3 px-3 text-xs font-bold border-b-2 flex items-center space-x-2 transition-all ${
             activeSubTab === 'students'
-              ? 'border-emerald-600 text-emerald-600 dark:text-emerald-400'
+              ? 'border-blue-600 text-blue-600'
               : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
@@ -302,7 +350,7 @@ export const StudentWorkspace: React.FC = () => {
           onClick={() => setActiveSubTab('verify')}
           className={`pb-3 px-3 text-xs font-bold border-b-2 flex items-center space-x-2 transition-all relative ${
             activeSubTab === 'verify'
-              ? 'border-emerald-600 text-emerald-600 dark:text-emerald-400'
+              ? 'border-blue-600 text-blue-600'
               : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
@@ -319,7 +367,7 @@ export const StudentWorkspace: React.FC = () => {
           onClick={() => setActiveSubTab('ocr')}
           className={`pb-3 px-3 text-xs font-bold border-b-2 flex items-center space-x-2 transition-all ${
             activeSubTab === 'ocr'
-              ? 'border-emerald-600 text-emerald-600 dark:text-emerald-400'
+              ? 'border-blue-600 text-blue-600'
               : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
@@ -331,7 +379,7 @@ export const StudentWorkspace: React.FC = () => {
           onClick={() => setActiveSubTab('export')}
           className={`pb-3 px-3 text-xs font-bold border-b-2 flex items-center space-x-2 transition-all ${
             activeSubTab === 'export'
-              ? 'border-emerald-600 text-emerald-600 dark:text-emerald-400'
+              ? 'border-blue-600 text-blue-600'
               : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
@@ -343,28 +391,64 @@ export const StudentWorkspace: React.FC = () => {
       {/* SUB-TAB 1: MASTER DATA SISWA */}
       {activeSubTab === 'students' && (
         <div className="space-y-4">
-          <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col sm:flex-row justify-between items-center gap-3">
+          <div className="bg-white p-4 rounded-2xl border border-slate-200  shadow-sm flex flex-col sm:flex-row justify-between items-center gap-3">
             <div className="relative w-full sm:w-72">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
               <input
                 type="text"
-                placeholder="Cari Nama, NISN, Kelas, Jurusan..."
+                placeholder="Cari nama, NISN, NIS, atau kelas..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 pl-9 pr-4 py-2 rounded-lg text-xs text-slate-900 dark:text-white"
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setStudentCurrentPage(1);
+                }}
+                className="w-full bg-slate-50  border border-slate-200  pl-9 pr-4 py-2 rounded-lg text-xs text-slate-900 "
               />
             </div>
             <div className="flex items-center space-x-3 w-full sm:w-auto justify-between sm:justify-end">
               <span className="text-xs text-slate-500">
-                Menampilkan {filteredStudents.length} siswa terdaftar di PostgreSQL
+                Menampilkan {displayedStudents.length} dari {filteredStudents.length} siswa
               </span>
               <button
                 onClick={handleOpenCreateModal}
-                className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow flex items-center space-x-1.5 transition-all shrink-0"
+                className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold shadow-sm flex items-center space-x-1.5 transition-all shrink-0"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Tambah Siswa</span>
               </button>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-slate-400">Tampilkan</span>
+
+              <div className="inline-flex items-center rounded-lg border border-slate-200 bg-slate-50 p-0.5">
+                {[50, 100].map((size) => (
+                  <button
+                    key={size}
+                    type="button"
+                    onClick={() => handleStudentPageSize(size as 50 | 100)}
+                    className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${
+                      studentPageSize === size
+                        ? 'bg-white text-blue-600 shadow-sm'
+                        : 'text-slate-500 hover:text-slate-700'
+                    }`}
+                  >
+                    {size}
+                  </button>
+                ))}
+
+                <button
+                  type="button"
+                  onClick={() => handleStudentPageSize('all')}
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${
+                    studentPageSize === 'all'
+                      ? 'bg-white text-blue-600 shadow-sm'
+                      : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  Semua
+                </button>
+              </div>
             </div>
           </div>
 
@@ -387,40 +471,120 @@ export const StudentWorkspace: React.FC = () => {
 
           {/* Loading State */}
           {loadingStudents ? (
-            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm p-12 text-center">
-              <Loader2 className="w-6 h-6 animate-spin text-emerald-600 mx-auto mb-2" />
+            <div className="bg-white rounded-2xl border border-slate-200  shadow-sm p-12 text-center">
+              <Loader2 className="w-6 h-6 animate-spin text-blue-600 mx-auto mb-2" />
               <p className="text-xs text-slate-400 font-mono">Memuat Master Data Siswa dari Server PostgreSQL...</p>
             </div>
           ) : (
-            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50 dark:bg-slate-800 text-[11px] font-bold text-slate-500 uppercase">
-                  <tr>
-                    <th className="py-3 px-4">No</th>
-                    <th className="py-3 px-4">NISN / NIS</th>
-                    <th className="py-3 px-4">Nama Siswa</th>
-                    <th className="py-3 px-4">Kelas</th>
-                    <th className="py-3 px-4">Jurusan</th>
-                    <th className="py-3 px-4">Status</th>
-                    <th className="py-3 px-4 text-right">Aksi</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
+            <div className="bg-white rounded-2xl border border-slate-200  shadow-sm overflow-hidden">
+              <table className="w-full text-left text-[12px] font-sans">
+                <thead className="bg-slate-50 text-[10px] font-medium tracking-[0.04em] text-slate-500 uppercase">
+  <tr>
+    <th className="py-3 px-4 w-12">No</th>
+
+    <th className="py-3 px-4">
+      <button
+        type="button"
+        onClick={() => handleStudentSort('nisn')}
+        className="inline-flex items-center gap-1.5 hover:text-blue-600 transition-colors"
+      >
+        NISN
+        {studentSortKey === 'nisn' ? (
+          studentSortDirection === 'asc'
+            ? <ChevronUp className="w-3 h-3 text-blue-600" />
+            : <ChevronDown className="w-3 h-3 text-blue-600" />
+        ) : (
+          <ArrowUpDown className="w-3 h-3 text-slate-300" />
+        )}
+      </button>
+    </th>
+
+    <th className="py-3 px-4">
+      <button
+        type="button"
+        onClick={() => handleStudentSort('nis')}
+        className="inline-flex items-center gap-1.5 hover:text-blue-600 transition-colors"
+      >
+        NIS
+        {studentSortKey === 'nis' ? (
+          studentSortDirection === 'asc'
+            ? <ChevronUp className="w-3 h-3 text-blue-600" />
+            : <ChevronDown className="w-3 h-3 text-blue-600" />
+        ) : (
+          <ArrowUpDown className="w-3 h-3 text-slate-300" />
+        )}
+      </button>
+    </th>
+
+    <th className="py-3 px-4">
+      <button
+        type="button"
+        onClick={() => handleStudentSort('fullName')}
+        className="inline-flex items-center gap-1.5 hover:text-blue-600 transition-colors"
+      >
+        Nama Siswa
+        {studentSortKey === 'fullName' ? (
+          studentSortDirection === 'asc'
+            ? <ChevronUp className="w-3 h-3 text-blue-600" />
+            : <ChevronDown className="w-3 h-3 text-blue-600" />
+        ) : (
+          <ArrowUpDown className="w-3 h-3 text-slate-300" />
+        )}
+      </button>
+    </th>
+
+    <th className="py-3 px-4">
+      <button
+        type="button"
+        onClick={() => handleStudentSort('className')}
+        className="inline-flex items-center gap-1.5 hover:text-blue-600 transition-colors"
+      >
+        Kelas
+        {studentSortKey === 'className' ? (
+          studentSortDirection === 'asc'
+            ? <ChevronUp className="w-3 h-3 text-blue-600" />
+            : <ChevronDown className="w-3 h-3 text-blue-600" />
+        ) : (
+          <ArrowUpDown className="w-3 h-3 text-slate-300" />
+        )}
+      </button>
+    </th>
+
+    <th className="py-3 px-4">
+      <button
+        type="button"
+        onClick={() => handleStudentSort('status')}
+        className="inline-flex items-center gap-1.5 hover:text-blue-600 transition-colors"
+      >
+        Status
+        {studentSortKey === 'status' ? (
+          studentSortDirection === 'asc'
+            ? <ChevronUp className="w-3 h-3 text-blue-600" />
+            : <ChevronDown className="w-3 h-3 text-blue-600" />
+        ) : (
+          <ArrowUpDown className="w-3 h-3 text-slate-300" />
+        )}
+      </button>
+    </th>
+
+    <th className="py-3 px-4 text-right">Aksi</th>
+  </tr>
+</thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 ">
                   {filteredStudents.length > 0 ? (
                     filteredStudents.map((std, idx) => (
-                      <tr key={std.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                      <tr key={std.id} className="hover:bg-blue-50/50 transition-colors">
                         <td className="py-3 px-4 font-mono text-slate-400">{idx + 1}</td>
-                        <td className="py-3 px-4 font-mono font-bold text-slate-900 dark:text-white">
+                        <td className="py-3 px-4 font-mono font-bold text-slate-900 ">
                           {std.nisn} <span className="text-slate-400 font-normal">({std.nis || '-'})</span>
                         </td>
-                        <td className="py-3 px-4 font-bold text-slate-900 dark:text-white">{std.fullName}</td>
-                        <td className="py-3 px-4 font-semibold text-slate-700 dark:text-slate-300">{std.className}</td>
-                        <td className="py-3 px-4 text-slate-500">{std.jurusan || '-'}</td>
+                        <td className="py-3 px-4 font-bold text-slate-900 ">{std.fullName}</td>
+                        <td className="py-3 px-4 font-semibold text-slate-700 ">{std.className}</td>
                         <td className="py-3 px-4">
                           <span
                             className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
                               std.status === 'ACTIVE'
-                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                ? 'bg-blue-50 text-blue-700 border-blue-200'
                                 : 'bg-slate-100 text-slate-700 border-slate-200'
                             }`}
                           >
@@ -447,6 +611,97 @@ export const StudentWorkspace: React.FC = () => {
                   )}
                 </tbody>
               </table>
+
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-t border-slate-100 px-4 py-3 bg-white">
+                <div className="text-xs text-slate-400">
+                  Menampilkan
+                  <span className="mx-1 font-medium text-slate-600">
+                    {filteredStudents.length === 0 ? 0 : (safeStudentPage - 1) * (studentPageSize === 'all' ? filteredStudents.length : studentPageSize) + 1}
+                  </span>
+                  –
+                  <span className="mx-1 font-medium text-slate-600">
+                    {Math.min(
+                      safeStudentPage * (studentPageSize === 'all' ? filteredStudents.length : studentPageSize),
+                      filteredStudents.length
+                    )}
+                  </span>
+                  dari
+                  <span className="mx-1 font-medium text-slate-600">
+                    {filteredStudents.length}
+                  </span>
+                  siswa
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-1">
+                    <span className="mr-1 text-xs text-slate-400">Tampilkan</span>
+
+                    {[50, 100].map((size) => (
+                      <button
+                        key={size}
+                        type="button"
+                        onClick={() => handleStudentPageSize(size as 50 | 100)}
+                        className={`min-w-8 px-2.5 py-1.5 rounded-lg text-xs font-normal transition-colors ${
+                          studentPageSize === size
+                            ? 'bg-blue-50 text-blue-600 border border-blue-200'
+                            : 'text-slate-500 border border-transparent hover:bg-slate-50'
+                        }`}
+                      >
+                        {size}
+                      </button>
+                    ))}
+
+                    <button
+                      type="button"
+                      onClick={() => handleStudentPageSize('all')}
+                      className={`px-2.5 py-1.5 rounded-lg text-xs font-normal transition-colors ${
+                        studentPageSize === 'all'
+                          ? 'bg-blue-50 text-blue-600 border border-blue-200'
+                          : 'text-slate-500 border border-transparent hover:bg-slate-50'
+                      }`}
+                    >
+                      Semua
+                    </button>
+                  </div>
+
+                  {studentPageSize !== 'all' && studentTotalPages > 1 && (
+                    <div className="flex items-center gap-1 border-l border-slate-200 pl-3">
+                      <button
+                        type="button"
+                        disabled={safeStudentPage === 1}
+                        onClick={() => setStudentCurrentPage((page) => Math.max(1, page - 1))}
+                        className="h-8 w-8 rounded-lg border border-slate-200 text-slate-500 disabled:opacity-30 hover:bg-slate-50"
+                      >
+                        ‹
+                      </button>
+
+                      {Array.from({ length: studentTotalPages }, (_, index) => index + 1).map((page) => (
+                        <button
+                          key={page}
+                          type="button"
+                          onClick={() => setStudentCurrentPage(page)}
+                          className={`h-8 min-w-8 rounded-lg px-2 text-xs font-normal ${
+                            safeStudentPage === page
+                              ? 'bg-blue-600 text-white'
+                              : 'border border-slate-200 text-slate-500 hover:bg-slate-50'
+                          }`}
+                        >
+                          {page}
+                        </button>
+                      ))}
+
+                      <button
+                        type="button"
+                        disabled={safeStudentPage === studentTotalPages}
+                        onClick={() => setStudentCurrentPage((page) => Math.min(studentTotalPages, page + 1))}
+                        className="h-8 w-8 rounded-lg border border-slate-200 text-slate-500 disabled:opacity-30 hover:bg-slate-50"
+                      >
+                        ›
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -456,15 +711,15 @@ export const StudentWorkspace: React.FC = () => {
       {activeSubTab === 'verify' && (
         <div className="space-y-4">
           {loadingDocs ? (
-            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm p-12 text-center">
-              <Loader2 className="w-6 h-6 animate-spin text-emerald-600 mx-auto mb-2" />
+            <div className="bg-white rounded-2xl border border-slate-200  shadow-sm p-12 text-center">
+              <Loader2 className="w-6 h-6 animate-spin text-blue-600 mx-auto mb-2" />
               <p className="text-xs text-slate-400 font-mono">Memuat Antrean Verifikasi OCR dari Server...</p>
             </div>
           ) : currentDoc ? (
-            <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
-              <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
+            <div className="bg-white p-6 rounded-2xl border border-slate-200  shadow-sm space-y-4">
+              <div className="flex justify-between items-center border-b border-slate-100  pb-3">
                 <div>
-                  <h3 className="font-bold text-slate-900 dark:text-white text-sm">
+                  <h3 className="font-bold text-slate-900  text-sm">
                     {currentDoc.fileName}
                   </h3>
                   <p className="text-xs text-slate-500">
@@ -476,7 +731,7 @@ export const StudentWorkspace: React.FC = () => {
                   <select
                     value={selectedDocId}
                     onChange={(e) => setSelectedDocId(e.target.value)}
-                    className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-lg text-xs font-semibold"
+                    className="bg-slate-50  border border-slate-200  px-3 py-1.5 rounded-lg text-xs font-semibold"
                   >
                     {documents.map((d) => (
                       <option key={d.id} value={d.id}>
@@ -491,17 +746,17 @@ export const StudentWorkspace: React.FC = () => {
                 {currentDoc.items.map((item, idx) => (
                   <div
                     key={item.id}
-                    className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                    className="p-4 bg-slate-50 /60 rounded-2xl border border-slate-200  flex flex-col sm:flex-row sm:items-center justify-between gap-3"
                   >
                     <div>
                       <div className="flex items-center space-x-2">
-                        <span className="font-bold text-sm text-slate-900 dark:text-white">
+                        <span className="font-bold text-sm text-slate-900 ">
                           {idx + 1}. {item.matchedStudentName || item.ocrText}
                         </span>
                         <span
                           className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
                             item.confidence >= 70
-                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                              ? 'bg-blue-50 text-blue-700 border-blue-200'
                               : 'bg-rose-50 text-rose-700 border-rose-200'
                           }`}
                         >
@@ -518,7 +773,7 @@ export const StudentWorkspace: React.FC = () => {
                         <button
                           onClick={() => handleVerifyItem(item.id)}
                           disabled={verifyingItemId === item.id}
-                          className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs px-3 py-1.5 rounded-lg font-bold shadow flex items-center space-x-1 disabled:opacity-50"
+                          className="bg-blue-600 hover:bg-blue-700 text-white text-xs px-3 py-1.5 rounded-lg font-semibold shadow-sm flex items-center space-x-1 disabled:opacity-50"
                         >
                           {verifyingItemId === item.id ? (
                             <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -528,7 +783,7 @@ export const StudentWorkspace: React.FC = () => {
                           <span>{verifyingItemId === item.id ? 'Memverifikasi...' : 'Verifikasi Manual ✓'}</span>
                         </button>
                       ) : (
-                        <span className="text-xs font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-lg">
+                        <span className="text-xs font-bold text-blue-600 bg-blue-50 border border-blue-200 px-3 py-1 rounded-lg">
                           Terverifikasi ✓
                         </span>
                       )}
@@ -545,15 +800,15 @@ export const StudentWorkspace: React.FC = () => {
 
       {/* SUB-TAB 3: DOKUMEN OCR LIST */}
       {activeSubTab === 'ocr' && (
-        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+        <div className="bg-white rounded-2xl border border-slate-200  shadow-sm overflow-hidden">
           {loadingDocs ? (
             <div className="p-12 text-center">
-              <Loader2 className="w-6 h-6 animate-spin text-emerald-600 mx-auto mb-2" />
+              <Loader2 className="w-6 h-6 animate-spin text-blue-600 mx-auto mb-2" />
               <p className="text-xs text-slate-400 font-mono">Memuat Dokumen OCR dari Server...</p>
             </div>
           ) : (
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 dark:bg-slate-800 text-[11px] font-bold text-slate-500 uppercase">
+            <table className="w-full text-left text-[12px] font-sans">
+              <thead className="bg-slate-50  text-[11px] font-bold text-slate-500 uppercase">
                 <tr>
                   <th className="py-3 px-4">Nama File</th>
                   <th className="py-3 px-4">Tanggal Upload</th>
@@ -569,7 +824,7 @@ export const StudentWorkspace: React.FC = () => {
                       key={d.id}
                       className={`hover:bg-slate-50 ${selectedDocId === d.id ? 'bg-blue-50/50 dark:bg-blue-950/20' : ''}`}
                     >
-                      <td className="py-3 px-4 font-bold text-slate-900 dark:text-white flex items-center space-x-2">
+                      <td className="py-3 px-4 font-bold text-slate-900  flex items-center space-x-2">
                         <span>{d.fileName}</span>
                         {selectedDocId === d.id && (
                           <span className="text-[10px] font-bold bg-blue-100 text-blue-800 px-2 py-0.5 rounded">Dipilih</span>
@@ -579,7 +834,7 @@ export const StudentWorkspace: React.FC = () => {
                         {new Date(d.uploadedAt).toLocaleString('id-ID')}
                       </td>
                       <td className="py-3 px-4 font-bold text-blue-600">{d.extractedCount} item</td>
-                      <td className="py-3 px-4 font-bold text-emerald-600">{d.verifiedCount} item</td>
+                      <td className="py-3 px-4 font-bold text-blue-600">{d.verifiedCount} item</td>
                       <td className="py-3 px-4">
                         <span className="bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-bold px-2 py-0.5 rounded">
                           {d.status}
@@ -602,9 +857,9 @@ export const StudentWorkspace: React.FC = () => {
 
       {/* SUB-TAB 4: EXPORT REKAP EXCEL */}
       {activeSubTab === 'export' && (
-        <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4 max-w-xl mx-auto text-center">
-          <FileSpreadsheet className="w-12 h-12 text-emerald-600 mx-auto" />
-          <h3 className="text-base font-bold text-slate-900 dark:text-white">
+        <div className="bg-white p-6 rounded-2xl border border-slate-200  shadow-sm space-y-4 max-w-xl mx-auto text-center">
+          <FileSpreadsheet className="w-12 h-12 text-blue-600 mx-auto" />
+          <h3 className="text-base font-bold text-slate-900 ">
             Export Rekap Ketidakhadiran Siswa (.xlsx)
           </h3>
           <p className="text-xs text-slate-500 leading-relaxed">
@@ -614,7 +869,7 @@ export const StudentWorkspace: React.FC = () => {
           <button
             onClick={handleExportExcel}
             disabled={isExporting}
-            className="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-2.5 rounded-lg text-xs font-bold shadow-lg flex items-center space-x-2 mx-auto transition-all disabled:opacity-50"
+            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg text-xs font-bold shadow-lg flex items-center space-x-2 mx-auto transition-all disabled:opacity-50"
           >
             {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
             <span>{isExporting ? 'Mengekspor...' : 'Download Rekap Excel'}</span>
@@ -625,11 +880,11 @@ export const StudentWorkspace: React.FC = () => {
       {/* Create / Edit Student Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-lg w-full border border-slate-200 dark:border-slate-800 shadow-2xl p-6 space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+          <div className="bg-white rounded-2xl max-w-lg w-full border border-slate-200  shadow-2xl p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100  pb-3">
               <div className="flex items-center space-x-2">
-                <Users className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-                <h3 className="font-bold text-slate-900 dark:text-white text-base">
+                <Users className="w-5 h-5 text-blue-600" />
+                <h3 className="font-bold text-slate-900  text-base">
                   {editingStudent ? 'Edit Data Siswa' : 'Tambah Siswa Baru'}
                 </h3>
               </div>
@@ -651,7 +906,7 @@ export const StudentWorkspace: React.FC = () => {
             <form onSubmit={handleSaveStudentSubmit} className="space-y-3 text-xs">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-700 dark:text-slate-300 font-bold mb-1">
+                  <label className="block text-slate-700  font-bold mb-1">
                     NISN (10 Digit) *
                   </label>
                   <input
@@ -661,11 +916,11 @@ export const StudentWorkspace: React.FC = () => {
                     placeholder="Contoh: 0051234567"
                     value={formData.nisn}
                     onChange={(e) => setFormData({ ...formData, nisn: e.target.value })}
-                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-2 rounded-lg text-slate-900 dark:text-white font-mono"
+                    className="w-full bg-slate-50  border border-slate-200  px-3 py-2 rounded-lg text-slate-900  font-mono"
                   />
                 </div>
                 <div>
-                  <label className="block text-slate-700 dark:text-slate-300 font-bold mb-1">
+                  <label className="block text-slate-700  font-bold mb-1">
                     NIS (Nomor Induk Siswa) *
                   </label>
                   <input
@@ -675,13 +930,13 @@ export const StudentWorkspace: React.FC = () => {
                     placeholder="Contoh: 21221001"
                     value={formData.nis}
                     onChange={(e) => setFormData({ ...formData, nis: e.target.value })}
-                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-2 rounded-lg text-slate-900 dark:text-white font-mono"
+                    className="w-full bg-slate-50  border border-slate-200  px-3 py-2 rounded-lg text-slate-900  font-mono"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-slate-700 dark:text-slate-300 font-bold mb-1">
+                <label className="block text-slate-700  font-bold mb-1">
                   Nama Lengkap Siswa *
                 </label>
                 <input
@@ -690,13 +945,13 @@ export const StudentWorkspace: React.FC = () => {
                   placeholder="Nama lengkap sesuai Dapodik"
                   value={formData.fullName}
                   onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-2 rounded-lg text-slate-900 dark:text-white"
+                  className="w-full bg-slate-50  border border-slate-200  px-3 py-2 rounded-lg text-slate-900 "
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-700 dark:text-slate-300 font-bold mb-1">
+                  <label className="block text-slate-700  font-bold mb-1">
                     Kelas *
                   </label>
                   <input
@@ -705,31 +960,20 @@ export const StudentWorkspace: React.FC = () => {
                     placeholder="Contoh: X IPA 1"
                     value={formData.className}
                     onChange={(e) => setFormData({ ...formData, className: e.target.value })}
-                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-2 rounded-lg text-slate-900 dark:text-white"
+                    className="w-full bg-slate-50  border border-slate-200  px-3 py-2 rounded-lg text-slate-900 "
                   />
                 </div>
-                <div>
-                  <label className="block text-slate-700 dark:text-slate-300 font-bold mb-1">
-                    Jurusan (Opsional)
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Contoh: IPA / IPS"
-                    value={formData.jurusan || ''}
-                    onChange={(e) => setFormData({ ...formData, jurusan: e.target.value })}
-                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-2 rounded-lg text-slate-900 dark:text-white"
-                  />
-                </div>
+                
               </div>
 
               <div>
-                <label className="block text-slate-700 dark:text-slate-300 font-bold mb-1">
+                <label className="block text-slate-700  font-bold mb-1">
                   Status Siswa
                 </label>
                 <select
                   value={formData.status}
                   onChange={(e) => setFormData({ ...formData, status: e.target.value as StudentStatus })}
-                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-2 rounded-lg text-slate-900 dark:text-white"
+                  className="w-full bg-slate-50  border border-slate-200  px-3 py-2 rounded-lg text-slate-900 "
                 >
                   <option value={StudentStatus.ACTIVE}>ACTIVE (Aktif)</option>
                   <option value={StudentStatus.GRADUATED}>GRADUATED (Lulus)</option>
@@ -737,18 +981,18 @@ export const StudentWorkspace: React.FC = () => {
                 </select>
               </div>
 
-              <div className="flex justify-end space-x-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+              <div className="flex justify-end space-x-2 pt-3 border-t border-slate-100 ">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 font-bold"
+                  className="px-4 py-2 rounded-lg bg-slate-100  hover:bg-slate-200 text-slate-700  font-bold"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
                   disabled={isSaving}
-                  className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold flex items-center space-x-1.5 disabled:opacity-50"
+                  className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold flex items-center space-x-1.5 disabled:opacity-50"
                 >
                   {isSaving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                   <span>{isSaving ? 'Menyimpan...' : 'Simpan Data'}</span>
@@ -762,19 +1006,19 @@ export const StudentWorkspace: React.FC = () => {
       {/* Processing Result Modal */}
       {uploadResultDoc && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-md w-full border border-slate-200 dark:border-slate-800 shadow-2xl p-6 space-y-4">
-            <div className="flex items-center space-x-3 border-b border-slate-100 dark:border-slate-800 pb-3">
-              <div className="p-3 bg-emerald-500/20 text-emerald-400 rounded-xl border border-emerald-500/30">
+          <div className="bg-white rounded-2xl max-w-md w-full border border-slate-200  shadow-2xl p-6 space-y-4">
+            <div className="flex items-center space-x-3 border-b border-slate-100  pb-3">
+              <div className="p-3 bg-blue-50 text-blue-400 rounded-xl border border-emerald-500/30">
                 <CheckCircle2 className="w-6 h-6" />
               </div>
               <div>
-                <h3 className="font-bold text-slate-900 dark:text-white text-base">Dokumen Berhasil Diproses</h3>
+                <h3 className="font-bold text-slate-900  text-base">Dokumen Berhasil Diproses</h3>
                 <p className="text-xs text-slate-400 font-mono">{uploadResultDoc.fileName}</p>
               </div>
             </div>
 
             <div className="space-y-2 text-xs">
-              <div className="bg-slate-50 dark:bg-slate-800 p-3 rounded-lg space-y-1">
+              <div className="bg-slate-50  p-3 rounded-lg space-y-1">
                 <div className="flex justify-between">
                   <span className="text-slate-500">Hasil Ekstraksi OCR:</span>
                   <span className="font-bold text-blue-600 dark:text-blue-400">
@@ -789,7 +1033,7 @@ export const StudentWorkspace: React.FC = () => {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">Status Dokumen:</span>
-                  <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
+                  <span className="font-mono font-bold text-slate-800 ">
                     {uploadResultDoc.status}
                   </span>
                 </div>
@@ -803,7 +1047,7 @@ export const StudentWorkspace: React.FC = () => {
                   setActiveSubTab('verify');
                   setUploadResultDoc(null);
                 }}
-                className="w-full bg-emerald-600 hover:bg-emerald-500 text-white text-xs py-2.5 rounded-lg font-bold shadow flex items-center justify-center space-x-2"
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white text-xs py-2.5 rounded-lg font-semibold shadow-sm flex items-center justify-center space-x-2"
               >
                 <CheckSquare className="w-4 h-4" />
                 <span>Verifikasi Sekarang</span>
@@ -815,7 +1059,7 @@ export const StudentWorkspace: React.FC = () => {
                   setActiveSubTab('ocr');
                   setUploadResultDoc(null);
                 }}
-                className="w-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs py-2.5 rounded-lg font-bold flex items-center justify-center space-x-2"
+                className="w-full bg-slate-100  hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800  text-xs py-2.5 rounded-lg font-bold flex items-center justify-center space-x-2"
               >
                 <ScanText className="w-4 h-4" />
                 <span>Lihat Dokumen OCR</span>
