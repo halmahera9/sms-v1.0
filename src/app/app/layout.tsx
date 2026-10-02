@@ -26,35 +26,39 @@ export default async function AppLayout({
   const roleLabel = roleLabels[actor.role] ?? actor.role;
 
   return (
-    <div className="min-h-screen bg-[#f6f9fd] text-slate-900 flex">
+    <div className="flex min-h-screen bg-[#f6f9fd] text-slate-900">
       <Sidebar role={actor.role} />
 
-      <div className="flex-1 flex flex-col min-w-0 min-h-screen">
-        <header className="h-16 border-b border-slate-200 bg-white/95 backdrop-blur px-4 pl-16 md:px-7 flex items-center justify-between sticky top-0 z-40">
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="sticky top-0 z-40 flex h-16 shrink-0 items-center justify-between border-b border-slate-200 bg-white/95 px-4 pl-16 backdrop-blur md:px-7 md:pl-7">
           <div className="min-w-0">
-            <p className="hidden text-[10px] font-bold uppercase tracking-[0.2em] text-blue-600 sm:block">
+            <p className="hidden text-[9px] font-bold uppercase tracking-[0.22em] text-blue-600 sm:block">
               Banyubiru Digital Solution
             </p>
-            <p className="truncate text-sm font-semibold text-slate-700">
+
+            <p className="truncate text-xs font-semibold text-slate-700 sm:text-sm">
               Pusat Administrasi Sekolah
             </p>
           </div>
 
-          <div className="flex items-center gap-3 shrink-0">
+          <div className="flex shrink-0 items-center gap-3">
             <div className="hidden text-right sm:block">
-              <p className="text-xs font-bold text-slate-900">
+              <p className="max-w-[220px] truncate text-xs font-bold text-slate-900">
                 {actor.username}
               </p>
-              <p className="text-[10px] text-slate-600">{roleLabel}</p>
+
+              <p className="text-[9px] text-slate-400">
+                {roleLabel}
+              </p>
             </div>
 
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-50 text-sm font-black text-blue-700 ring-1 ring-blue-100">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-50 text-sm font-black text-blue-600 ring-1 ring-blue-100">
               {actor.username.charAt(0).toUpperCase()}
             </div>
           </div>
         </header>
 
-        <main className="flex-1 min-w-0">
+        <main className="min-w-0 flex-1">
           {children}
         </main>
       </div>

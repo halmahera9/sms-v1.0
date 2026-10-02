@@ -1,7 +1,17 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowLeft, ArrowRight, Eye, EyeOff, FileText, KeyRound, ShieldCheck, UserRound, UsersRound, BarChart3 } from 'lucide-react';
+import {
+  ArrowRight,
+  Eye,
+  EyeOff,
+  FileText,
+  KeyRound,
+  ShieldCheck,
+  UserRound,
+  Database,
+  BrainCircuit,
+} from 'lucide-react';
 import { useState } from 'react';
 import { loginAction } from '@/platform/actions/auth';
 
@@ -11,79 +21,124 @@ export default function LoginPage() {
   const [pending, setPending] = useState(false);
 
   return (
-    <main className="min-h-screen bg-[#f5f8fc] text-slate-900">
-      <div className="mx-auto flex min-h-screen max-w-7xl flex-col px-5 py-6 sm:px-8 lg:px-10">
-        <header className="flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#082b78] shadow-sm">
-              <span className="text-xl font-black text-cyan-300">B</span>
-            </div>
-            <div>
-              <div className="text-lg font-bold tracking-tight">Banyubiru</div>
-              <div className="text-xs text-slate-500">Administrative Intelligence Platform</div>
+    <main className="min-h-screen bg-[#f6f8fb] text-slate-900">
+      <div className="mx-auto flex min-h-screen max-w-[1440px] flex-col px-5 py-5 sm:px-8 lg:px-10 lg:py-6">
+
+        {/* Header */}
+        <header className="flex shrink-0 items-center justify-between">
+          <Link href="/" className="flex items-center gap-2.5">
+            <img
+              src="/brand/banyubiru-icon.png"
+              alt="Banyubiru"
+              className="h-9 w-9 object-contain"
+            />
+
+            <div className="leading-none">
+              <div className="text-[15px] font-semibold tracking-[-0.02em] text-slate-900">
+                Banyubiru
+              </div>
+              <div className="mt-1 text-[8px] font-medium uppercase tracking-[0.18em] text-slate-400">
+                Digital Solution
+              </div>
             </div>
           </Link>
 
           <Link
             href="/"
-            className="hidden items-center gap-2 text-sm font-semibold text-blue-600 hover:text-blue-700 sm:flex"
+            className="hidden text-sm font-medium text-slate-500 transition hover:text-slate-900 sm:block"
           >
-            <ArrowLeft className="h-4 w-4" />
-            Kembali ke Beranda
+            Kembali ke beranda
           </Link>
         </header>
 
-        <section className="grid flex-1 items-center gap-6 py-8 lg:grid-cols-2 lg:gap-8">
-          {/* Brand panel */}
-          <div className="relative min-h-[620px] overflow-hidden rounded-[28px] bg-[#082b78] p-8 text-white shadow-xl sm:p-10 lg:p-12">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(34,211,238,.22),transparent_35%),linear-gradient(145deg,#061d58,#0b347f)]" />
+        {/* Main */}
+        <section className="grid flex-1 items-center py-7 lg:grid-cols-2 lg:gap-6 lg:py-8">
 
-            <div className="relative z-10 flex h-full flex-col">
-              <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-cyan-300">
-                BANYUBIRU DIGITAL SOLUTION
-              </p>
+          {/* Brand / Information Panel */}
+          <div className="relative flex min-h-[560px] overflow-hidden rounded-[24px] bg-[#071b4b] text-white lg:min-h-[650px]">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_85%_15%,rgba(34,211,238,0.16),transparent_30%),radial-gradient(circle_at_15%_90%,rgba(37,99,235,0.20),transparent_35%)]" />
 
-              <h1 className="mt-7 max-w-lg text-4xl font-black leading-[1.05] tracking-tight sm:text-5xl">
-                Administrasi sekolah
-                <span className="block text-cyan-300">lebih mudah dan bermakna.</span>
-              </h1>
+            <div className="relative flex w-full flex-col p-8 sm:p-10 lg:p-12">
 
-              <p className="mt-6 max-w-lg text-sm leading-7 text-blue-100 sm:text-base">
-                Kelola data siswa, pegawai, dokumen, dan proses layanan sekolah
-                dalam satu platform yang aman, terpadu, dan terpercaya.
-              </p>
-
-              <div className="mt-9 space-y-5">
-                <Feature icon={FileText} title="Pengelolaan Dokumen" text="Digital, rapi, dan terintegrasi" />
-                <Feature icon={UsersRound} title="Data Siswa & Pegawai" text="Akurat dan selalu terbarui" />
-                <Feature icon={BarChart3} title="Proses Layanan" text="Lebih cepat dan transparan" />
-                <Feature icon={ShieldCheck} title="Aman & Terpercaya" text="Berbasis peran dan multi-tenant" />
+              <div className="flex items-center gap-3">
+                <img
+                  src="/brand/banyubiru-icon.png"
+                  alt=""
+                  className="h-10 w-10 object-contain"
+                />
+                <div>
+                  <p className="text-[15px] font-semibold tracking-[-0.02em]">
+                    Banyubiru
+                  </p>
+                  <p className="mt-1 text-[8px] font-medium uppercase tracking-[0.18em] text-blue-200/70">
+                    Digital Solution
+                  </p>
+                </div>
               </div>
 
-              <div className="mt-auto border-t border-white/15 pt-6">
-                <div className="mb-3 h-1 w-12 rounded-full bg-cyan-300" />
-                <p className="text-sm font-bold">SMP Negeri 99 Jakarta</p>
-                <p className="mt-1 text-xs text-blue-200">
-                  Bersama menuju sekolah yang lebih baik.
+              <div className="mt-auto max-w-[520px]">
+                <div className="mb-5 inline-flex rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1.5 text-[10px] font-medium tracking-wide text-cyan-200">
+                  ADMINISTRASI SEKOLAH
+                </div>
+
+                <h1 className="max-w-[520px] text-[36px] font-semibold leading-[1.08] tracking-[-0.045em] sm:text-[42px] lg:text-[48px]">
+                  Satu ruang untuk
+                  <span className="block text-cyan-300">
+                    administrasi sekolah.
+                  </span>
+                </h1>
+
+                <p className="mt-5 max-w-[480px] text-[14px] leading-6 text-blue-100/75">
+                  Banyubiru membantu sekolah mengelola data, dokumen,
+                  formulir, dan arsip secara terstruktur dengan kecerdasan
+                  buatan yang berjalan pada server sekolah.
+                </p>
+
+                <div className="mt-8 grid max-w-[500px] gap-3 sm:grid-cols-3">
+                  <InfoItem
+                    icon={Database}
+                    title="Data"
+                    text="Terpusat"
+                  />
+                  <InfoItem
+                    icon={FileText}
+                    title="Dokumen"
+                    text="Terorganisir"
+                  />
+                  <InfoItem
+                    icon={BrainCircuit}
+                    title="AI"
+                    text="Terintegrasi"
+                  />
+                </div>
+              </div>
+
+              <div className="mt-8 border-t border-white/10 pt-5">
+                <p className="text-[11px] text-blue-200/60">
+                  Data dan dokumen dikelola pada infrastruktur sekolah.
                 </p>
               </div>
             </div>
           </div>
 
-          {/* Login panel */}
-          <div className="rounded-[28px] border border-slate-200 bg-white p-7 shadow-xl sm:p-10 lg:p-11">
-            <div className="max-w-xl">
-              <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-blue-600">
-                AKUN SEKOLAH
-              </p>
+          {/* Login Panel */}
+          <div className="flex min-h-[560px] items-center rounded-[24px] border border-slate-200/90 bg-white px-7 py-9 shadow-[0_12px_40px_rgba(15,23,42,0.06)] sm:px-10 lg:min-h-[650px] lg:px-14">
+            <div className="mx-auto w-full max-w-[410px]">
 
-              <h2 className="mt-4 text-3xl font-black tracking-tight text-slate-900 sm:text-4xl">
-                Masuk ke Pusat Dokumen
-              </h2>
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-blue-600">
+                  Akses Sekolah
+                </p>
 
-              <p className="mt-3 text-sm leading-6 text-slate-500">
-                Gunakan akun operator, guru, atau siswa yang sudah dibuat oleh sekolah.
-              </p>
+                <h2 className="mt-3 text-[30px] font-semibold leading-tight tracking-[-0.04em] text-slate-900 sm:text-[34px]">
+                  Selamat datang kembali.
+                </h2>
+
+                <p className="mt-3 max-w-[360px] text-[13px] leading-6 text-slate-500">
+                  Masuk menggunakan akun yang telah terdaftar pada
+                  sistem administrasi sekolah.
+                </p>
+              </div>
 
               <form
                 action={async (formData) => {
@@ -100,40 +155,61 @@ export default function LoginPage() {
                 className="mt-8 space-y-5"
               >
                 <div>
-                  <label htmlFor="username" className="mb-2 block text-sm font-semibold text-slate-700">
+                  <label
+                    htmlFor="username"
+                    className="mb-2 block text-[12px] font-medium text-slate-700"
+                  >
                     Nama pengguna
                   </label>
-                  <div className="flex items-center rounded-xl border border-slate-200 bg-white px-4 shadow-sm focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-500/10">
-                    <UserRound className="h-4 w-4 text-slate-400" />
+
+                  <div className="flex h-[46px] items-center rounded-[12px] border border-slate-200 bg-slate-50/40 px-3.5 transition focus-within:border-blue-500 focus-within:bg-white focus-within:ring-4 focus-within:ring-blue-500/10">
+                    <UserRound className="h-[16px] w-[16px] shrink-0 text-slate-400" />
+
                     <input
                       id="username"
                       name="username"
                       autoComplete="username"
-                      className="w-full bg-transparent px-3 py-3.5 text-sm font-medium outline-none"
+                      className="w-full bg-transparent px-3 text-[13px] text-slate-900 outline-none placeholder:text-slate-400"
+                      placeholder="Masukkan nama pengguna"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label htmlFor="password" className="mb-2 block text-sm font-semibold text-slate-700">
+                  <label
+                    htmlFor="password"
+                    className="mb-2 block text-[12px] font-medium text-slate-700"
+                  >
                     Kata sandi
                   </label>
-                  <div className="flex items-center rounded-xl border border-slate-200 bg-white px-4 shadow-sm focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-500/10">
-                    <KeyRound className="h-4 w-4 text-slate-400" />
+
+                  <div className="flex h-[46px] items-center rounded-[12px] border border-slate-200 bg-slate-50/40 px-3.5 transition focus-within:border-blue-500 focus-within:bg-white focus-within:ring-4 focus-within:ring-blue-500/10">
+                    <KeyRound className="h-[16px] w-[16px] shrink-0 text-slate-400" />
+
                     <input
                       id="password"
                       name="password"
                       type={showPassword ? 'text' : 'password'}
                       autoComplete="current-password"
-                      className="w-full bg-transparent px-3 py-3.5 text-sm font-medium outline-none"
+                      className="w-full bg-transparent px-3 text-[13px] text-slate-900 outline-none placeholder:text-slate-400"
+                      placeholder="Masukkan kata sandi"
                     />
+
                     <button
                       type="button"
                       onClick={() => setShowPassword((value) => !value)}
-                      className="text-slate-400 hover:text-slate-600"
-                      aria-label={showPassword ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'}
+                      className="shrink-0 text-slate-400 transition hover:text-slate-700"
+                      aria-label={
+                        showPassword
+                          ? 'Sembunyikan kata sandi'
+                          : 'Tampilkan kata sandi'
+                      }
                     >
-                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      {showPassword ? (
+                        <EyeOff className="h-[16px] w-[16px]" />
+                      ) : (
+                        <Eye className="h-[16px] w-[16px]" />
+                      )}
                     </button>
                   </div>
                 </div>
@@ -141,7 +217,7 @@ export default function LoginPage() {
                 {error && (
                   <div
                     role="alert"
-                    className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700"
+                    className="rounded-[10px] border border-red-200 bg-red-50 px-3.5 py-3 text-[12px] leading-5 text-red-700"
                   >
                     {error}
                   </div>
@@ -150,77 +226,67 @@ export default function LoginPage() {
                 <button
                   type="submit"
                   disabled={pending}
-                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3.5 text-sm font-bold text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-700"
+                  className="flex h-[46px] w-full items-center justify-center gap-2 rounded-[12px] bg-[#0f172a] px-5 text-[13px] font-semibold text-white transition hover:bg-[#172554] disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {pending ? "Memproses..." : "Masuk"}
-                  {!pending && <ArrowRight className="h-4 w-4" />}
+                  {pending ? 'Memproses...' : 'Masuk ke Banyubiru'}
+
+                  {!pending && (
+                    <ArrowRight className="h-[15px] w-[15px]" />
+                  )}
                 </button>
               </form>
 
-              <div className="my-7 flex items-center gap-4 text-xs text-slate-400">
-                <div className="h-px flex-1 bg-slate-200" />
-                atau
-                <div className="h-px flex-1 bg-slate-200" />
-              </div>
+              <div className="mt-7 flex items-start gap-3 border-t border-slate-100 pt-6">
+                <ShieldCheck className="mt-0.5 h-[17px] w-[17px] shrink-0 text-blue-600" />
 
-              <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-5">
-                <div className="flex gap-3">
-                  <div className="mt-0.5 text-blue-600">
-                    <ShieldCheck className="h-5 w-5" />
-                  </div>
-                  <div className="text-sm">
-                    <p className="font-bold text-blue-700">Akun sekolah</p>
-                    <p className="mt-1 text-xs leading-5 text-slate-600">
-                      Gunakan kredensial yang diberikan oleh administrator sekolah.
-                    </p>
-                  </div>
+                <div>
+                  <p className="text-[12px] font-medium text-slate-700">
+                    Akses terkelola sekolah
+                  </p>
+
+                  <p className="mt-1 text-[11px] leading-5 text-slate-400">
+                    Akses sistem diberikan sesuai akun dan peran
+                    yang terdaftar pada sekolah.
+                  </p>
                 </div>
               </div>
 
-              <button
-                type="button"
-                className="mx-auto mt-7 flex items-center gap-2 text-sm font-semibold text-blue-600 hover:text-blue-700"
-              >
-                <span className="text-cyan-500">◈</span>
-                Masuk dengan token publik
-              </button>
             </div>
           </div>
         </section>
 
-        <footer className="flex flex-col items-center justify-between gap-3 border-t border-slate-200 py-5 text-xs text-slate-500 sm:flex-row">
-          <span>© 2026 Banyubiru Digital Solution. All rights reserved.</span>
-          <div className="flex gap-3">
-            <span>Privasi</span>
-            <span>•</span>
-            <span>Ketentuan</span>
-            <span>•</span>
-            <span>Bantuan</span>
-          </div>
+        {/* Footer */}
+        <footer className="flex shrink-0 items-center justify-between border-t border-slate-200 py-4 text-[10px] text-slate-400">
+          <span>© 2026 Banyubiru Digital Solution</span>
+          <span className="hidden sm:block">
+            Administrative Intelligence for Schools
+          </span>
         </footer>
       </div>
     </main>
   );
 }
 
-function Feature({
+function InfoItem({
   icon: Icon,
   title,
   text,
 }: {
-  icon: typeof FileText;
+  icon: typeof Database;
   title: string;
   text: string;
 }) {
   return (
-    <div className="flex items-center gap-4">
-      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/10 text-cyan-200 ring-1 ring-white/10">
-        <Icon className="h-5 w-5" />
-      </div>
-      <div>
-        <p className="text-sm font-bold">{title}</p>
-        <p className="mt-0.5 text-xs text-blue-200">{text}</p>
-      </div>
+    <div className="rounded-[12px] border border-white/10 bg-white/[0.045] px-3.5 py-3">
+      <Icon className="h-[16px] w-[16px] text-cyan-300" />
+
+      <p className="mt-2 text-[11px] font-semibold text-white">
+        {title}
+      </p>
+
+      <p className="mt-0.5 text-[10px] text-blue-200/60">
+        {text}
+      </p>
     </div>
   );
 }
