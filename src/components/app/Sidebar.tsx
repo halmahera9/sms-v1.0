@@ -6,604 +6,157 @@ import { useState } from 'react';
 import {
   LayoutDashboard,
   Users,
-  UserRound,
-  FileText,
-  CircleCheck,
-  Download,
-  History,
-  Settings,
+  ScanText,
+  CheckSquare,
+  FileSpreadsheet,
+  ShieldAlert,
   LogOut,
-  ChevronLeft,
-  ChevronRight,
+  Sparkles,
   Menu,
   X,
-  ChevronDown,
 } from 'lucide-react';
 
-import { logoutAction } from '@/platform/actions/auth';
-
-type NavItemType = {
-  name: string;
-  href: string;
-  icon: React.ComponentType<{ className?: string }>;
-};
-
-const workspaceItems: NavItemType[] = [
-  {
-    name: 'Beranda',
-    href: '/app',
-    icon: LayoutDashboard,
-  },
+const navItems = [
+  { name: 'Overview', href: '/app', icon: LayoutDashboard },
+  { name: 'Master Data Siswa', href: '/app/students', icon: Users },
+  { name: 'Master Data Guru/Pegawai', href: '/app/employees', icon: Users },
+  { name: 'Upload & OCR', href: '/app/ocr', icon: ScanText },
+  { name: 'Verifikasi Operator', href: '/app/verify', icon: CheckSquare },
+  { name: 'Ekspor Excel & PDF', href: '/app/export', icon: FileSpreadsheet },
+  { name: 'Audit Trail', href: '/app/audit', icon: ShieldAlert },
 ];
-
-const schoolDataItems: NavItemType[] = [
-  {
-    name: 'Guru & Karyawan',
-    href: '/app/employees',
-    icon: UserRound,
-  },
-]; 
-
-const studentSubItems: NavItemType[] = [
-  {
-    name: 'Master Data Siswa',
-    href: '/app/students',
-    icon: Users,
-  },
-  {
-    name: 'Dokumen & OCR',
-    href: '/app/ocr',
-    icon: FileText,
-  },
-  {
-    name: 'Verifikasi Data',
-    href: '/app/verify',
-    icon: CircleCheck,
-  },
-  {
-    name: 'Kehadiran',
-    href: '/app/students',
-    icon: CircleCheck,
-  },
-  {
-    name: 'Ekspor & Rekap',
-    href: '/app/export',
-    icon: Download,
-  },
-];
-
-const documentItems: NavItemType[] = [
-  {
-    name: 'Dokumen',
-    href: '/app/ocr',
-    icon: FileText,
-  },
-  {
-    name: 'Verifikasi',
-    href: '/app/verify',
-    icon: CircleCheck,
-  },
-  {
-    name: 'Ekspor Data',
-    href: '/app/export',
-    icon: Download,
-  },
-];
-
-const activityItems: NavItemType[] = [
-  {
-    name: 'Riwayat Aktivitas',
-    href: '/app/audit',
-    icon: History,
-  },
-];
-
-function isItemActive(pathname: string, href: string) {
-  if (href === '/app') {
-    return pathname === '/app';
-  }
-
-  return pathname === href || pathname.startsWith(`${href}/`);
-}
-
-function Section({
-  label,
-  collapsed,
-}: {
-  label: string;
-  collapsed: boolean;
-}) {
-  if (collapsed) {
-    return (
-      <div
-        className="mx-3 my-3 h-px bg-white/10"
-        aria-hidden="true"
-      />
-    );
-  }
-
-  return (
-    <div className="px-3 pb-2 pt-5">
-      <p className="text-[9px] font-bold uppercase tracking-[0.22em] text-blue-200/45">
-        {label}
-      </p>
-    </div>
-  );
-}
-
-function NavItem({
-  item,
-  pathname,
-  collapsed,
-  onNavigate,
-}: {
-  item: NavItemType;
-  pathname: string;
-  collapsed: boolean;
-  onNavigate?: () => void;
-}) {
-  const active = isItemActive(pathname, item.href);
-  const Icon = item.icon;
-
-  return (
-    <Link
-      href={item.href}
-      onClick={onNavigate}
-      title={collapsed ? item.name : undefined}
-      className={[
-        'group flex items-center rounded-xl text-xs font-semibold transition-all duration-150',
-        collapsed
-          ? 'mx-auto h-10 w-10 justify-center'
-          : 'gap-3 px-3 py-2.5',
-        active
-          ? 'bg-white text-[#12336f] shadow-sm'
-          : 'text-blue-100/80 hover:bg-white/10 hover:text-white',
-      ].join(' ')}
-    >
-      <Icon
-        className={[
-          'h-4 w-4 shrink-0 transition-colors',
-          active
-            ? 'text-blue-600'
-            : 'text-blue-100/70 group-hover:text-white',
-        ].join(' ')}
-      />
-
-      {!collapsed && (
-        <span className="truncate">
-          {item.name}
-        </span>
-      )}
-    </Link>
-  );
-}
-
-function StudentNavigation({
-  pathname,
-  onNavigate,
-}: {
-  pathname: string;
-  onNavigate?: () => void;
-}) {
-  const studentActive = pathname.startsWith('/app/students');
-  const [open, setOpen] = useState(studentActive);
-
-  return (
-    <div>
-      <button
-        type="button"
-        onClick={() => setOpen((value) => !value)}
-        className={[
-          'group flex w-full items-center gap-3 rounded-xl px-3 py-2.5',
-          'text-xs font-semibold transition-all duration-150',
-          studentActive
-            ? 'bg-white text-[#12336f] shadow-sm'
-            : 'text-blue-100/80 hover:bg-white/10 hover:text-white',
-        ].join(' ')}
-      >
-        <Users
-          className={[
-            'h-4 w-4 shrink-0',
-            studentActive ? 'text-blue-600' : 'text-blue-100/70',
-          ].join(' ')}
-        />
-
-        <span className="flex-1 text-left">
-          Siswa
-        </span>
-
-        <ChevronDown
-          className={[
-            'h-4 w-4 transition-transform',
-            open ? 'rotate-180' : '',
-          ].join(' ')}
-        />
-      </button>
-
-      {open && (
-        <div className="ml-4 mt-1 space-y-0.5 border-l border-white/10 pl-3">
-          {studentSubItems.map((item) => {
-            const active = isItemActive(pathname, item.href);
-            const Icon = item.icon;
-
-            return (
-              <Link
-                key={item.name}
-                href={item.href}
-                onClick={onNavigate}
-                className={[
-                  'flex items-center gap-2.5 rounded-lg px-3 py-2',
-                  'text-[11px] font-medium transition-colors',
-                  active
-                    ? 'bg-white/10 text-white'
-                    : 'text-blue-100/65 hover:bg-white/5 hover:text-white',
-                ].join(' ')}
-              >
-                <Icon
-                  className={[
-                    'h-3.5 w-3.5 shrink-0',
-                    active ? 'text-blue-300' : 'text-blue-100/50',
-                  ].join(' ')}
-                />
-                <span className="truncate">{item.name}</span>
-              </Link>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
 
 function SidebarContent({
   pathname,
-  role,
-  collapsed,
   onNavigate,
+  role,
 }: {
   pathname: string;
-  role: string;
-  collapsed: boolean;
   onNavigate?: () => void;
+  role: string;
 }) {
-  const isAdmin =
-    role === 'ADMIN' ||
-    role === 'ADMIN_TENANT';
-
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      {/* =========================================================
-          BRAND
-          Menggunakan asset logo yang sama dengan halaman login.
-          ========================================================= */}
-      <div
-        className={[
-          'border-b border-white/10',
-          collapsed ? 'px-3 py-5' : 'px-5 py-5',
-        ].join(' ')}
-      >
+    <>
+      {/* Brand Header */}
+      <div className="p-5 border-b border-white/10">
         <Link
           href="/app"
           onClick={onNavigate}
-          title={collapsed ? 'Banyubiru' : undefined}
-          className={[
-            'flex items-center',
-            collapsed ? 'justify-center' : 'gap-3',
-          ].join(' ')}
+          className="flex items-center gap-2.5"
         >
-          <img
-            src="/brand/banyubiru-icon.png?v=2"
-            alt="Banyubiru"
-            className="h-9 w-9 shrink-0 object-contain"
-          />
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-600 text-white shadow-sm shadow-blue-600/20">
+            <Sparkles className="h-4 w-4" />
+          </div>
 
-          {!collapsed && (
-            <div className="min-w-0">
-              <div className="text-[15px] font-semibold leading-none tracking-[-0.02em] text-white">
-                Banyubiru
-              </div>
-
-              <div className="mt-1 text-[8px] font-medium uppercase tracking-[0.18em] text-blue-200/60">
-                Digital Solution
-              </div>
+          <div>
+            <div className="font-black text-sm text-white leading-none">
+              BANYUBIRU
             </div>
-          )}
+            <div className="text-[10px] text-slate-300 mt-1">
+              Administrative Intelligence
+            </div>
+          </div>
         </Link>
       </div>
 
-      {/* =========================================================
-          NAVIGATION
-          ========================================================= */}
-      <nav className="min-h-0 flex-1 overflow-y-auto px-3 pb-4">
-        <Section
-          label="Ruang Kerja"
-          collapsed={collapsed}
-        />
-
-        <div className="space-y-1">
-          {workspaceItems.map((item) => (
-            <NavItem
-              key={item.href}
-              item={item}
-              pathname={pathname}
-              collapsed={collapsed}
-              onNavigate={onNavigate}
-            />
-          ))}
+      {/* Navigation */}
+      <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
+        <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-600">
+          Menu Utama
         </div>
 
-        <Section
-          label="Data Sekolah"
-          collapsed={collapsed}
-        />
+        {navItems.map((item) => {
+          const isActive = pathname === item.href;
+          const Icon = item.icon;
 
-        <div className="space-y-1">
-          {/* Siswa parent */}
-          {collapsed ? (
-            <NavItem
-              item={{
-                name: 'Siswa',
-                href: '/app/students',
-                icon: Users,
-              }}
-              pathname={pathname}
-              collapsed={collapsed}
-              onNavigate={onNavigate}
-            />
-          ) : (
-            <StudentNavigation
-              pathname={pathname}
-              onNavigate={onNavigate}
-            />
-          )}
-
-          {schoolDataItems.map((item) => (
-            <NavItem
+          return (
+            <Link
               key={item.href}
-              item={item}
-              pathname={pathname}
-              collapsed={collapsed}
-              onNavigate={onNavigate}
-            />
-          ))}
-        </div>
-
-        <Section
-          label="Dokumen"
-          collapsed={collapsed}
-        />
-
-        <div className="space-y-1">
-          {documentItems.map((item) => (
-            <NavItem
-              key={item.href}
-              item={item}
-              pathname={pathname}
-              collapsed={collapsed}
-              onNavigate={onNavigate}
-            />
-          ))}
-        </div>
-
-        <Section
-          label="Aktivitas"
-          collapsed={collapsed}
-        />
-
-        <div className="space-y-1">
-          {activityItems.map((item) => (
-            <NavItem
-              key={item.href}
-              item={item}
-              pathname={pathname}
-              collapsed={collapsed}
-              onNavigate={onNavigate}
-            />
-          ))}
-        </div>
-
-        {/* =======================================================
-            ADMIN
-            ======================================================= */}
-        {isAdmin && (
-          <>
-            <Section
-              label="Pengaturan"
-              collapsed={collapsed}
-            />
-
-            <div className="space-y-1">
-              <NavItem
-                item={{
-                  name: 'Pengguna & Akses',
-                  href: '/app/users',
-                  icon: Settings,
-                }}
-                pathname={pathname}
-                collapsed={collapsed}
-                onNavigate={onNavigate}
+              href={item.href}
+              onClick={onNavigate}
+              className={`flex items-center gap-3 px-3 py-2.5 text-xs font-medium rounded-lg transition-all ${
+                isActive
+                  ? 'bg-blue-600 text-white'
+                  : 'text-slate-200 hover:bg-white/10 hover:text-white'
+              }`}
+            >
+              <Icon
+                className={`h-4 w-4 ${
+                  isActive ? 'text-slate-900' : 'text-slate-200'
+                }`}
               />
-            </div>
-          </>
-        )}
+              <span>{item.name}</span>
+            </Link>
+          );
+        })}
       </nav>
 
-      {/* =========================================================
-          BOTTOM AREA
-          ========================================================= */}
-      <div
-        className={[
-          'border-t border-white/10',
-          collapsed ? 'p-3' : 'p-4',
-        ].join(' ')}
-      >
-        {!collapsed && (
-          <div className="mb-3 rounded-xl bg-white/5 px-3 py-3">
-            <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-blue-200/45">
-              Akses
-            </p>
-
-            <p className="mt-1 truncate text-xs font-semibold text-white">
-              {role}
-            </p>
-          </div>
-        )}
-
-        {/* =======================================================
-            LOGOUT
-            Menggunakan server action yang benar-benar
-            menghapus session cookie.
-            ======================================================= */}
-        <form action={logoutAction}>
-          <button
-            type="submit"
-            title={collapsed ? 'Keluar' : undefined}
-            onClick={onNavigate}
-            className={[
-              'flex w-full items-center rounded-xl text-xs font-semibold text-blue-100/80 transition',
-              'hover:bg-white/10 hover:text-white',
-              collapsed
-                ? 'mx-auto h-10 w-10 justify-center'
-                : 'gap-3 px-3 py-2.5',
-            ].join(' ')}
-          >
-            <LogOut className="h-4 w-4 shrink-0" />
-
-            {!collapsed && (
-              <span>Keluar</span>
-            )}
-          </button>
-        </form>
+      {/* Footer */}
+      <div className="border-t border-white/10 p-4">
+        <div className="rounded-xl bg-white/5 px-3 py-3">
+          <p className="text-[10px] uppercase tracking-wider text-slate-600">
+            Akses
+          </p>
+          <p className="mt-1 text-xs font-semibold text-slate-200">
+            {role}
+          </p>
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 
-export default function Sidebar({
-  role,
-}: {
-  role: string;
-}) {
+export default function Sidebar({ role }: { role: string }) {
   const pathname = usePathname();
-
-  const [collapsed, setCollapsed] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
 
   return (
     <>
-      {/* =========================================================
-          DESKTOP SIDEBAR
-          ========================================================= */}
-      <aside
-        className={[
-          'sticky top-0 hidden h-screen shrink-0 flex-col',
-          'border-r border-white/10 bg-[#0b2a63]',
-          'transition-[width] duration-200 ease-out md:flex',
-          collapsed ? 'w-[76px]' : 'w-64',
-        ].join(' ')}
-      >
-        <div className="relative flex min-h-0 flex-1 flex-col">
-          <SidebarContent
-            pathname={pathname}
-            collapsed={collapsed}
-            role={role}
-          />
-
-          {/* Collapse / Expand */}
-          <button
-            type="button"
-            onClick={() =>
-              setCollapsed((value) => !value)
-            }
-            aria-label={
-              collapsed
-                ? 'Tampilkan sidebar'
-                : 'Sembunyikan sidebar'
-            }
-            className={[
-              'absolute -right-3 top-20 z-50',
-              'flex h-7 w-7 items-center justify-center',
-              'rounded-full border border-slate-200',
-              'bg-white text-slate-600 shadow-sm',
-              'transition hover:text-blue-600',
-            ].join(' ')}
-          >
-            {collapsed ? (
-              <ChevronRight className="h-4 w-4" />
-            ) : (
-              <ChevronLeft className="h-4 w-4" />
-            )}
-          </button>
-        </div>
+      {/* Desktop Sidebar */}
+      <aside className="hidden md:flex w-64 shrink-0 bg-[#0b2a63] border-r border-white/10 flex-col h-screen sticky top-0">
+        <SidebarContent pathname={pathname} role={role} />
       </aside>
 
-      {/* =========================================================
-          MOBILE
-          ========================================================= */}
+      {/* Mobile Menu Button */}
+      <button
+        type="button"
+        onClick={() => setIsOpen(true)}
+        className="md:hidden fixed top-3 left-3 z-50 flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 bg-[#0b2a63] text-slate-200 shadow-lg"
+        aria-label="Buka navigasi"
+      >
+        <Menu className="h-5 w-5" />
+      </button>
 
-      {!mobileOpen && (
-        <button
-          type="button"
-          onClick={() => setMobileOpen(true)}
-          aria-label="Buka navigasi"
-          className={[
-            'fixed left-3 top-3 z-50 md:hidden',
-            'flex h-10 w-10 items-center justify-center',
-            'rounded-xl border border-blue-900/20',
-            'bg-[#0b2a63] text-white shadow-lg',
-            'transition hover:bg-[#123a80]',
-          ].join(' ')}
-        >
-          <Menu className="h-5 w-5" />
-        </button>
-      )}
-
-      {/* Mobile backdrop */}
-      {mobileOpen && (
+      {/* Mobile Backdrop */}
+      {isOpen && (
         <button
           type="button"
           aria-label="Tutup navigasi"
-          onClick={() => setMobileOpen(false)}
-          className="fixed inset-0 z-[60] bg-slate-950/50 backdrop-blur-sm md:hidden"
+          onClick={() => setIsOpen(false)}
+          className="md:hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
         />
       )}
 
-      {/* Mobile drawer */}
+      {/* Mobile Drawer */}
       <aside
-        className={[
-          'fixed inset-y-0 left-0 z-[70]',
-          'flex w-72 max-w-[86vw] flex-col',
-          'border-r border-white/10 bg-[#0b2a63]',
-          'shadow-2xl transition-transform duration-300 ease-out',
-          'md:hidden',
-          mobileOpen
-            ? 'translate-x-0'
-            : '-translate-x-full',
-        ].join(' ')}
+        className={`md:hidden fixed inset-y-0 left-0 z-[60] flex w-72 max-w-[85vw] flex-col bg-[#0b2a63] border-r border-white/10 shadow-2xl transition-transform duration-300 ${
+          isOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
       >
-        <div className="relative flex min-h-0 flex-1 flex-col">
-          {/* Close button */}
-          <button
-            type="button"
-            onClick={() => setMobileOpen(false)}
-            aria-label="Tutup navigasi"
-            className={[
-              'absolute right-3 top-4 z-10',
-              'flex h-8 w-8 items-center justify-center',
-              'rounded-lg text-blue-100/70',
-              'transition hover:bg-white/10 hover:text-white',
-            ].join(' ')}
-          >
-            <X className="h-5 w-5" />
-          </button>
+        <button
+          type="button"
+          onClick={() => setIsOpen(false)}
+          className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-lg text-slate-300 hover:bg-white/5 hover:text-white"
+          aria-label="Tutup navigasi"
+        >
+          <X className="h-5 w-5" />
+        </button>
 
-          <SidebarContent
-            pathname={pathname}
-            collapsed={false}
-            role={role}
-            onNavigate={() => setMobileOpen(false)}
-          />
-        </div>
+        <SidebarContent
+          pathname={pathname}
+          role={role}
+          onNavigate={() => setIsOpen(false)}
+        />
       </aside>
     </>
   );
