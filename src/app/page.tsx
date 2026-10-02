@@ -82,7 +82,7 @@ export default function HomePage() {
               Masuk ke Sistem
             </Link>
             <a
-              href="/"
+              href="#kemampuan"
               className="rounded-full border border-slate-200 bg-white px-6 py-3 text-sm font-medium text-slate-700 transition hover:border-slate-300"
             >
               Lihat kemampuan
@@ -91,7 +91,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="border-y border-slate-200 bg-white">
+      <section id="kemampuan" className="scroll-mt-6 border-y border-slate-200 bg-white">
         <div className="mx-auto grid max-w-6xl gap-10 px-6 py-14 lg:grid-cols-3 lg:px-8">
           <div>
             <div className="text-xs font-semibold uppercase tracking-[0.16em] text-blue-600">
