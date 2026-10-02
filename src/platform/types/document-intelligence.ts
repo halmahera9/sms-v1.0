@@ -76,7 +76,7 @@ export interface ExtractedEntity {
     | 'UNIT'
     | 'SUBJECT'
     | 'OTHER';
-  identifierType?: 'NIP' | 'NRK' | 'NISN' | 'NIS';
+  identifierType?: 'NIP' | 'NRK' | 'NISN' | 'NIS' | 'NIK';
   rawValue: string;
   normalizedValue?: string;
   confidence: number;
@@ -156,6 +156,9 @@ export interface ExtractedField {
  */
 export interface ProcessedExtractedItem {
   id: string;
+  fieldKey?: string;
+  fieldName?: string;
+  value?: string;
   rawText: string;
   confidence: number;
   fields: Record<string, ExtractedField>;

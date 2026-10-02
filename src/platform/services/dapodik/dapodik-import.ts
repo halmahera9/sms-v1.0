@@ -137,6 +137,12 @@ export async function previewDapodikImport(
       "NRK",
       "Nomor Registrasi Kepegawaian",
     ]);
+    const nik = firstValue(row, [
+      "NIK",
+      "No. KTP",
+      "Nomor KTP",
+      "Nomor Induk Kependudukan",
+    ]);
     const fullName = firstValue(row, [
       "Nama",
       "Nama PTK",
@@ -165,39 +171,64 @@ export async function previewDapodikImport(
       ]),
     );
 
-    if (!nip || !fullName) {
+    const identifier = nip || nik;
+
+    if (!identifier || !fullName) {
       items.push({
         row: rowNumber,
         status: "ERROR",
-        identifier: nip,
+        identifier: identifier || "-",
         name: fullName,
-        message: "NIP atau Nama kosong.",
+        message: "NIP/NIK atau Nama kosong.",
       });
       continue;
     }
 
-    const existing = await adminPrisma.employee.findUnique({
-      where: {
-        tenantId_nip: {
-          tenantId,
-          nip,
-        },
-      },
-      select: {
-        nrk: true,
-        fullName: true,
-        jabatan: true,
-        unitKerja: true,
-        instansi: true,
-        statusKepegawaian: true,
-      },
-    });
+    const existing = nip
+      ? await adminPrisma.employee.findUnique({
+          where: {
+            tenantId_nip: {
+              tenantId,
+              nip,
+            },
+          },
+          select: {
+            nip: true,
+            nrk: true,
+            nik: true,
+            fullName: true,
+            jabatan: true,
+            unitKerja: true,
+            instansi: true,
+            statusKepegawaian: true,
+          },
+        })
+      : nik
+        ? await adminPrisma.employee.findUnique({
+            where: {
+              tenantId_nik: {
+                tenantId,
+                nik,
+              },
+            },
+            select: {
+              nip: true,
+              nrk: true,
+              nik: true,
+              fullName: true,
+              jabatan: true,
+              unitKerja: true,
+              instansi: true,
+              statusKepegawaian: true,
+            },
+          })
+        : null;
 
     if (!existing) {
       items.push({
         row: rowNumber,
         status: "NEW",
-        identifier: nip,
+        identifier,
         name: fullName,
         message: "Data guru/pegawai baru.",
       });
@@ -206,7 +237,8 @@ export async function previewDapodikImport(
 
     const changes: string[] = [];
 
-    if ((existing.nrk ?? "") !== nrk) changes.push("NRK");
+    if ((existing.nrk ?? "") !== nrk && nrk) changes.push("NRK");
+    if ((existing.nik ?? "") !== nik && nik) changes.push("NIK");
     if (existing.fullName !== fullName) changes.push("Nama");
     if (existing.jabatan !== jabatan) changes.push("Jabatan");
     if (existing.unitKerja !== unitKerja) changes.push("Unit Kerja");
@@ -306,7 +338,6 @@ export async function importDapodikStudents(
       nis,
       fullName,
       className,
-      jurusan: null,
     };
 
     if (existing) {
@@ -317,7 +348,6 @@ export async function importDapodikStudents(
           nis: data.nis,
           fullName: data.fullName,
           className: data.className,
-          jurusan: data.jurusan,
         },
       });
 
@@ -385,6 +415,13 @@ export async function importDapodikEmployees(
       "Nomor Registrasi Kepegawaian",
     ]);
 
+    const nik = firstValue(row, [
+      "NIK",
+      "No. KTP",
+      "Nomor KTP",
+      "Nomor Induk Kependudukan",
+    ]);
+
     const fullName = firstValue(row, [
       "Nama",
       "Nama PTK",
@@ -417,47 +454,52 @@ export async function importDapodikEmployees(
       ]),
     );
 
-    if (!nip || !fullName) {
+    const identifier = nip || nik;
+
+    if (!identifier || !fullName) {
       result.errors.push({
         row: rowNumber,
-        message: "NIP atau Nama kosong",
+        message: "NIP/NIK atau Nama kosong",
       });
       continue;
     }
 
-    // NIP/Nama cukup untuk membuat master pegawai.
+    // NIP/NIK dan Nama cukup untuk membuat master pegawai.
     // Field administratif yang belum tersedia dari file Dapodik diberi nilai default.
 
-    if (dryRun) {
-      const existing = await adminPrisma.employee.findUnique({
-        where: {
-          tenantId_nip: {
-            tenantId,
-            nip,
+    const existing = nip
+      ? await adminPrisma.employee.findUnique({
+          where: {
+            tenantId_nip: {
+              tenantId,
+              nip,
+            },
           },
-        },
-        select: { id: true },
-      });
+          select: { id: true },
+        })
+      : nik
+        ? await adminPrisma.employee.findUnique({
+            where: {
+              tenantId_nik: {
+                tenantId,
+                nik,
+              },
+            },
+            select: { id: true },
+          })
+        : null;
 
+    if (dryRun) {
       if (existing) result.updated++;
       else result.created++;
 
       continue;
     }
 
-    const existing = await adminPrisma.employee.findUnique({
-      where: {
-        tenantId_nip: {
-          tenantId,
-          nip,
-        },
-      },
-      select: { id: true },
-    });
-
     const data = {
-      nip,
+      nip: nip || null,
       nrk: nrk || null,
+      nik: nik || null,
       fullName,
       gelarDepan: null,
       gelarBelakang: null,

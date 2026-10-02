@@ -79,9 +79,9 @@ async function setupFixtures() {
 
   // 3. Create Student 1 in Tenant A, Student B1 in Tenant B
   await migrationPool.query(`
-    INSERT INTO students (id, tenant_id, nisn, nis, nama_lengkap, kelas, jurusan, status, created_at, updated_at) VALUES
-    ('${STUDENT_1_ID}', '${TENANT_A_ID}', '0051234561', '21221001', 'Ahmad Dahlan', 'X IPA 1', 'IPA', 'ACTIVE', NOW(), NOW()),
-    ('${STUDENT_B1_ID}', '${TENANT_B_ID}', '0059999999', '21229999', 'Siti Rahma', 'X IPS 1', 'IPS', 'ACTIVE', NOW(), NOW());
+    INSERT INTO students (id, tenant_id, nisn, nis, nama_lengkap, kelas, status, created_at, updated_at) VALUES
+    ('${STUDENT_1_ID}', '${TENANT_A_ID}', '0051234561', '21221001', 'Ahmad Dahlan', 'X IPA 1', 'ACTIVE', NOW(), NOW()),
+    ('${STUDENT_B1_ID}', '${TENANT_B_ID}', '0059999999', '21229999', 'Siti Rahma', 'X IPS 1', 'ACTIVE', NOW(), NOW());
   `);
 }
 
@@ -130,7 +130,6 @@ async function runStudentRepositoryTestSuite() {
       nis: '21221002',
       fullName: 'Budi Santoso',
       className: 'X IPA 1',
-      jurusan: 'IPA',
       status: 'ACTIVE',
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -175,7 +174,6 @@ async function runStudentRepositoryTestSuite() {
       nis: '21221003',
       fullName: 'Mismatched Student',
       className: 'X IPA 1',
-      jurusan: 'IPA',
       status: 'ACTIVE',
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -206,7 +204,6 @@ async function runStudentRepositoryTestSuite() {
         nis: '21221003',
         fullName: 'Candra Wijaya',
         className: 'X IPA 1',
-        jurusan: 'IPA',
         status: 'ACTIVE',
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -218,7 +215,6 @@ async function runStudentRepositoryTestSuite() {
         nis: '21221004',
         fullName: 'Dewi Lestari',
         className: 'X IPA 1',
-        jurusan: 'IPA',
         status: 'ACTIVE',
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -245,7 +241,6 @@ async function runStudentRepositoryTestSuite() {
         nis: '21221005',
         fullName: 'Eka Putri',
         className: 'X IPA 1',
-        jurusan: 'IPA',
         status: 'ACTIVE',
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -258,7 +253,6 @@ async function runStudentRepositoryTestSuite() {
         nis: '21221006',
         fullName: 'Fajar Shodiq',
         className: 'X IPA 1',
-        jurusan: 'IPA',
         status: 'ACTIVE',
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -302,7 +296,6 @@ async function runStudentRepositoryTestSuite() {
       nis: '21221001',
       fullName: 'Ahmad Dahlan HACKED BY B',
       className: 'X IPA 1',
-      jurusan: 'IPA',
       status: 'ACTIVE',
       createdAt: new Date(),
       updatedAt: new Date(),

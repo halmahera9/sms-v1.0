@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import pg from 'pg';
-import { PrismaClient, AbsenceStatus, DocumentProcessingStatus, OCRExtractionStatus, UserRole, UserStatus, VerificationDecision } from '@prisma/client';
+import { PrismaClient, DocumentProcessingStatus, OCRExtractionStatus, UserRole, UserStatus, VerificationDecision } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import {
   getOCRDocumentsAction,
@@ -66,9 +66,6 @@ async function runStudentOCRServerActionsTests() {
       where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID] } },
     });
     await adminPrisma.oCRExtraction.deleteMany({
-      where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID] } },
-    });
-    await adminPrisma.absenceRecord.deleteMany({
       where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID] } },
     });
     await adminPrisma.documentProcessingJob.deleteMany({
@@ -346,8 +343,8 @@ async function runStudentOCRServerActionsTests() {
       include: { ocrExtraction: true },
     });
     assert(
-      item1Db?.absenceRecordId === null,
-      'TEST 7A: Pending ExtractedItem has absenceRecordId === null in PostgreSQL'
+      item1Db?.status === 'PENDING',
+      'TEST 7A: Pending ExtractedItem has status PENDING in PostgreSQL'
     );
     assert(
       item1Db?.ocrExtraction.status === OCRExtractionStatus.COMPLETED,
@@ -419,17 +416,11 @@ async function runStudentOCRServerActionsTests() {
     // Verify DB state for item 1 and absence record
     const item1AfterVerify = await adminPrisma.extractedItem.findUnique({
       where: { id: item1Id },
-      include: { absenceRecord: true },
     });
 
     assert(
-      item1AfterVerify?.absenceRecordId !== null && item1AfterVerify?.absenceRecord !== null,
-      'TEST 10C: ExtractedItem now links to newly created AbsenceRecord in PostgreSQL'
-    );
-    assert(
-      item1AfterVerify?.absenceRecord?.studentId === STUDENT_A1_ID &&
-        item1AfterVerify?.absenceRecord?.status === AbsenceStatus.SAKIT,
-      'TEST 10D: AbsenceRecord uses canonical AbsenceStatus.SAKIT enum'
+      item1AfterVerify?.status === 'VERIFIED',
+      'TEST 10C: ExtractedItem now has status VERIFIED in PostgreSQL'
     );
 
     // Check HumanVerification record with canonical VerificationDecision.PASSED
@@ -590,14 +581,14 @@ async function runStudentOCRServerActionsTests() {
     // TEST 16 — Canonical Enum Mapping Helpers & DISPENSASI Support
     // =========================================================================
     console.log('\n[16] Testing Canonical Enum Mapping Helpers...');
-    assert(mapToDbAbsenceStatus('Sakit') === AbsenceStatus.SAKIT, 'TEST 16A: "Sakit" maps to SAKIT');
-    assert(mapToDbAbsenceStatus('Izin') === AbsenceStatus.IZIN, 'TEST 16B: "Izin" maps to IZIN');
-    assert(mapToDbAbsenceStatus('Alpha') === AbsenceStatus.ALPHA, 'TEST 16C: "Alpha" maps to ALPHA');
-    assert(mapToDbAbsenceStatus('Dispensasi') === AbsenceStatus.DISPENSASI, 'TEST 16D: "Dispensasi" maps to DISPENSASI');
+    assert(mapToDbAbsenceStatus('Sakit') === 'SAKIT', 'TEST 16A: "Sakit" maps to SAKIT');
+    assert(mapToDbAbsenceStatus('Izin') === 'IZIN', 'TEST 16B: "Izin" maps to IZIN');
+    assert(mapToDbAbsenceStatus('Alpha') === 'ALPHA', 'TEST 16C: "Alpha" maps to ALPHA');
+    assert(mapToDbAbsenceStatus('Dispensasi') === 'DISPENSASI', 'TEST 16D: "Dispensasi" maps to DISPENSASI');
 
-    assert(mapToDtoAbsenceStatus(AbsenceStatus.SAKIT) === 'Sakit', 'TEST 16E: SAKIT maps to "Sakit" DTO');
-    assert(mapToDtoAbsenceStatus(AbsenceStatus.IZIN) === 'Izin', 'TEST 16F: IZIN maps to "Izin" DTO');
-    assert(mapToDtoAbsenceStatus(AbsenceStatus.ALPHA) === 'Alpha', 'TEST 16G: ALPHA maps to "Alpha" DTO');
+    assert(mapToDtoAbsenceStatus('SAKIT') === 'Sakit', 'TEST 16E: SAKIT maps to "Sakit" DTO');
+    assert(mapToDtoAbsenceStatus('IZIN') === 'Izin', 'TEST 16F: IZIN maps to "Izin" DTO');
+    assert(mapToDtoAbsenceStatus('ALPHA') === 'Alpha', 'TEST 16G: ALPHA maps to "Alpha" DTO');
 
     // =========================================================================
     // TEST 17 — JSON Serializability
@@ -1029,9 +1020,6 @@ async function runStudentOCRServerActionsTests() {
         where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID] } },
       });
       await adminPrisma.oCRExtraction.deleteMany({
-        where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID] } },
-      });
-      await adminPrisma.absenceRecord.deleteMany({
         where: { tenantId: { in: [TENANT_A_ID, TENANT_B_ID] } },
       });
       await adminPrisma.documentProcessingJob.deleteMany({

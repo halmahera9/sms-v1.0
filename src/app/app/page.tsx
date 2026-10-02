@@ -14,21 +14,45 @@ import {
   ArrowUpRight,
   Database,
 } from 'lucide-react';
+import {
+  getOperationalMetricsAction,
+  getUnifiedWorkQueueAction,
+} from '@/platform/actions/operational';
+import type {
+  OperationalMetrics,
+  WorkQueueItem,
+} from '@/platform/repositories/operational-query';
 
 import { getOperationalMetricsAction } from '@/platform/actions/operational';
 import type { OperationalMetrics } from '@/platform/repositories/operational-query';
 
 export default function DashboardPage() {
   const [metrics, setMetrics] = useState<OperationalMetrics | null>(null);
+  const [workQueue, setWorkQueue] = useState<WorkQueueItem[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let mounted = true;
 
-    getOperationalMetricsAction().then((result) => {
-      if (mounted && result.success && result.data) {
-        setMetrics(result.data);
-      }
-    });
+    Promise.all([
+      getOperationalMetricsAction(),
+      getUnifiedWorkQueueAction(10),
+    ])
+      .then(([metricsRes, queueRes]) => {
+        if (!mounted) return;
+        if (metricsRes.success && metricsRes.data) {
+          setMetrics(metricsRes.data);
+        }
+        if (queueRes.success && queueRes.data) {
+          setWorkQueue(queueRes.data);
+        }
+      })
+      .catch((err) => {
+        console.error('Error fetching dashboard data:', err);
+      })
+      .finally(() => {
+        if (mounted) setLoading(false);
+      });
 
     return () => {
       mounted = false;
@@ -62,7 +86,6 @@ export default function DashboardPage() {
       value: documents,
       description: 'Dokumen yang tersimpan',
       href: '/app/ocr',
-      icon: FileText,
     },
     {
       title: 'Menunggu Verifikasi',
@@ -78,12 +101,25 @@ export default function DashboardPage() {
       title: 'Unggah Dokumen',
       description: 'Tambahkan dokumen baru',
       href: '/app/ocr',
-      icon: Upload,
     },
     {
       title: 'Verifikasi',
       description: 'Tinjau dokumen yang masuk',
       href: '/app/verify',
+      highlight: perluDiperiksa > 0,
+    },
+    {
+      title: 'Menunggu Persetujuan',
+      count: menungguPersetujuan,
+      description: 'Menunggu persetujuan pimpinan',
+      icon: FileCheck2,
+      color: 'text-indigo-700 bg-indigo-50',
+      href: '/app/workflows/approvals',
+    },
+    {
+      title: 'Selesai',
+      count: selesai,
+      description: 'Proses administrasi yang telah selesai',
       icon: CheckCircle2,
     },
     {
@@ -332,6 +368,7 @@ export default function DashboardPage() {
             />
           </div>
         </div>
+      </div>
 
         <div className="rounded-2xl border border-blue-100 bg-[#eef6ff] p-5">
           <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-blue-600">
@@ -347,10 +384,6 @@ export default function DashboardPage() {
             bukan sekadar tempat menyimpan data dan dokumen.
           </p>
         </div>
-      </section>
-    </div>
-  );
-}
 
 function SummaryRow({
   label,

@@ -2,7 +2,8 @@
 
 import React from 'react';
 import {
-  Award,
+  School,
+  BarChart3,
   LayoutDashboard,
   CheckSquare,
   AlertOctagon,
@@ -29,7 +30,7 @@ const items = [
   { id: 'dashboard', label: 'Beranda', icon: LayoutDashboard },
   { id: 'workqueue', label: 'Proses', icon: CheckSquare },
   { id: 'exceptions', label: 'Dokumen', icon: FileText },
-  { id: 'kandidat', label: 'Analitik', icon: Award },
+  { id: 'kandidat', label: 'Analitik', icon: BarChart3 },
   { id: 'students', label: 'Siswa', icon: Users },
 ];
 
@@ -52,7 +53,7 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
             className="flex items-center gap-3 text-left"
           >
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-950 text-white">
-              <Award className="h-5 w-5" />
+              <School className="h-5 w-5" />
             </div>
             <div>
               <div className="text-[17px] font-extrabold tracking-tight text-slate-950">
@@ -141,7 +142,7 @@ export const UnifiedNavigation: React.FC<UnifiedNavigationProps> = ({
             className="flex items-center gap-2.5"
           >
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-950 text-white">
-              <Award className="h-4 w-4" />
+              <School className="h-4 w-4" />
             </div>
             <span className="text-[17px] font-extrabold tracking-tight text-slate-950">
               Banyubiru

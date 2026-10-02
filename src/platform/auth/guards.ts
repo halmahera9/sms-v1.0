@@ -12,17 +12,6 @@ export class AuthorizationError extends Error {
  * Maps every Server Action permission key to authorized UserRole values.
  */
 export const PLATFORM_RBAC_REGISTRY = {
-  // Employee Award domain
-  UPLOAD_DOCUMENT: [UserRole.ADMIN, UserRole.ADMIN_TENANT, UserRole.VERIFIKATOR, UserRole.OPERATOR],
-  VERIFY_DOCUMENT: [UserRole.ADMIN, UserRole.ADMIN_TENANT, UserRole.VERIFIKATOR],
-  APPROVE_GENERATION: [UserRole.ADMIN, UserRole.ADMIN_TENANT, UserRole.VERIFIKATOR],
-  MARK_GENERATED: [UserRole.ADMIN, UserRole.ADMIN_TENANT, UserRole.VERIFIKATOR, UserRole.OPERATOR],
-  IMPORT_PROPOSALS: [UserRole.ADMIN, UserRole.ADMIN_TENANT, UserRole.VERIFIKATOR, UserRole.OPERATOR],
-  SIGN_PROPOSAL: [UserRole.ADMIN, UserRole.ADMIN_TENANT, UserRole.VERIFIKATOR],
-  SEND_PROPOSAL: [UserRole.ADMIN, UserRole.ADMIN_TENANT, UserRole.VERIFIKATOR, UserRole.OPERATOR],
-  ARCHIVE_COMPLETE_PROPOSAL: [UserRole.ADMIN, UserRole.ADMIN_TENANT, UserRole.VERIFIKATOR, UserRole.OPERATOR],
-  READ_PROPOSALS: [UserRole.ADMIN, UserRole.ADMIN_TENANT, UserRole.VERIFIKATOR, UserRole.OPERATOR, UserRole.AUDITOR],
-
   // Student Workflow domain
   STUDENT_WORKFLOW_READ: [UserRole.ADMIN, UserRole.ADMIN_TENANT, UserRole.OPERATOR, UserRole.VERIFIKATOR],
   STUDENT_WORKFLOW_UPLOAD: [UserRole.ADMIN, UserRole.ADMIN_TENANT, UserRole.OPERATOR, UserRole.VERIFIKATOR],
@@ -32,6 +21,14 @@ export const PLATFORM_RBAC_REGISTRY = {
   STUDENT_READ: [UserRole.ADMIN, UserRole.ADMIN_TENANT, UserRole.OPERATOR, UserRole.VERIFIKATOR],
   EMPLOYEE_READ: [UserRole.ADMIN, UserRole.ADMIN_TENANT, UserRole.OPERATOR, UserRole.VERIFIKATOR],
   STUDENT_WRITE: [UserRole.ADMIN, UserRole.ADMIN_TENANT, UserRole.OPERATOR],
+
+  // Letter Template domain (P0-D)
+  LETTER_TEMPLATE_READ: [UserRole.ADMIN, UserRole.ADMIN_TENANT, UserRole.OPERATOR, UserRole.VERIFIKATOR, UserRole.AUDITOR],
+  LETTER_TEMPLATE_WRITE: [UserRole.ADMIN, UserRole.ADMIN_TENANT, UserRole.OPERATOR],
+
+  // School Profile & Letterhead domain (P0-E)
+  SCHOOL_PROFILE_READ: [UserRole.ADMIN, UserRole.ADMIN_TENANT, UserRole.OPERATOR, UserRole.VERIFIKATOR, UserRole.AUDITOR],
+  SCHOOL_PROFILE_WRITE: [UserRole.ADMIN, UserRole.ADMIN_TENANT],
 
   // Student Export domain
   STUDENT_EXPORT: [UserRole.ADMIN, UserRole.ADMIN_TENANT, UserRole.OPERATOR, UserRole.VERIFIKATOR, UserRole.AUDITOR],
@@ -52,12 +49,18 @@ export const PLATFORM_RBAC_REGISTRY = {
   PUBLIC_INVITATION_CREATE: [UserRole.ADMIN, UserRole.ADMIN_TENANT, UserRole.OPERATOR, UserRole.VERIFIKATOR],
   PUBLIC_INVITATION_REVOKE: [UserRole.ADMIN, UserRole.ADMIN_TENANT, UserRole.OPERATOR, UserRole.VERIFIKATOR],
   PUBLIC_INVITATION_READ: [UserRole.ADMIN, UserRole.ADMIN_TENANT, UserRole.OPERATOR, UserRole.VERIFIKATOR, UserRole.AUDITOR],
+
+  // Document Intake & Repository domain (P0-G)
+  DOCUMENT_READ: [UserRole.ADMIN, UserRole.ADMIN_TENANT, UserRole.OPERATOR, UserRole.VERIFIKATOR, UserRole.AUDITOR],
+  DOCUMENT_UPLOAD: [UserRole.ADMIN, UserRole.ADMIN_TENANT, UserRole.OPERATOR, UserRole.VERIFIKATOR],
+  DOCUMENT_WRITE: [UserRole.ADMIN, UserRole.ADMIN_TENANT, UserRole.OPERATOR],
+
+  // Document Reading & OCR domain (P0-H)
+  OCR_READ: [UserRole.ADMIN, UserRole.ADMIN_TENANT, UserRole.OPERATOR, UserRole.VERIFIKATOR, UserRole.AUDITOR],
+  OCR_EXECUTE: [UserRole.ADMIN, UserRole.ADMIN_TENANT, UserRole.OPERATOR, UserRole.VERIFIKATOR],
 } as const satisfies Record<string, readonly UserRole[]>;
 
 export type ActionPermission = keyof typeof PLATFORM_RBAC_REGISTRY;
-
-// Backward-compatible alias for existing imports
-export const AWARD_PROPOSAL_RBAC_POLICY = PLATFORM_RBAC_REGISTRY;
 
 export const STUDENT_RBAC_POLICY = {
   READ: PLATFORM_RBAC_REGISTRY.STUDENT_READ,

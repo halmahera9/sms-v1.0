@@ -80,6 +80,10 @@ Validation
 
 Before committing:
 
+# Generate Prisma client
+npx prisma generate
+
+# Diff validation sebelum commit
 git diff --check
 npx tsc --noEmit
 npm run build

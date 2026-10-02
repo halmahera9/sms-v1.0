@@ -2,18 +2,16 @@
 
 @layer base {
   :root {
-    --background: #070c18;
-    --foreground: #f1f5f9;
-    --blue-deep: #0f172a;
-    --cyan: #06b6d4;
-    --accent: #38bdf8;
-    --accent-foreground: #070c18;
-    --border: rgba(255, 255, 255, 0.12);
-    --muted-foreground: #94a3b8;
-    --ink: #030712;
-    --card: #0f172a;
-    --card-foreground: #f8fafc;
-    --secondary: rgba(255, 255, 255, 0.06);
+    --background: #f8fafc;
+    --foreground: #0f172a;
+    --navy-dark: #0a1b3a;
+    --navy: #0f2b5c;
+    --blue-primary: #1d4ed8;
+    --blue-light: #eff6ff;
+    --border: #e2e8f0;
+    --card: #ffffff;
+    --card-foreground: #0f172a;
+    --muted: #64748b;
   }
 
   body {
@@ -24,27 +22,19 @@
   }
 }
 
-.label-mono {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  font-size: 0.75rem;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--accent);
+.panel-card {
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 1rem;
+  box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.05), 0 1px 2px -1px rgba(15, 23, 42, 0.05);
 }
 
-.panel {
-  background-color: rgba(15, 23, 42, 0.7);
-  border: 1px solid var(--border);
-  backdrop-filter: blur(12px);
+.panel-card-hover {
+  transition: all 0.2s ease-in-out;
 }
-
-.panel-solid {
-  background-color: #0f172a;
-  border: 1px solid var(--border);
-}
-
-.hairline {
-  border-top: 1px solid var(--border);
+.panel-card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 15px -3px rgba(15, 23, 42, 0.08), 0 4px 6px -4px rgba(15, 23, 42, 0.05);
 }
 
 /* Custom scrollbars */
@@ -53,14 +43,14 @@
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #070c18;
+  background: #f1f5f9;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
+  background: #cbd5e1;
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.4);
+  background: #94a3b8;
 }
 
 

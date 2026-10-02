@@ -6,7 +6,7 @@ import {
   AuthorizationError,
   assertAuthorizedAction,
 } from '@/platform/auth';
-import { AbsenceStatus, DocumentStatus, UserRole } from '@prisma/client';
+import { DocumentStatus, UserRole } from '@prisma/client';
 import { PostgresAuditEventRepository } from '@/platform/repositories/audit-event';
 import type { ActionErrorCode, ActionError, ActionResponse } from '@/platform/types';
 
@@ -37,8 +37,6 @@ export interface StudentAbsenceExportResultDTO {
   totalCount: number;
   availableClasses: string[];
 }
-
-import { mapAbsenceStatusToDto } from '@/domains/student/mappers';
 
 const auditRepo = new PostgresAuditEventRepository();
 
@@ -97,15 +95,8 @@ function handleActionError<T>(err: unknown): ActionResponse<T> {
 
 /**
  * Server Action: Get Student Absence Export Data
- *
- * CANONICAL VERIFIED INVARIANT:
- * An AbsenceRecord is the authoritative Single Source of Truth for verified student absence
- * (as established in Aggregate Boundary C). An AbsenceRecord is legitimate for export if:
- * 1. It is directly logged by an authenticated operator/verifikator (`documentId: null`, e.g. manual absence roll call).
- * 2. OR it was promoted through Human-in-the-Loop OCR verification referencing an explicitly VERIFIED document (`document.status === DocumentStatus.VERIFIED`).
- *
- * Records referencing unverified/rejected documents (`status != DocumentStatus.VERIFIED`) and unverified OCR items
- * (`ExtractedItem` with `absenceRecordId: null`) are strictly excluded from the exported dataset.
+ * Legacy Student Absence Export Data.
+ * Returns empty dataset as AbsenceRecord domain has been removed in Banyubiru Document Intelligence.
  */
 export async function getStudentAbsenceExportDataAction(
   filter?: GetStudentAbsenceExportFilterDTO
@@ -118,61 +109,8 @@ export async function getStudentAbsenceExportDataAction(
       const selectedClass = filter?.selectedClass?.trim() || 'Semua';
       const tenantId = context.tenantId;
 
-      // Build Prisma query condition
-      // Enforce verified-only invariant:
-      // An exportable AbsenceRecord must either be directly recorded (documentId: null)
-      // or reference an explicitly VERIFIED document (document.status === DocumentStatus.VERIFIED).
-      const whereCondition: Record<string, unknown> = {
-        tenantId,
-        OR: [
-          { documentId: null },
-          { document: { status: DocumentStatus.VERIFIED } },
-        ],
-      };
-
-      if (selectedClass !== 'Semua') {
-        whereCondition.student = {
-          className: selectedClass,
-        };
-      }
-
-      if (filter?.startDate || filter?.endDate) {
-        const dateFilter: Record<string, Date> = {};
-        if (filter.startDate) {
-          const start = new Date(filter.startDate);
-          if (!isNaN(start.getTime())) {
-            dateFilter.gte = start;
-          }
-        }
-        if (filter.endDate) {
-          let end: Date;
-          if (filter.endDate.length === 10) {
-            // End of requested day inclusive for date/timestamp bounds
-            end = new Date(`${filter.endDate}T23:59:59.999Z`);
-          } else {
-            end = new Date(filter.endDate);
-          }
-          if (!isNaN(end.getTime())) {
-            dateFilter.lte = end;
-          }
-        }
-        if (Object.keys(dateFilter).length > 0) {
-          whereCondition.absenceDate = dateFilter;
-        }
-      }
-
-      // Query absence_records (authoritative verified source)
-      const records = await tx.absenceRecord.findMany({
-        where: whereCondition,
-        include: {
-          student: true,
-          document: true,
-        },
-        orderBy: [
-          { absenceDate: 'desc' },
-          { createdAt: 'desc' },
-        ],
-      });
+      // AbsenceRecord domain is removed; return empty export dataset
+      const rows: StudentAbsenceExportRowDTO[] = [];
 
       // Get available classes for tenant
       const classRecords = await tx.student.findMany({
@@ -182,25 +120,6 @@ export async function getStudentAbsenceExportDataAction(
         orderBy: { className: 'asc' },
       });
       const availableClasses = ['Semua', ...classRecords.map((c) => c.className).filter(Boolean)];
-
-      const rows: StudentAbsenceExportRowDTO[] = records.map((rec, index) => {
-        const dateStr = rec.absenceDate instanceof Date
-          ? rec.absenceDate.toISOString().slice(0, 10)
-          : String(rec.absenceDate).slice(0, 10);
-
-        return {
-          no: index + 1,
-          date: dateStr,
-          nisn: rec.student?.nisn || '—',
-          nis: rec.student?.nis || '—',
-          studentName: rec.student?.fullName || '—',
-          className: rec.student?.className || '—',
-          status: mapAbsenceStatusToDto(rec.status),
-          notes: rec.reason || '—',
-          documentReference: rec.document?.title || 'Pencatatan Langsung (Tanpa Dokumen)',
-          verificationStatus: 'Terverifikasi',
-        };
-      });
 
       const dateSuffix = new Date().toISOString().slice(0, 10);
       const filename = `Rekap_SMS_Ketidakhadiran_${dateSuffix}.xlsx`;

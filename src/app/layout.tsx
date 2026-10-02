@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "BANYUBIRU - Operational Intelligence Platform",
-  description: "Platform Inteligensi Administrasi Terpadu untuk Pengelolaan Pegawai dan Siswa.",
+  title: "Banyubiru — School Document Intelligence Platform",
+  description: "Platform Document Intelligence untuk administrasi sekolah. Membaca, memahami, mencocokkan, dan memvalidasi dokumen administrasi sekolah.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -26,7 +26,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     >
       <body
         suppressHydrationWarning
-        className="min-h-full flex flex-col bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans"
+        className="min-h-full flex flex-col bg-slate-50 text-slate-900 font-sans"
       >
         {children}
       </body>

@@ -1,393 +1,493 @@
-'use client';
-
-import { useState } from 'react';
 import Link from 'next/link';
-import { 
-  FileX, 
-  Keyboard, 
-  AlertTriangle, 
-  Clock, 
-  Check, 
-  ArrowUpRight, 
-  Upload, 
-  ScanText, 
-  UserCheck, 
-  CheckSquare, 
-  FileSpreadsheet,
-  Database,
-  Shield,
-  Building2,
-  Send
+import {
+  FileText,
+  ScanText,
+  Search,
+  CheckCircle2,
+  Workflow,
+  FileCheck,
+  Building,
+  GraduationCap,
+  Users,
+  ShieldCheck,
+  ArrowRight,
+  Sparkles,
+  Inbox,
+  Clock,
+  Layers,
 } from 'lucide-react';
 
 export default function Sections() {
-  const [formSubmitted, setFormSubmitted] = useState(false);
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setFormSubmitted(true);
-  };
+  const steps = [
+    {
+      num: '01',
+      title: 'Dokumen Masuk',
+      desc: 'Dokumen dapat berasal dari unggahan file, hasil pemindaian, kamera, formulir pengumpulan dokumen, dokumen kiriman instansi, atau sumber digital lainnya.',
+      icon: Inbox,
+    },
+    {
+      num: '02',
+      title: 'Dokumen Dibaca',
+      desc: 'Sistem membaca teks dan informasi dari dokumen. OCR digunakan untuk membantu mengenali teks dari PDF, hasil pemindaian scanner, foto, dan gambar dokumen.',
+      icon: ScanText,
+    },
+    {
+      num: '03',
+      title: 'Isi Dokumen Dipahami',
+      desc: 'Sistem mengenali jenis dokumen, nama, nomor identitas, tanggal, tujuan, daftar penerima, intisari penting, dan informasi kontekstual lainnya.',
+      icon: Layers,
+    },
+    {
+      num: '04',
+      title: 'Data Dicocokkan',
+      desc: 'Informasi dokumen dicocokkan dengan database sekolah: data Siswa (nama, NISN, NIK, kelas), Guru (nama, NIP, NIK, jabatan), maupun Karyawan.',
+      icon: Users,
+    },
+    {
+      num: '05',
+      title: 'Data Divalidasi',
+      desc: 'Hasil pencocokan diperiksa berdasarkan aturan yang berlaku. Jika data tidak jelas, berbeda, atau tidak ditemukan, sistem menandainya sebagai "Perlu Diperiksa".',
+      icon: CheckCircle2,
+    },
+    {
+      num: '06',
+      title: 'Proses Administrasi',
+      desc: 'Data yang cocok digunakan untuk menjalankan pekerjaan administrasi, misalnya mengidentifikasi kriteria guru yang ditugaskan dalam surat dinas.',
+      icon: Workflow,
+    },
+    {
+      num: '07',
+      title: 'Dokumen Dihasilkan',
+      desc: 'Berdasarkan data dan template yang tersedia, sistem membantu menghasilkan draft dokumen seperti Surat Tugas, Surat Keterangan, atau Surat Pengantar.',
+      icon: FileCheck,
+    },
+  ];
 
   return (
-    <>
-      {/* MASALAH SECTION */}
-      <section id="masalah" className="border-t border-white/10 bg-slate-950/40 py-20 md:py-32">
-        <div className="mx-auto grid max-w-[110rem] gap-12 px-5 md:grid-cols-[1fr_1.2fr] md:px-10">
-          <div>
-            <p className="label-mono mb-4">Masalah Administrasi Sekolah</p>
-            <h2 className="text-[clamp(2rem,4vw,3.5rem)] font-bold text-white leading-tight">
-              Berjam-jam hanya untuk mengetik ulang dokumen manual.
-            </h2>
-            <p className="mt-4 text-slate-400 leading-relaxed max-w-md">
-              Proses input daftar hadir dan formulir fisik sekolah sering menjadi beban tata usaha, menyita waktu belajar dan rentan terjadi kesalahan penulisan.
-            </p>
-          </div>
-
-          <div className="grid gap-px bg-white/10 rounded-xl overflow-hidden sm:grid-cols-2">
-            <div className="bg-slate-900/90 p-7 hover:bg-slate-900 transition-colors">
-              <div className="flex items-center justify-between">
-                <span className="font-mono text-xs text-sky-400">01</span>
-                <FileX className="h-5 w-5 text-rose-400" />
-              </div>
-              <h3 className="mt-4 text-lg font-semibold text-white">Dokumen Tercecer</h3>
-              <p className="mt-2 text-sm text-slate-400 leading-relaxed">
-                Foto, scan, dan kertas menumpuk di meja tanpa arsip digital terstruktur.
+    <div className="space-y-24 py-16 sm:py-24">
+      {/* ------------------------------------------------------------- */}
+      {/* 1. APA ITU DOCUMENT INTELLIGENCE?                             */}
+      {/* ------------------------------------------------------------- */}
+      <section id="document-intelligence" className="scroll-mt-20">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="rounded-3xl border border-slate-200 bg-white p-8 sm:p-12 lg:p-16 shadow-sm">
+            <div className="max-w-3xl">
+              <span className="text-xs font-bold uppercase tracking-wider text-blue-700">
+                Konsep Inti Produk
+              </span>
+              <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-900 sm:text-4xl">
+                Apa itu Document Intelligence?
+              </h2>
+              <p className="mt-6 text-base sm:text-lg text-slate-600 leading-relaxed">
+                Sekolah menerima banyak dokumen setiap hari. Ada dokumen siswa, guru, karyawan,
+                surat dari dinas, surat undangan, surat edaran, sertifikat, dan berbagai dokumen
+                administrasi lainnya.
               </p>
-            </div>
-
-            <div className="bg-slate-900/90 p-7 hover:bg-slate-900 transition-colors">
-              <div className="flex items-center justify-between">
-                <span className="font-mono text-xs text-sky-400">02</span>
-                <Keyboard className="h-5 w-5 text-amber-400" />
-              </div>
-              <h3 className="mt-4 text-lg font-semibold text-white">Input Ulang Manual</h3>
-              <p className="mt-2 text-sm text-slate-400 leading-relaxed">
-                Operator mengetik data yang sama berulang kali — sangat menyita waktu.
+              <p className="mt-4 text-base sm:text-lg text-slate-600 leading-relaxed">
+                Masalahnya, informasi di dalam dokumen tersebut sering masih harus dibaca dan
+                dipindahkan secara manual satu per satu ke lembar kerja atau sistem lain.
               </p>
-            </div>
-
-            <div className="bg-slate-900/90 p-7 hover:bg-slate-900 transition-colors">
-              <div className="flex items-center justify-between">
-                <span className="font-mono text-xs text-sky-400">03</span>
-                <AlertTriangle className="h-5 w-5 text-orange-400" />
-              </div>
-              <h3 className="mt-4 text-lg font-semibold text-white">Nama Tak Konsisten</h3>
-              <p className="mt-2 text-sm text-slate-400 leading-relaxed">
-                Ejaan nama siswa di kertas sering beda dengan master data Dapodik.
+              <p className="mt-4 text-base sm:text-lg text-slate-600 leading-relaxed">
+                Banyubiru membantu membaca dokumen tersebut, memahami informasi penting di
+                dalamnya, lalu mencocokkannya dengan data yang sudah dimiliki sekolah.
               </p>
-            </div>
 
-            <div className="bg-slate-900/90 p-7 hover:bg-slate-900 transition-colors">
-              <div className="flex items-center justify-between">
-                <span className="font-mono text-xs text-sky-400">04</span>
-                <Clock className="h-5 w-5 text-rose-400" />
+              <div className="mt-8 rounded-2xl bg-blue-50/70 border border-blue-200/80 p-5 sm:p-6">
+                <p className="text-sm sm:text-base font-semibold text-[#0f2b5c] leading-relaxed">
+                  &ldquo;Dengan Document Intelligence, dokumen tidak hanya disimpan sebagai arsip
+                  file. Informasi di dalamnya dapat digunakan secara langsung untuk menjalankan
+                  pekerjaan administrasi sekolah.&rdquo;
+                </p>
               </div>
-              <h3 className="mt-4 text-lg font-semibold text-white">Rekap Tertunda</h3>
-              <p className="mt-2 text-sm text-slate-400 leading-relaxed">
-                Laporan bulanan ke dinas terlambat karena rekap Excel manual.
-              </p>
             </div>
           </div>
         </div>
       </section>
 
-      {/* SOLUSI SECTION */}
-      <section id="solusi" className="mx-auto max-w-[110rem] px-5 py-20 md:px-10 md:py-32">
-        <div className="grid gap-10 md:grid-cols-[1.2fr_1fr] items-center">
-          <div>
-            <p className="label-mono mb-4">Solusi Cerdas</p>
-            <h2 className="text-[clamp(2rem,4.5vw,4rem)] font-bold text-white leading-tight">
-              Jembatan antara dokumen kertas dan database sekolah.
+      {/* ------------------------------------------------------------- */}
+      {/* 2. CARA KERJA BANYUBIRU (7 TAHAP)                              */}
+      {/* ------------------------------------------------------------- */}
+      <section id="cara-kerja" className="scroll-mt-20">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="text-center max-w-3xl mx-auto mb-16">
+            <span className="text-xs font-bold uppercase tracking-wider text-blue-700">
+              7 Tahap Kerja
+            </span>
+            <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-900 sm:text-4xl">
+              Cara Kerja Banyubiru
             </h2>
-            <p className="mt-6 text-slate-300 leading-relaxed">
-              SMS bukan sekadar OCR biasa. Hasil bacaan dokumen otomatis dicocokkan (*fuzzy matching*) dengan Master Data Siswa Anda, lalu diverifikasi oleh operator sehingga data 100% akurat.
+            <p className="mt-4 text-sm sm:text-base text-slate-600">
+              Alur kerja terstruktur yang menggabungkan pembacaan otomatis dokumen dengan
+              kendali penuh pada administrator sekolah.
             </p>
           </div>
 
-          <div className="panel p-8 rounded-xl">
-            <h4 className="font-semibold text-white text-base">Alur Pengolahan Data SMS</h4>
-            <div className="mt-6 space-y-3 font-mono text-xs">
-              <div className="flex items-center gap-2 text-sky-400 bg-sky-500/10 p-2.5 rounded border border-sky-500/20">
-                <span>Dokumen Kertas / Foto</span>
-                <ArrowUpRight className="h-3.5 w-3.5 ml-auto" />
-              </div>
-              <div className="flex items-center gap-2 text-cyan-400 bg-cyan-500/10 p-2.5 rounded border border-cyan-500/20">
-                <span>OCR &amp; Ekstraksi Teks</span>
-                <ArrowUpRight className="h-3.5 w-3.5 ml-auto" />
-              </div>
-              <div className="flex items-center gap-2 text-indigo-400 bg-indigo-500/10 p-2.5 rounded border border-indigo-500/20">
-                <span>Pencocokan Siswa (Fuzzy Match)</span>
-                <ArrowUpRight className="h-3.5 w-3.5 ml-auto" />
-              </div>
-              <div className="flex items-center gap-2 text-emerald-400 bg-emerald-500/10 p-2.5 rounded border border-emerald-500/20">
-                <span>Verifikasi Operator (Human-in-the-Loop)</span>
-                <Check className="h-3.5 w-3.5 ml-auto text-emerald-400" />
-              </div>
-              <div className="flex items-center gap-2 text-white bg-slate-800 p-2.5 rounded border border-white/20">
-                <span>Ekspor Excel (.xlsx) &amp; PDF</span>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {steps.map((s, idx) => {
+              const Icon = s.icon;
+              return (
+                <div
+                  key={idx}
+                  className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm flex flex-col justify-between hover:border-blue-300 hover:shadow-md transition-all"
+                >
+                  <div>
+                    <div className="flex items-center justify-between mb-4">
+                      <span className="text-xs font-black tracking-wider text-blue-700 bg-blue-50 border border-blue-100 px-2.5 py-1 rounded-md">
+                        TAHAP {s.num}
+                      </span>
+                      <div className="h-8 w-8 rounded-lg bg-slate-100 flex items-center justify-center text-[#0f2b5c]">
+                        <Icon className="h-4 w-4" />
+                      </div>
+                    </div>
+                    <h3 className="text-base font-bold text-slate-900">
+                      {s.title}
+                    </h3>
+                    <p className="mt-2 text-xs sm:text-sm text-slate-600 leading-relaxed">
+                      {s.desc}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* Invariant Note Card */}
+            <div className="rounded-2xl border border-slate-200 bg-slate-900 text-white p-6 flex flex-col justify-between">
+              <div>
+                <div className="h-8 w-8 rounded-lg bg-white/10 flex items-center justify-center text-blue-300 mb-4">
+                  <ShieldCheck className="h-4 w-4" />
+                </div>
+                <h3 className="text-base font-bold text-white">
+                  Kendali Penuh Verifikasi
+                </h3>
+                <p className="mt-2 text-xs sm:text-sm text-slate-300 leading-relaxed">
+                  Banyubiru tidak mengambil keputusan mutlak secara sepihak. Setiap data yang tidak
+                  pasti ditandai sebagai <strong>Perlu Diperiksa</strong> agar administrator atau
+                  operator sekolah tetap memegang kendali validasi akhir.
+                </p>
               </div>
             </div>
           </div>
         </div>
+      </section>
 
-        <div className="mt-14 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="panel p-6 rounded-lg">
-            <h3 className="text-base font-semibold text-white">Hemat Waktu</h3>
-            <p className="mt-2 text-sm text-slate-400">Kurangi proses input manual hingga 80% per hari.</p>
-          </div>
-          <div className="panel p-6 rounded-lg">
-            <h3 className="text-base font-semibold text-white">Tingkat Akurasi</h3>
-            <p className="mt-2 text-sm text-slate-400">Pencocokan cerdas menekan salah penulisan NISN/Nama.</p>
-          </div>
-          <div className="panel p-6 rounded-lg">
-            <h3 className="text-base font-semibold text-white">Terverifikasi</h3>
-            <p className="mt-2 text-sm text-slate-400">Manusia memegang kendali akhir sebelum data tersimpan.</p>
-          </div>
-          <div className="panel p-6 rounded-lg">
-            <h3 className="text-base font-semibold text-white">Siap Pakai</h3>
-            <p className="mt-2 text-sm text-slate-400">Ekspor langsung format Excel Dapodik &amp; Laporan PDF.</p>
+      {/* ------------------------------------------------------------- */}
+      {/* 3. CONTOH KASUS UTAMA                                         */}
+      {/* ------------------------------------------------------------- */}
+      <section id="contoh-kasus" className="scroll-mt-20">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="rounded-3xl border border-blue-100 bg-gradient-to-br from-white to-blue-50/40 p-8 sm:p-12 lg:p-14 shadow-sm">
+            <div className="max-w-3xl">
+              <span className="text-xs font-bold uppercase tracking-wider text-blue-700">
+                Studi Kasus Administrasi
+              </span>
+              <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">
+                Surat Dinas &rarr; Data Sekolah &rarr; Surat Tugas
+              </h2>
+              <p className="mt-3 text-sm sm:text-base text-slate-600">
+                Bagaimana Banyubiru mengubah surat edaran kegiatan dinas menjadi dokumen tugas resmi
+                sekolah tanpa pencarian manual satu per satu.
+              </p>
+            </div>
+
+            <div className="mt-10 grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+              {/* Skenario Deskripsi */}
+              <div className="rounded-2xl bg-white border border-slate-200 p-6 space-y-4">
+                <div className="flex items-center gap-2 text-xs font-bold text-[#0f2b5c] uppercase tracking-wide">
+                  <Building className="h-4 w-4 text-blue-700" />
+                  <span>Skenario Masuk</span>
+                </div>
+                <p className="text-xs sm:text-sm text-slate-700 leading-relaxed">
+                  Sekolah menerima surat edaran dari Dinas Pendidikan yang ditujukan kepada sekolah.
+                  Isi surat meminta keikutsertaan guru matematika dan staf kurikulum dalam bimbingan teknis
+                  penilaian terpadu.
+                </p>
+                <div className="pt-3 border-t border-slate-100 text-xs text-slate-500">
+                  <span className="font-semibold text-slate-800">Alur yang biasanya terjadi:</span> Operator
+                  harus membaca fisik surat, mencari nama guru yang sesuai di lemari arsip/spreadsheet,
+                  menyalin NIP dan pangkat, mengetik ulang template surat tugas, lalu meminta tanda tangan.
+                </div>
+              </div>
+
+              {/* Langkah Banyubiru */}
+              <div className="rounded-2xl bg-white border border-slate-200 p-6 space-y-3">
+                <div className="flex items-center gap-2 text-xs font-bold text-blue-700 uppercase tracking-wide">
+                  <Sparkles className="h-4 w-4" />
+                  <span>Dengan Banyubiru</span>
+                </div>
+                <ol className="space-y-2 text-xs sm:text-sm text-slate-700 list-decimal list-inside">
+                  <li>Sistem membaca isi dan perihal surat edaran.</li>
+                  <li>Mengenali kriteria jabatan dan kegiatan yang disebutkan.</li>
+                  <li>Mencocokkannya dengan database guru dan staf sekolah.</li>
+                  <li>Menemukan pegawai yang memenuhi kriteria secara otomatis.</li>
+                  <li>Mengambil data NIP, NIK, dan jabatan resmi yang relevan.</li>
+                  <li>Mempersiapkan proses administrasi tindak lanjut.</li>
+                  <li>Menerapkan format template Surat Tugas resmi sekolah.</li>
+                  <li>Menghasilkan draft Surat Tugas siap periksa bagi kepala sekolah.</li>
+                </ol>
+              </div>
+            </div>
+
+            <div className="mt-8 rounded-xl bg-blue-100/60 p-4 border border-blue-200 flex items-center justify-between flex-wrap gap-3">
+              <p className="text-xs sm:text-sm font-medium text-slate-800">
+                <strong>Prinsip:</strong> Satu dokumen masuk &rarr; banyak informasi ditemukan &rarr; data sekolah digunakan &rarr; pekerjaan administrasi berikutnya disiapkan.
+              </p>
+              <span className="text-[11px] font-semibold text-blue-800 bg-white px-3 py-1 rounded-md border border-blue-200">
+                Keputusan tetap pada pengguna yang berwenang
+              </span>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* CARA KERJA SECTION */}
-      <section id="cara-kerja" className="border-y border-white/10 bg-slate-950/60 py-20 md:py-32">
-        <div className="mx-auto max-w-[110rem] px-5 md:px-10">
-          <p className="label-mono mb-4">Cara Kerja Mudah</p>
-          <h2 className="text-[clamp(2rem,4vw,3.5rem)] font-bold text-white max-w-xl">
-            Lima langkah sederhana, dari kertas menjadi rekap digital.
+      {/* ------------------------------------------------------------- */}
+      {/* 4. DOKUMEN YANG DAPAT DIPROSES                                */}
+      {/* ------------------------------------------------------------- */}
+      <section id="dokumen" className="scroll-mt-20">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="text-center max-w-3xl mx-auto mb-16">
+            <span className="text-xs font-bold uppercase tracking-wider text-blue-700">
+              Cakupan Luas
+            </span>
+            <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-900 sm:text-4xl">
+              Dokumen yang Dapat Diproses
+            </h2>
+            <p className="mt-4 text-sm sm:text-base text-slate-600">
+              Banyubiru dirancang untuk menangani seluruh dokumen administratif sekolah dalam jumlah besar
+              secara konsisten dan terhubung ke database.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Siswa */}
+            <div className="rounded-2xl border border-slate-200 bg-white p-7 shadow-sm">
+              <div className="h-10 w-10 rounded-xl bg-blue-50 text-[#0f2b5c] border border-blue-100 flex items-center justify-center mb-5">
+                <GraduationCap className="h-5 w-5" />
+              </div>
+              <h3 className="text-lg font-bold text-slate-900">
+                Dokumen Siswa
+              </h3>
+              <p className="mt-2 text-xs text-slate-500">
+                Dokumen kependudukan dan pencatatan akademik siswa untuk identitas dan pelaporan.
+              </p>
+              <ul className="mt-5 space-y-2.5 text-xs sm:text-sm text-slate-700">
+                <li className="flex items-center gap-2">
+                  <span className="h-1.5 w-1.5 rounded-full bg-blue-600" />
+                  Kartu Keluarga (KK)
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="h-1.5 w-1.5 rounded-full bg-blue-600" />
+                  Kartu Tanda Penduduk (KTP)
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="h-1.5 w-1.5 rounded-full bg-blue-600" />
+                  Akta Kelahiran
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="h-1.5 w-1.5 rounded-full bg-blue-600" />
+                  Ijazah &amp; Surat Keterangan Lulus
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="h-1.5 w-1.5 rounded-full bg-blue-600" />
+                  Buku Rapor Siswa
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="h-1.5 w-1.5 rounded-full bg-blue-600" />
+                  Sertifikat Prestasi &amp; Lomba
+                </li>
+              </ul>
+            </div>
+
+            {/* Guru & Karyawan */}
+            <div className="rounded-2xl border border-slate-200 bg-white p-7 shadow-sm">
+              <div className="h-10 w-10 rounded-xl bg-blue-50 text-[#0f2b5c] border border-blue-100 flex items-center justify-center mb-5">
+                <Users className="h-5 w-5" />
+              </div>
+              <h3 className="text-lg font-bold text-slate-900">
+                Dokumen Guru &amp; Karyawan
+              </h3>
+              <p className="mt-2 text-xs text-slate-500">
+                Arsip kepegawaian pendidik dan tenaga kependidikan untuk penugasan dan kualifikasi.
+              </p>
+              <ul className="mt-5 space-y-2.5 text-xs sm:text-sm text-slate-700">
+                <li className="flex items-center gap-2">
+                  <span className="h-1.5 w-1.5 rounded-full bg-blue-600" />
+                  Surat Keputusan (SK)
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="h-1.5 w-1.5 rounded-full bg-blue-600" />
+                  Surat Tugas
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="h-1.5 w-1.5 rounded-full bg-blue-600" />
+                  Sertifikat Pendidik &amp; Pelatihan
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="h-1.5 w-1.5 rounded-full bg-blue-600" />
+                  Surat Keterangan Mengajar
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="h-1.5 w-1.5 rounded-full bg-blue-600" />
+                  Dokumen Kepegawaian Lainnya
+                </li>
+              </ul>
+            </div>
+
+            {/* Administrasi Sekolah */}
+            <div className="rounded-2xl border border-slate-200 bg-white p-7 shadow-sm">
+              <div className="h-10 w-10 rounded-xl bg-blue-50 text-[#0f2b5c] border border-blue-100 flex items-center justify-center mb-5">
+                <Building className="h-5 w-5" />
+              </div>
+              <h3 className="text-lg font-bold text-slate-900">
+                Administrasi Sekolah
+              </h3>
+              <p className="mt-2 text-xs text-slate-500">
+                Surat kedinasan keluar dan masuk antar instansi, dinas, orang tua, dan mitra.
+              </p>
+              <ul className="mt-5 space-y-2.5 text-xs sm:text-sm text-slate-700">
+                <li className="flex items-center gap-2">
+                  <span className="h-1.5 w-1.5 rounded-full bg-blue-600" />
+                  Surat Edaran Dinas
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="h-1.5 w-1.5 rounded-full bg-blue-600" />
+                  Surat Undangan Kegiatan
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="h-1.5 w-1.5 rounded-full bg-blue-600" />
+                  Surat Permohonan
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="h-1.5 w-1.5 rounded-full bg-blue-600" />
+                  Surat Pernyataan
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="h-1.5 w-1.5 rounded-full bg-blue-600" />
+                  Surat Pengantar
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="h-1.5 w-1.5 rounded-full bg-blue-600" />
+                  Dokumen Pendukung Lainnya
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ------------------------------------------------------------- */}
+      {/* 5. MANUAL VS BANYUBIRU                                        */}
+      {/* ------------------------------------------------------------- */}
+      <section id="perbandingan" className="scroll-mt-20">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="text-center max-w-3xl mx-auto mb-16">
+            <span className="text-xs font-bold uppercase tracking-wider text-blue-700">
+              Perbandingan Alur
+            </span>
+            <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-900 sm:text-4xl">
+              Manual vs Banyubiru
+            </h2>
+            <p className="mt-4 text-sm sm:text-base text-slate-600">
+              Perubahan alur kerja operasional sekolah dari proses fisik berulang menuju alur kerja cerdas.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {/* Cara Manual */}
+            <div className="rounded-2xl border border-slate-200 bg-white p-7 shadow-sm space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <h3 className="text-base font-bold text-slate-700">
+                  Cara Manual
+                </h3>
+                <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2.5 py-1 rounded">
+                  Tradisional
+                </span>
+              </div>
+              <div className="space-y-3 pt-2">
+                {[
+                  'Surat masuk diterima fisik',
+                  'Dibaca satu per satu oleh staf',
+                  'Mencari nama orang yang disebutkan',
+                  'Membuka buku atau spreadsheet database',
+                  'Mencari data pegawai/siswa secara manual',
+                  'Mencocokkan identitas data',
+                  'Menyalin data ke dokumen baru',
+                  'Mengetik ulang surat keluar',
+                  'Memeriksa ketepatan ketik',
+                  'Menyimpan salinan fisik ke lemari arsip',
+                ].map((item, idx) => (
+                  <div key={idx} className="flex items-start gap-3 text-xs sm:text-sm text-slate-600">
+                    <span className="text-[11px] font-bold text-slate-400 mt-0.5 w-4">
+                      {idx + 1}.
+                    </span>
+                    <span>{item}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Dengan Banyubiru */}
+            <div className="rounded-2xl border-2 border-blue-500/80 bg-blue-50/20 p-7 shadow-sm space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-blue-100">
+                <h3 className="text-base font-bold text-[#0f2b5c]">
+                  Dengan Banyubiru
+                </h3>
+                <span className="text-xs font-bold text-blue-700 bg-blue-100/80 px-2.5 py-1 rounded">
+                  Document Intelligence
+                </span>
+              </div>
+              <div className="space-y-3 pt-2">
+                {[
+                  'Dokumen masuk (unggah scan, foto, atau kiriman digital)',
+                  'Dibaca secara otomatis menggunakan OCR',
+                  'Informasi penting dan konteks dokumen dikenali',
+                  'Data sekolah dicocokkan otomatis dengan database',
+                  'Hasil pencocokan diperiksa oleh operator sekolah',
+                  'Template surat resmi sekolah langsung diterapkan',
+                  'Draft dokumen disiapkan siap disetujui pimpinan',
+                ].map((item, idx) => (
+                  <div key={idx} className="flex items-start gap-3 text-xs sm:text-sm text-slate-800 font-medium">
+                    <CheckCircle2 className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
+                    <span>{item}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ------------------------------------------------------------- */}
+      {/* 6. CALL TO ACTION & FOOTER                                    */}
+      {/* ------------------------------------------------------------- */}
+      <section className="border-t border-slate-200 bg-white pt-16 pb-12">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 text-center space-y-6">
+          <h2 className="text-2xl sm:text-3xl font-black text-slate-900">
+            Mulai Pengelolaan Dokumen Cerdas di Sekolah Anda
           </h2>
-
-          <ol className="mt-14 space-y-3">
-            <li className="grid items-center gap-4 bg-slate-900/90 border border-white/10 p-6 rounded-xl md:grid-cols-[5rem_16rem_1fr]">
-              <div className="flex items-center gap-2 font-mono text-sm text-sky-400">
-                <Upload className="h-5 w-5" />
-                <span>01</span>
-              </div>
-              <h3 className="text-lg font-semibold text-white">Upload Dokumen</h3>
-              <p className="text-sm text-slate-400">Unggah foto, scan, atau PDF daftar ketidakhadiran dan formulir siswa.</p>
-            </li>
-
-            <li className="grid items-center gap-4 bg-slate-900/90 border border-white/10 p-6 rounded-xl md:grid-cols-[5rem_16rem_1fr]">
-              <div className="flex items-center gap-2 font-mono text-sm text-cyan-400">
-                <ScanText className="h-5 w-5" />
-                <span>02</span>
-              </div>
-              <h3 className="text-lg font-semibold text-white">OCR &amp; Ekstraksi</h3>
-              <p className="text-sm text-slate-400">Sistem membaca teks dari dokumen dan menyusun menjadi bidang data terstruktur.</p>
-            </li>
-
-            <li className="grid items-center gap-4 bg-slate-900/90 border border-white/10 p-6 rounded-xl md:grid-cols-[5rem_16rem_1fr]">
-              <div className="flex items-center gap-2 font-mono text-sm text-indigo-400">
-                <UserCheck className="h-5 w-5" />
-                <span>03</span>
-              </div>
-              <h3 className="text-lg font-semibold text-white">Pencocokan Siswa</h3>
-              <p className="text-sm text-slate-400">Fuzzy matching otomatis dengan Master Data Siswa lengkap dengan persentase keyakinan.</p>
-            </li>
-
-            <li className="grid items-center gap-4 bg-slate-900/90 border border-white/10 p-6 rounded-xl md:grid-cols-[5rem_16rem_1fr]">
-              <div className="flex items-center gap-2 font-mono text-sm text-emerald-400">
-                <CheckSquare className="h-5 w-5" />
-                <span>04</span>
-              </div>
-              <h3 className="text-lg font-semibold text-white">Verifikasi Operator</h3>
-              <p className="text-sm text-slate-400">Operator mengonfirmasi, mengedit, atau memilih nama kandidat siswa yang tepat.</p>
-            </li>
-
-            <li className="grid items-center gap-4 bg-slate-900/90 border border-white/10 p-6 rounded-xl md:grid-cols-[5rem_16rem_1fr]">
-              <div className="flex items-center gap-2 font-mono text-sm text-white">
-                <FileSpreadsheet className="h-5 w-5" />
-                <span>05</span>
-              </div>
-              <h3 className="text-lg font-semibold text-white">Ekspor Data</h3>
-              <p className="text-sm text-slate-400">Hasil terverifikasi diekspor seketika ke file Excel (.xlsx) atau laporan PDF.</p>
-            </li>
-          </ol>
-        </div>
-      </section>
-
-      {/* FITUR SECTION */}
-      <section id="fitur" className="mx-auto max-w-[110rem] px-5 py-20 md:px-10 md:py-32">
-        <p className="label-mono mb-4">Kemampuan Lengkap</p>
-        <h2 className="text-[clamp(2rem,4.5vw,4rem)] font-bold text-white">Fitur Inti Aplikasi</h2>
-
-        <div className="mt-12 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          <div className="panel p-7 rounded-xl">
-            <Database className="h-7 w-7 text-sky-400 mb-4" />
-            <h3 className="text-lg font-semibold text-white">Import Master Data</h3>
-            <p className="mt-2 text-sm text-slate-400 leading-relaxed">
-              Upload file data siswa dari Dapodik atau spreadsheet Excel (.xlsx/.csv) secara instan.
-            </p>
-          </div>
-
-          <div className="panel p-7 rounded-xl">
-            <ScanText className="h-7 w-7 text-cyan-400 mb-4" />
-            <h3 className="text-lg font-semibold text-white">OCR Dokumen Sekolah</h3>
-            <p className="mt-2 text-sm text-slate-400 leading-relaxed">
-              Dukungan JPG, PNG, dan PDF untuk daftar hadir harian, formulir izin, dan rekap ketidakhadiran.
-            </p>
-          </div>
-
-          <div className="panel p-7 rounded-xl">
-            <UserCheck className="h-7 w-7 text-indigo-400 mb-4" />
-            <h3 className="text-lg font-semibold text-white">Smart Student Matching</h3>
-            <p className="mt-2 text-sm text-slate-400 leading-relaxed">
-              Pencocokan nama cerdas yang fleksibel terhadap variasi ejaan nama dengan skor keyakinan (*confidence score*).
-            </p>
-          </div>
-
-          <div className="panel p-7 rounded-xl">
-            <CheckSquare className="h-7 w-7 text-emerald-400 mb-4" />
-            <h3 className="text-lg font-semibold text-white">Human-in-the-Loop</h3>
-            <p className="mt-2 text-sm text-slate-400 leading-relaxed">
-              Operator memiliki wewenang penuh untuk memeriksa dan menyetujui data sebelum masuk database.
-            </p>
-          </div>
-
-          <div className="panel p-7 rounded-xl">
-            <FileSpreadsheet className="h-7 w-7 text-amber-400 mb-4" />
-            <h3 className="text-lg font-semibold text-white">Ekspor Excel &amp; PDF</h3>
-            <p className="mt-2 text-sm text-slate-400 leading-relaxed">
-              Format laporan standar siap cetak atau dikirim langsung ke dinas pendidikan setempat.
-            </p>
-          </div>
-
-          <div className="panel p-7 rounded-xl">
-            <Shield className="h-7 w-7 text-purple-400 mb-4" />
-            <h3 className="text-lg font-semibold text-white">Audit Trail Akuntabel</h3>
-            <p className="mt-2 text-sm text-slate-400 leading-relaxed">
-              Setiap aktivitas pengguna dan perubahan status tercatat rapi (siapa, kapan, dan aksi apa).
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* CONTOH KASUS INTERAKTIF */}
-      <section className="bg-slate-950 border-t border-white/10 py-16">
-        <div className="mx-auto max-w-[110rem] px-5 md:px-10">
-          <div className="panel p-8 md:p-12 rounded-2xl grid md:grid-cols-2 gap-8 items-center">
-            <div>
-              <p className="label-mono mb-4">Studi Kasus Efisiensi</p>
-              <h3 className="text-2xl md:text-3xl font-bold text-white">Rekap Ketidakhadiran Siswa Harian</h3>
-              <p className="mt-4 text-slate-300 text-sm leading-relaxed">
-                Ketika foto lembar absen kelas diterima dari wali kelas, sistem SMS mengekstraksi nama &amp; status ketidakhadiran, mencocokkan dengan database siswa, dan menyajikan rekomendasi siap konfirmasi.
-              </p>
-
-              <div className="panel-solid mt-6 p-4 rounded-lg font-mono text-xs space-y-2 border border-white/10">
-                <div className="text-slate-400">Hasil Teks OCR: &ldquo;Ahmad Fausan&rdquo;</div>
-                <div className="text-sky-400 font-semibold">Matched → Ahmad Fauzan · 94% confidence match</div>
-                <div className="text-emerald-400">Status: Sakit (Dokumen Terlampir)</div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4 bg-slate-900/80 p-6 rounded-xl border border-white/10">
-              <div className="bg-slate-950 p-6 rounded-lg text-center border border-rose-500/20">
-                <p className="label-mono text-rose-400">Sebelum SMS</p>
-                <p className="text-3xl font-bold text-white mt-2">30 Menit</p>
-                <p className="text-xs text-slate-400 mt-1">per kelas (manual)</p>
-              </div>
-              <div className="bg-slate-950 p-6 rounded-lg text-center border border-sky-500/30">
-                <p className="label-mono text-sky-400">Dengan SMS</p>
-                <p className="text-3xl font-bold text-sky-400 mt-2">5 Menit</p>
-                <p className="text-xs text-slate-300 mt-1">per kelas (ototmatis)</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* FORM KONTAK & FOOTER */}
-      <section id="daftar" className="border-t border-white/10 py-20 md:py-32">
-        <div className="mx-auto max-w-[110rem] px-5 md:px-10 grid md:grid-cols-2 gap-12 items-center">
-          <div>
-            <h2 className="text-[clamp(2rem,4.5vw,3.8rem)] font-bold text-white leading-tight">
-              Siap mengubah cara kerja administrasi sekolah Anda?
-            </h2>
-            <p className="mt-6 text-slate-300 text-base max-w-md">
-              Coba langsung aplikasi demo Banyubiru SMS sekarang atau jadwalkan sesi demonstrasi untuk sekolah Anda.
-            </p>
-            <div className="mt-8">
-              <Link
-                href="/app"
-                className="inline-flex items-center gap-2 bg-sky-400 px-6 py-3.5 text-sm font-semibold text-slate-950 rounded shadow-lg shadow-sky-500/20 hover:bg-sky-300 transition-all"
-              >
-                <span>Masuk ke Demo App Sekarang</span>
-                <ArrowUpRight className="h-4 w-4" />
-              </Link>
-            </div>
-          </div>
-
-          <form onSubmit={handleSubmit} className="panel p-8 rounded-2xl space-y-4">
-            <h3 className="text-lg font-semibold text-white mb-2">Formulir Permintaan Demo Sekolah</h3>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <label className="label-mono block mb-1.5">Nama Lengkap</label>
-                <input
-                  required
-                  type="text"
-                  placeholder="Budi Santoso"
-                  className="w-full bg-slate-900 border border-white/15 px-3.5 py-2 text-sm text-white rounded outline-none focus:border-sky-400"
-                />
-              </div>
-              <div>
-                <label className="label-mono block mb-1.5">Email</label>
-                <input
-                  required
-                  type="email"
-                  placeholder="budi@sekolah.sch.id"
-                  className="w-full bg-slate-900 border border-white/15 px-3.5 py-2 text-sm text-white rounded outline-none focus:border-sky-400"
-                />
-              </div>
-              <div>
-                <label className="label-mono block mb-1.5">Telepon / WhatsApp</label>
-                <input
-                  required
-                  type="tel"
-                  placeholder="08123456789"
-                  className="w-full bg-slate-900 border border-white/15 px-3.5 py-2 text-sm text-white rounded outline-none focus:border-sky-400"
-                />
-              </div>
-              <div>
-                <label className="label-mono block mb-1.5">Nama Sekolah</label>
-                <input
-                  required
-                  type="text"
-                  placeholder="SMP Negeri 1 Jakarta"
-                  className="w-full bg-slate-900 border border-white/15 px-3.5 py-2 text-sm text-white rounded outline-none focus:border-sky-400"
-                />
-              </div>
-            </div>
-            
-            <button
-              type="submit"
-              className="w-full mt-4 flex items-center justify-center gap-2 bg-sky-400 py-3 text-sm font-semibold text-slate-950 rounded hover:bg-sky-300 transition-colors"
-            >
-              <Send className="h-4 w-4" />
-              <span>Kirim Permintaan Demo</span>
-            </button>
-
-            {formSubmitted && (
-              <div className="p-3 bg-emerald-500/20 border border-emerald-500/30 rounded text-center text-xs text-emerald-300 font-mono">
-                Terima kasih! Permintaan Anda telah diterima. Tim kami akan menghubungi WhatsApp Anda.
-              </div>
-            )}
-          </form>
-        </div>
-      </section>
-
-      {/* FOOTER */}
-      <footer className="border-t border-white/10 bg-slate-950 py-12">
-        <div className="mx-auto max-w-[110rem] px-5 md:px-10 flex flex-col md:flex-row items-center justify-between gap-6">
-          <div className="flex items-center gap-3">
-            <Building2 className="h-5 w-5 text-sky-400" />
-            <span className="font-bold text-white text-sm">Banyubiru Digital Solution</span>
-          </div>
-          <p className="font-mono text-xs text-slate-400">
-            &copy; 2026 Banyubiru Digital Solution · SMS (Sistem Manajemen Sekolah)
+          <p className="text-sm sm:text-base text-slate-600 max-w-xl mx-auto">
+            Masuk ke portal administrasi Banyubiru untuk mengakses pembacaan dokumen, verifikasi,
+            dan alur kerja sekolah.
           </p>
+          <div className="pt-2">
+            <Link
+              href="/login"
+              className="inline-flex items-center gap-2 rounded-xl bg-[#0f2b5c] px-7 py-3.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-800 transition-colors"
+            >
+              <span>Masuk ke Banyubiru</span>
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
+
+          <div className="pt-16 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-4">
+            <p>
+              &copy; {new Date().getFullYear()} Banyubiru. School Document Intelligence Platform.
+            </p>
+            <p>
+              Dirancang untuk administrator, operator, dan pengelola administrasi sekolah.
+            </p>
+          </div>
         </div>
-      </footer>
-    </>
+      </section>
+    </div>
   );
 }

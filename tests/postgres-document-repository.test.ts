@@ -88,8 +88,8 @@ async function setupFixtures() {
   // 3. Create Document 1 in Tenant A, Document B1 in Tenant B
   await migrationPool.query(`
     INSERT INTO documents (id, tenant_id, title, category, current_version, status, created_at, updated_at) VALUES
-    ('${DOC_1_ID}', '${TENANT_A_ID}', 'SK CPNS Guru 2024', 'SK_CPNS', 1, 'DRAFT', NOW(), NOW()),
-    ('${DOC_B1_ID}', '${TENANT_B_ID}', 'Surat Pengantar Dinas Tenant B', 'SURAT_PENGANTAR', 1, 'DRAFT', NOW(), NOW());
+    ('${DOC_1_ID}', '${TENANT_A_ID}', 'Kartu Keluarga Guru 2024', 'KARTU_KELUARGA', 1, 'DRAFT', NOW(), NOW()),
+    ('${DOC_B1_ID}', '${TENANT_B_ID}', 'Surat Pernyataan Dinas Tenant B', 'SURAT_PERNYATAAN', 1, 'DRAFT', NOW(), NOW());
   `);
 
   // 4. Create DocumentVersion 1_1 for Document 1, DocumentVersion B1_1 for Document B1
@@ -116,7 +116,7 @@ async function runDocumentRepositoryTestSuite() {
     console.log('[1] Testing Document findByIdInContext...');
     const doc1 = await docRepository.findByIdInContext(ACTOR_A_ID, TENANT_A_ID, DOC_1_ID);
     assert(
-      doc1 !== null && doc1.id === DOC_1_ID && doc1.title === 'SK CPNS Guru 2024',
+      doc1 !== null && doc1.id === DOC_1_ID && doc1.title === 'Kartu Keluarga Guru 2024',
       'TEST 1: findByIdInContext returns Document 1 in Tenant A context',
       `Found document: ${doc1?.title}`
     );
@@ -143,8 +143,13 @@ async function runDocumentRepositoryTestSuite() {
       tenantId: TENANT_A_ID,
       title: 'Ijazah S1 Pendidikan',
       category: 'SERTIFIKAT',
+      source: 'UNGGAH_LANGSUNG',
       currentVersion: 1,
       status: 'DRAFT',
+      retentionUntil: null,
+      archivedAt: null,
+      archiveLocation: null,
+      isTemporary: false,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -194,9 +199,14 @@ async function runDocumentRepositoryTestSuite() {
       id: DOC_3_ID,
       tenantId: TENANT_B_ID, // Mismatched! Entity says Tenant B, context is Tenant A
       title: 'Mismatched Document',
-      category: 'IDENTITAS',
+      category: 'KTP',
+      source: 'UNGGAH_LANGSUNG',
       currentVersion: 1,
       status: 'DRAFT',
+      retentionUntil: null,
+      archivedAt: null,
+      archiveLocation: null,
+      isTemporary: false,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -223,9 +233,14 @@ async function runDocumentRepositoryTestSuite() {
         id: DOC_3_ID,
         tenantId: TENANT_A_ID,
         title: 'SK Jabatan Fungsional 2024',
-        category: 'SK_JABATAN',
+        category: 'SURAT_TUGAS',
+        source: 'UNGGAH_LANGSUNG',
         currentVersion: 1,
         status: 'DRAFT',
+        retentionUntil: null,
+        archivedAt: null,
+        archiveLocation: null,
+        isTemporary: false,
         createdAt: new Date(),
         updatedAt: new Date(),
       },
@@ -233,9 +248,14 @@ async function runDocumentRepositoryTestSuite() {
         id: DOC_4_ID,
         tenantId: TENANT_A_ID,
         title: 'SKP Tahun 2023-2024',
-        category: 'SKP_2_TAHUN',
+        category: 'RAPOR',
+        source: 'UNGGAH_LANGSUNG',
         currentVersion: 1,
         status: 'DRAFT',
+        retentionUntil: null,
+        archivedAt: null,
+        archiveLocation: null,
+        isTemporary: false,
         createdAt: new Date(),
         updatedAt: new Date(),
       },
@@ -257,9 +277,14 @@ async function runDocumentRepositoryTestSuite() {
         id: DOC_5_ID,
         tenantId: TENANT_A_ID,
         title: 'Dokumen Rollback Test',
-        category: 'FOTO',
+        category: 'LAINNYA',
+        source: 'UNGGAH_LANGSUNG',
         currentVersion: 1,
         status: 'DRAFT',
+        retentionUntil: null,
+        archivedAt: null,
+        archiveLocation: null,
+        isTemporary: false,
         createdAt: new Date(),
         updatedAt: new Date(),
       },
@@ -268,9 +293,14 @@ async function runDocumentRepositoryTestSuite() {
         id: 'e6666666-6666-4666-8666-666666666666',
         tenantId: TENANT_A_ID,
         title: null as unknown as string,
-        category: 'FOTO',
+        category: 'LAINNYA',
+        source: 'UNGGAH_LANGSUNG',
         currentVersion: 1,
         status: 'DRAFT',
+        retentionUntil: null,
+        archivedAt: null,
+        archiveLocation: null,
+        isTemporary: false,
         createdAt: new Date(),
         updatedAt: new Date(),
       },
@@ -309,9 +339,14 @@ async function runDocumentRepositoryTestSuite() {
       id: DOC_1_ID,
       tenantId: TENANT_A_ID,
       title: 'HACKED DOCUMENT BY TENANT B',
-      category: 'SK_CPNS',
+      category: 'KARTU_KELUARGA',
+      source: 'UNGGAH_LANGSUNG',
       currentVersion: 1,
       status: 'REJECTED',
+      retentionUntil: null,
+      archivedAt: null,
+      archiveLocation: null,
+      isTemporary: false,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -324,7 +359,7 @@ async function runDocumentRepositoryTestSuite() {
 
     const doc1PostUpdateAttempt = await docRepository.findByIdInContext(ACTOR_A_ID, TENANT_A_ID, DOC_1_ID);
     assert(
-      docUpdateCrossTenantCaught && doc1PostUpdateAttempt?.title === 'SK CPNS Guru 2024',
+      docUpdateCrossTenantCaught && doc1PostUpdateAttempt?.title === 'Kartu Keluarga Guru 2024',
       'TEST 10: UPDATE cross-tenant — Tenant B cannot update Tenant A document, DB state remains unchanged',
       `Update rejected: ${docUpdateCrossTenantCaught}, Title in DB: ${doc1PostUpdateAttempt?.title}`
     );
@@ -386,6 +421,8 @@ async function runDocumentRepositoryTestSuite() {
       documentId: DOC_1_ID,
       versionNumber: 2,
       filePath: '/storage/tenant_a/sk_cpns_v2_signed.pdf',
+      storageKey: '/storage/tenant_a/sk_cpns_v2_signed.pdf',
+      storageStatus: 'ACTIVE',
       fileSizeBytes: BigInt(2097152),
       mimeType: 'application/pdf',
       checksumSha256: 'a1b2c3d4e5f678901234567890abcdef1234567890abcdef1234567890abcdef',
@@ -420,6 +457,8 @@ async function runDocumentRepositoryTestSuite() {
       documentId: DOC_1_ID,
       versionNumber: 1, // Duplicate version number 1 for Document 1!
       filePath: '/storage/tenant_a/sk_cpns_dup.pdf',
+      storageKey: '/storage/tenant_a/sk_cpns_dup.pdf',
+      storageStatus: 'ACTIVE',
       fileSizeBytes: BigInt(5000),
       mimeType: 'application/pdf',
       checksumSha256: '0000000000000000000000000000000000000000000000000000000000000000',
@@ -445,6 +484,7 @@ async function runDocumentRepositoryTestSuite() {
     const updateVerPayload: DocumentVersion = {
       ...createdVer,
       filePath: '/storage/tenant_a/sk_cpns_v2_final.pdf',
+      storageKey: '/storage/tenant_a/sk_cpns_v2_final.pdf',
     };
     const updatedVer = await verRepository.saveInContext(ACTOR_A_ID, TENANT_A_ID, updateVerPayload);
     assert(
@@ -477,6 +517,8 @@ async function runDocumentRepositoryTestSuite() {
       documentId: DOC_1_ID,
       versionNumber: 1,
       filePath: '/storage/tenant_b/HACKED_FILE.pdf',
+      storageKey: '/storage/tenant_b/HACKED_FILE.pdf',
+      storageStatus: 'ACTIVE',
       fileSizeBytes: BigInt(999),
       mimeType: 'application/pdf',
       checksumSha256: '9999999999999999999999999999999999999999999999999999999999999999',

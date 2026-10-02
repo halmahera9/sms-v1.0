@@ -102,16 +102,13 @@ export const RULE_MESSAGE_CATALOG: Record<string, string> = {
 };
 
 export const EMPLOYEE_ENTITY_TYPES = new Set([
-  'AwardProposal',
   'Employee',
-  'AwardProposalDocument',
 ]);
 
 export const STUDENT_ENTITY_TYPES = new Set([
   'Student',
   'ExtractedItem',
   'OCRExtraction',
-  'AbsenceRecord',
   'Document',
 ]);
 
@@ -340,8 +337,7 @@ export class PostgresExceptionRepository implements IExceptionRepository {
 
     if (!workflowInstance) {
       const initialWorkflowState =
-        params.initialWorkflowState ||
-        (params.entityType === 'AwardProposal' ? 'NOMINATIF' : 'NEEDS_VERIFICATION');
+        params.initialWorkflowState || 'NEEDS_VERIFICATION';
 
       workflowInstance = await tx.workflowInstance.create({
         data: {
@@ -569,7 +565,7 @@ export class PostgresExceptionRepository implements IExceptionRepository {
       );
     }
 
-    const entityType = rawEntityType || (domain === 'EMPLOYEE' ? 'AwardProposal' : 'ExtractedItem');
+    const entityType = rawEntityType || (domain === 'EMPLOYEE' ? 'Employee' : 'ExtractedItem');
     const entityId = wf?.entityId || record.workflowInstanceId;
 
     const message =

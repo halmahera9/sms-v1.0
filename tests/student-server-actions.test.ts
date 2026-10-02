@@ -127,7 +127,6 @@ async function runStudentServerActionsTests() {
         nis: '21221101',
         fullName: 'Ahmad Albar',
         className: 'X IPA 1',
-        jurusan: 'IPA',
         status: StudentStatus.ACTIVE,
       },
       update: { fullName: 'Ahmad Albar', className: 'X IPA 1', status: StudentStatus.ACTIVE },
@@ -142,7 +141,6 @@ async function runStudentServerActionsTests() {
         nis: '21221102',
         fullName: 'Bambang Sudibyo',
         className: 'X IPS 1',
-        jurusan: 'IPS',
         status: StudentStatus.ACTIVE,
       },
       update: { fullName: 'Bambang Sudibyo', className: 'X IPS 1', status: StudentStatus.ACTIVE },
@@ -157,7 +155,6 @@ async function runStudentServerActionsTests() {
         nis: '21222201',
         fullName: 'Citra Permata',
         className: 'XI IPA 1',
-        jurusan: 'IPA',
         status: StudentStatus.ACTIVE,
       },
       update: { fullName: 'Citra Permata', className: 'XI IPA 1', status: StudentStatus.ACTIVE },
@@ -299,7 +296,6 @@ async function runStudentServerActionsTests() {
       nis: '21221109',
       fullName: 'Dewi Sartika',
       className: 'X IPA 1',
-      jurusan: 'IPA',
       status: StudentStatus.ACTIVE,
     };
 
@@ -320,7 +316,6 @@ async function runStudentServerActionsTests() {
       nis: '21221109',
       fullName: 'Dewi Sartika Updated',
       className: 'X IPA 2',
-      jurusan: 'IPA',
       status: StudentStatus.ACTIVE,
     };
 

@@ -23,16 +23,26 @@ export class PostgresDocumentRepository extends BasePostgresRepository<Document>
       tenantId: entity.tenantId,
       title: entity.title,
       category: entity.category,
+      source: entity.source ?? 'UNGGAH_LANGSUNG',
       currentVersion: entity.currentVersion ?? 1,
       status: entity.status,
+      retentionUntil: entity.retentionUntil,
+      archivedAt: entity.archivedAt,
+      archiveLocation: entity.archiveLocation,
+      isTemporary: entity.isTemporary ?? false,
     };
 
     // Update payload EXCLUDES tenantId to ensure tenantId immutability during update
     const updatePayload = {
       title: entity.title,
       category: entity.category,
+      source: entity.source ?? 'UNGGAH_LANGSUNG',
       currentVersion: entity.currentVersion ?? 1,
       status: entity.status,
+      retentionUntil: entity.retentionUntil,
+      archivedAt: entity.archivedAt,
+      archiveLocation: entity.archiveLocation,
+      isTemporary: entity.isTemporary ?? false,
     };
 
     return await tx.document.upsert({

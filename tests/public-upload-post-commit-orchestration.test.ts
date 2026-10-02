@@ -130,7 +130,7 @@ async function runPostCommitOrchestrationTests() {
       const createRes = await createPublicUploadInvitationAction({
         recipientEmail: 'student.parent@test.local',
         recipientName: 'Wali Murid Budi',
-        documentCategory: DocumentCategory.SURAT_PENGANTAR,
+        documentCategory: DocumentCategory.SURAT_PERNYATAAN,
         targetEntityType: 'Student',
         targetEntityId: TARGET_STUDENT_A_ID,
         expiresInHours: 24,
@@ -200,7 +200,7 @@ async function runPostCommitOrchestrationTests() {
     assert(meta.invitationId === inv1.invitationId, 'metadata.invitationId matches');
     assert(meta.targetEntityType === 'Student', 'metadata.targetEntityType matches');
     assert(meta.targetEntityId === TARGET_STUDENT_A_ID, 'metadata.targetEntityId matches');
-    assert(meta.documentCategory === DocumentCategory.SURAT_PENGANTAR, 'metadata.documentCategory matches');
+    assert(meta.documentCategory === DocumentCategory.SURAT_PERNYATAAN, 'metadata.documentCategory matches');
     assert(meta.fileName === 'surat_keterangan_sakit.pdf', 'metadata.fileName matches');
     assert(meta.fileSizeBytes === samplePdfBuffer.byteLength, 'metadata.fileSizeBytes matches');
     assert(typeof meta.checksumSha256 === 'string', 'metadata.checksumSha256 is present');

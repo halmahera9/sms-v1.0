@@ -159,7 +159,7 @@ async function runPublicUploadInvitationTests() {
     const createRes = await createPublicUploadInvitationAction({
       recipientEmail: 'ortu.siswa@example.com',
       recipientName: 'Orang Tua Siswa',
-      documentCategory: DocumentCategory.IDENTITAS,
+      documentCategory: DocumentCategory.KTP,
       targetEntityType: 'Student',
       targetEntityId: TARGET_STUDENT_A_ID,
       expiresInHours: 72,
@@ -217,7 +217,7 @@ async function runPublicUploadInvitationTests() {
     assert(validLookup.isValid === true, 'Valid raw token lookup returns isValid: true');
     assert(validLookup.invitation?.id === createdInvitation.id, 'Lookup correctly resolves invitation metadata');
     assert(validLookup.invitation?.recipientName === 'Orang Tua Siswa', 'Lookup returns recipientName for UI');
-    assert(validLookup.invitation?.documentCategory === DocumentCategory.IDENTITAS, 'Lookup returns documentCategory');
+    assert(validLookup.invitation?.documentCategory === DocumentCategory.KTP, 'Lookup returns documentCategory');
     assert(!('tenantId' in (validLookup.invitation as any)), 'Least-Privilege: tenantId is NOT exposed to public caller');
     assert(!('recipientEmail' in (validLookup.invitation as any)), 'Least-Privilege: recipientEmail is NOT exposed to public caller');
     assert(!('targetEntityId' in (validLookup.invitation as any)), 'Least-Privilege: targetEntityId is NOT exposed to public caller');
@@ -232,7 +232,7 @@ async function runPublicUploadInvitationTests() {
     // 3. Expired Token Invariant
     const expiredRes = await createPublicUploadInvitationAction({
       recipientEmail: 'expired.user@example.com',
-      documentCategory: DocumentCategory.IDENTITAS,
+      documentCategory: DocumentCategory.KTP,
       targetEntityType: 'Student',
       targetEntityId: TARGET_STUDENT_A_ID,
       expiresInHours: 1,
@@ -249,7 +249,7 @@ async function runPublicUploadInvitationTests() {
     // 4. Max Upload Attempts Exceeded Invariant
     const maxAttemptsRes = await createPublicUploadInvitationAction({
       recipientEmail: 'attempts.user@example.com',
-      documentCategory: DocumentCategory.IDENTITAS,
+      documentCategory: DocumentCategory.KTP,
       targetEntityType: 'Student',
       targetEntityId: TARGET_STUDENT_A_ID,
       maxUploadAttempts: 2,
@@ -266,7 +266,7 @@ async function runPublicUploadInvitationTests() {
     // 5. Already Submitted Invariant
     const submittedRes = await createPublicUploadInvitationAction({
       recipientEmail: 'submitted.user@example.com',
-      documentCategory: DocumentCategory.IDENTITAS,
+      documentCategory: DocumentCategory.KTP,
       targetEntityType: 'Student',
       targetEntityId: TARGET_STUDENT_A_ID,
     });
@@ -324,7 +324,7 @@ async function runPublicUploadInvitationTests() {
 
     const tenantBInvitation = await createPublicUploadInvitationAction({
       recipientEmail: 'ortu.tenantb@example.com',
-      documentCategory: DocumentCategory.IDENTITAS,
+      documentCategory: DocumentCategory.KTP,
       targetEntityType: 'Student',
       targetEntityId: TARGET_STUDENT_B_ID,
     });
@@ -363,7 +363,7 @@ async function runPublicUploadInvitationTests() {
 
     const inactiveRes = await createPublicUploadInvitationAction({
       recipientEmail: 'test@example.com',
-      documentCategory: DocumentCategory.IDENTITAS,
+      documentCategory: DocumentCategory.KTP,
       targetEntityType: 'Student',
       targetEntityId: TARGET_STUDENT_A_ID,
     });
@@ -384,7 +384,7 @@ async function runPublicUploadInvitationTests() {
 
     const unauthorizedRes = await createPublicUploadInvitationAction({
       recipientEmail: 'test@example.com',
-      documentCategory: DocumentCategory.IDENTITAS,
+      documentCategory: DocumentCategory.KTP,
       targetEntityType: 'Student',
       targetEntityId: TARGET_STUDENT_A_ID,
     });

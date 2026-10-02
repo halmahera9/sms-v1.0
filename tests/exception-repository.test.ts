@@ -81,7 +81,7 @@ async function runExceptionRepositoryTests() {
     console.log('[1] Testing createTx creates new WorkflowInstance + ExceptionItem + AuditEvent...');
     let created1 = await runInTenantContext(ACTOR_A_ID, TENANT_A_ID, async (tx) => {
       return await repository.createTx(tx, TENANT_A_ID, {
-        entityType: 'AwardProposal',
+        entityType: 'Document',
         entityId: entity1Id,
         ruleCode: 'DOC_COMPLETENESS_RULE',
         severity: Severity.HIGH,
@@ -91,7 +91,7 @@ async function runExceptionRepositoryTests() {
     });
 
     assert(Boolean(created1.id), 'ExceptionItem created with valid ID');
-    assert(created1.entityType === 'AwardProposal', 'EntityType matches input');
+    assert(created1.entityType === 'Document', 'EntityType matches input');
     assert(created1.entityId === entity1Id, 'EntityId matches input');
     assert(created1.ruleCode === 'DOC_COMPLETENESS_RULE', 'RuleCode matches input');
     assert(created1.severity === Severity.HIGH, 'Severity matches input');
@@ -100,10 +100,10 @@ async function runExceptionRepositoryTests() {
 
     // Verify WorkflowInstance was created in DB
     const wfRes = await migrationPool.query(
-      `SELECT * FROM workflow_instances WHERE tenant_id = '${TENANT_A_ID}' AND entity_type = 'AwardProposal' AND entity_id = '${entity1Id}';`
+      `SELECT * FROM workflow_instances WHERE tenant_id = '${TENANT_A_ID}' AND entity_type = 'Document' AND entity_id = '${entity1Id}';`
     );
     assert(wfRes.rows.length === 1, 'Exactly one WorkflowInstance was created in database');
-    assert(wfRes.rows[0].current_state === 'NOMINATIF', 'AwardProposal WorkflowInstance defaulted to NOMINATIF state');
+    assert(wfRes.rows[0].current_state === 'NOMINATIF', 'Document WorkflowInstance defaulted to NOMINATIF state');
 
     // Verify AuditEvent was created in DB
     const auditRes = await migrationPool.query(
@@ -118,7 +118,7 @@ async function runExceptionRepositoryTests() {
     console.log('\n[2] Testing existing WorkflowInstance reuse...');
     let created2 = await runInTenantContext(ACTOR_A_ID, TENANT_A_ID, async (tx) => {
       return await repository.createTx(tx, TENANT_A_ID, {
-        entityType: 'AwardProposal',
+        entityType: 'Document',
         entityId: entity1Id, // Same entity ID!
         ruleCode: 'MASA_KERJA_ELIGIBILITY_RULE',
         severity: Severity.CRITICAL,
@@ -128,7 +128,7 @@ async function runExceptionRepositoryTests() {
 
     assert(created2.id !== created1.id, 'Second exception has distinct ID');
     const wfCountRes = await migrationPool.query(
-      `SELECT count(*) FROM workflow_instances WHERE tenant_id = '${TENANT_A_ID}' AND entity_type = 'AwardProposal' AND entity_id = '${entity1Id}';`
+      `SELECT count(*) FROM workflow_instances WHERE tenant_id = '${TENANT_A_ID}' AND entity_type = 'Document' AND entity_id = '${entity1Id}';`
     );
     assert(wfCountRes.rows[0].count === '1', 'Reused existing WorkflowInstance without creating a duplicate');
 
@@ -177,7 +177,7 @@ async function runExceptionRepositoryTests() {
     try {
       await runInTenantContext(ACTOR_A_ID, TENANT_A_ID, async (tx) => {
         await repository.createTx(tx, TENANT_A_ID, {
-          entityType: 'AwardProposal',
+          entityType: 'Document',
           entityId: rollbackEntityId,
           ruleCode: 'DOC_COMPLETENESS_RULE',
           severity: Severity.LOW,
@@ -212,7 +212,7 @@ async function runExceptionRepositoryTests() {
     try {
       await runInTenantContext(ACTOR_A_ID, TENANT_A_ID, async (tx) => {
         await repository.createTx(tx, TENANT_A_ID, {
-          entityType: 'AwardProposal',
+          entityType: 'Document',
           entityId: 'not-a-uuid',
           ruleCode: 'DOC_COMPLETENESS_RULE',
           severity: Severity.LOW,
@@ -243,7 +243,7 @@ async function runExceptionRepositoryTests() {
       return await repository.createFromValidationResultsTx(
         tx,
         TENANT_A_ID,
-        'AwardProposal',
+        'Document',
         entity3Id,
         mockValidationFailure1,
         ACTOR_A_ID
@@ -284,7 +284,7 @@ async function runExceptionRepositoryTests() {
       return await repository.createFromValidationResultsTx(
         tx,
         TENANT_A_ID,
-        'AwardProposal',
+        'Document',
         entity4Id,
         mockValidationSuccessAndInfo,
         ACTOR_A_ID
@@ -399,7 +399,7 @@ async function runExceptionRepositoryTests() {
         await repository.createFromValidationResultsTx(
           tx,
           TENANT_A_ID,
-          'AwardProposal',
+          'Document',
           rollbackEntity2Id,
           mockValidationFailure1,
           ACTOR_A_ID

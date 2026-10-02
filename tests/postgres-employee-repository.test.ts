@@ -27,6 +27,8 @@ const EMP_4_ID = 'c4444444-4444-4444-8444-444444444444';
 const EMP_5_ID = 'c5555555-5555-4555-8555-555555555555';
 
 const EMP_B1_ID = 'd1111111-1111-4111-8111-111111111111';
+const EMP_6_ID = 'c7777777-7777-4777-8777-777777777777';
+const EMP_7_ID = 'c8888888-8888-4888-8888-888888888888';
 
 let testCount = 0;
 let passCount = 0;
@@ -47,7 +49,7 @@ function assert(condition: boolean, message: string, detail?: string) {
 async function cleanupFixtures() {
   try {
     await migrationPool.query(
-      `DELETE FROM employees WHERE id IN ('${EMP_1_ID}', '${EMP_2_ID}', '${EMP_3_ID}', '${EMP_4_ID}', '${EMP_5_ID}', '${EMP_B1_ID}');`
+      `DELETE FROM employees WHERE id IN ('${EMP_1_ID}', '${EMP_2_ID}', '${EMP_3_ID}', '${EMP_4_ID}', '${EMP_5_ID}', '${EMP_B1_ID}', '${EMP_6_ID}', '${EMP_7_ID}');`
     );
     await migrationPool.query(
       `DELETE FROM user_actors WHERE id IN ('${ACTOR_A_ID}', '${ACTOR_B_ID}');`
@@ -128,6 +130,7 @@ async function runEmployeeRepositoryTestSuite() {
       tenantId: TENANT_A_ID,
       nip: '199003032015031003',
       nrk: '180003',
+      nik: null,
       fullName: 'Ahmad Subagyo, S.T.',
       gelarDepan: null,
       gelarBelakang: 'S.T.',
@@ -177,6 +180,7 @@ async function runEmployeeRepositoryTestSuite() {
       tenantId: TENANT_B_ID, // Mismatched! Entity says Tenant B, context is Tenant A
       nip: '199204042018041004',
       nrk: '180004',
+      nik: null,
       fullName: 'Mismatched Employee',
       gelarDepan: null,
       gelarBelakang: null,
@@ -211,6 +215,7 @@ async function runEmployeeRepositoryTestSuite() {
         tenantId: TENANT_A_ID,
         nip: '199204042018041004',
         nrk: '180004',
+        nik: null,
         fullName: 'Citra Kirana, S.Pd',
         gelarDepan: null,
         gelarBelakang: 'S.Pd',
@@ -226,6 +231,7 @@ async function runEmployeeRepositoryTestSuite() {
         tenantId: TENANT_A_ID,
         nip: '199505052020052005',
         nrk: '180005',
+        nik: null,
         fullName: 'Deni Kurniawan, S.Kom',
         gelarDepan: null,
         gelarBelakang: 'S.Kom',
@@ -256,6 +262,7 @@ async function runEmployeeRepositoryTestSuite() {
         tenantId: TENANT_A_ID,
         nip: '199806062022061006',
         nrk: '180006',
+        nik: null,
         fullName: 'Erlina Kusuma, M.Si',
         gelarDepan: null,
         gelarBelakang: 'M.Si',
@@ -272,6 +279,7 @@ async function runEmployeeRepositoryTestSuite() {
         tenantId: TENANT_A_ID,
         nip: '198501012010011001',
         nrk: '180007',
+        nik: null,
         fullName: 'Fajar Nugraha',
         gelarDepan: null,
         gelarBelakang: null,
@@ -320,6 +328,7 @@ async function runEmployeeRepositoryTestSuite() {
       tenantId: TENANT_A_ID, // Employee 1 belongs to Tenant A
       nip: '198501012010011001',
       nrk: '180001',
+      nik: null,
       fullName: 'HACKED BY B',
       gelarDepan: 'Drs.',
       gelarBelakang: 'M.Pd',
@@ -488,6 +497,67 @@ async function runEmployeeRepositoryTestSuite() {
       empByNrkNotFound === null,
       'TEST 19: findByNrkTx returns null when NRK is not found',
       `Result for unknown NRK: ${empByNrkNotFound}`
+    );
+
+    // ------------------------------------------------------------------------
+    // TEST 20 — Non-ASN / Honorary Employee with NULL NIP identified by NIK
+    // ------------------------------------------------------------------------
+    console.log('\n[20] Testing Non-ASN Employee with NULL NIP identified by NIK...');
+    const nonAsnEmp: Employee = {
+      id: EMP_6_ID,
+      tenantId: TENANT_A_ID,
+      nip: null, // No NIP (Honorer/Non-ASN)
+      nrk: null,
+      nik: '3171010101850099',
+      fullName: 'Budi Santoso (Honorer)',
+      gelarDepan: null,
+      gelarBelakang: 'S.Pd',
+      jabatan: 'Guru Honorer',
+      unitKerja: 'SMKN 1 Jakarta',
+      instansi: 'Dinas Pendidikan',
+      statusKepegawaian: 'HONORER',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    const createdNonAsn = await repository.saveInContext(ACTOR_A_ID, TENANT_A_ID, nonAsnEmp);
+    assert(
+      createdNonAsn.id === EMP_6_ID && createdNonAsn.nip === null && createdNonAsn.nik === '3171010101850099',
+      'TEST 20: saveInContext successfully creates employee with nip: null and nik',
+      `Created non-ASN employee: ${createdNonAsn.fullName}`
+    );
+
+    const foundByNik = await runInTenantContext(ACTOR_A_ID, TENANT_A_ID, async (tx) => {
+      return await repository.findByNikTx(tx, TENANT_A_ID, '3171010101850099');
+    });
+    assert(
+      foundByNik !== null && foundByNik.id === EMP_6_ID && foundByNik.nip === null,
+      'TEST 20b: findByNikTx successfully retrieves employee with nip: null by NIK'
+    );
+
+    // ------------------------------------------------------------------------
+    // TEST 21 — Multiple Employees with NULL NIP coexist without unique collision
+    // ------------------------------------------------------------------------
+    console.log('\n[21] Testing Multiple Employees with NULL NIP coexist without unique collision...');
+    const secondNonAsnEmp: Employee = {
+      id: EMP_7_ID,
+      tenantId: TENANT_A_ID,
+      nip: null, // Also NULL NIP
+      nrk: null,
+      nik: '3171010101850088',
+      fullName: 'Dewi Lestari (GTT)',
+      gelarDepan: null,
+      gelarBelakang: 'S.Kom',
+      jabatan: 'Guru Tidak Tetap',
+      unitKerja: 'SMKN 1 Jakarta',
+      instansi: 'Dinas Pendidikan',
+      statusKepegawaian: 'HONORER',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    const createdSecond = await repository.saveInContext(ACTOR_A_ID, TENANT_A_ID, secondNonAsnEmp);
+    assert(
+      createdSecond.id === EMP_7_ID && createdSecond.nip === null,
+      'TEST 21: Multiple employees with NULL NIP in same tenant do not violate unique constraint'
     );
   } finally {
     console.log('\n[Teardown] Cleaning up test fixtures...');

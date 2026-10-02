@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import Sidebar from '@/components/app/Sidebar';
+import AppShell from '@/components/app/AppShell';
 import { getAuthenticatedActorContext } from '@/platform/auth/session';
 
 export default async function AppLayout({
@@ -18,7 +18,7 @@ export default async function AppLayout({
   const roleLabels: Record<string, string> = {
     ADMIN: 'Administrator',
     ADMIN_TENANT: 'Administrator Sekolah',
-    OPERATOR: 'Operator',
+    OPERATOR: 'Operator Sekolah',
     VERIFIKATOR: 'Verifikator',
     AUDITOR: 'Auditor',
   };

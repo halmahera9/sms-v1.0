@@ -20,7 +20,6 @@ export interface StudentRecordDTO {
   nis: string;
   fullName: string;
   className: string;
-  jurusan: string | null;
   status: StudentStatus;
   createdAt: string;
   updatedAt: string;
@@ -39,7 +38,6 @@ export interface SaveStudentDTO {
   nis: string;
   fullName: string;
   className: string;
-  jurusan?: string | null;
   status?: StudentStatus;
 }
 
@@ -176,7 +174,6 @@ export async function getStudentsAction(
         nis: s.nis,
         fullName: s.fullName,
         className: s.className,
-        jurusan: s.jurusan,
         status: s.status,
         createdAt: s.createdAt.toISOString(),
         updatedAt: s.updatedAt.toISOString(),
@@ -246,14 +243,6 @@ export async function saveStudentAction(
       throw new Error('Validation Error: Kelas siswa wajib diisi dan maksimal 50 karakter.');
     }
 
-    // Jurusan validation (optional)
-    let sanitizedJurusan: string | null = null;
-    if (dto.jurusan && typeof dto.jurusan === 'string' && dto.jurusan.trim().length > 0) {
-      if (dto.jurusan.trim().length > 100) {
-        throw new Error('Validation Error: Jurusan maksimal 100 karakter.');
-      }
-      sanitizedJurusan = dto.jurusan.trim();
-    }
 
     // Status validation
     const validStatuses: StudentStatus[] = [StudentStatus.ACTIVE, StudentStatus.GRADUATED, StudentStatus.TRANSFERRED];
@@ -270,7 +259,6 @@ export async function saveStudentAction(
         nis: dto.nis.trim(),
         fullName: dto.fullName.trim(),
         className: dto.className.trim(),
-        jurusan: sanitizedJurusan,
         status: studentStatus,
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -285,7 +273,6 @@ export async function saveStudentAction(
         nis: result.nis,
         fullName: result.fullName,
         className: result.className,
-        jurusan: result.jurusan,
         status: result.status,
         createdAt: result.createdAt.toISOString(),
         updatedAt: result.updatedAt.toISOString(),
