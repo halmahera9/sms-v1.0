@@ -76,7 +76,7 @@ export const StudentWorkspace: React.FC = () => {
     setLoadingStudents(true);
     setStudentError(null);
     try {
-      const res = await getStudentsAction();
+      const res = await getStudentsAction({ limit: 'all' });
       if (res.success && res.data) {
         setStudents(res.data);
       } else {
@@ -308,84 +308,37 @@ export const StudentWorkspace: React.FC = () => {
   return (
     <div className="space-y-6 font-sans">
       {/* Workspace Header */}
-      <div className="bg-slate-900 text-white p-6 rounded-2xl border border-slate-800 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <div className="inline-flex items-center space-x-2 bg-blue-50 text-blue-700 border border-blue-100 px-3 py-1 rounded-full text-xs font-semibold mb-2">
+      <div className="relative overflow-hidden bg-gradient-to-r from-blue-50 via-white to-cyan-50 p-6 rounded-2xl border border-blue-100 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="absolute -right-16 -top-20 h-52 w-52 rounded-full border border-blue-100/80 bg-blue-100/30" />
+        <div className="absolute right-12 -bottom-20 h-36 w-36 rounded-full border border-cyan-100/80 bg-cyan-100/30" />
+        <div className="absolute right-24 top-8 h-2 w-2 rounded-full bg-cyan-300" />
+
+        <div className="relative z-10">
+          <div className="inline-flex items-center space-x-2 bg-white/80 text-blue-700 border border-blue-100 px-3 py-1 rounded-full text-xs font-medium mb-3 shadow-sm">
             <Users className="w-3.5 h-3.5" />
             <span>Student Administration Domain Module</span>
           </div>
-          <h1 className="text-xl font-semibold tracking-tight text-slate-900">Unified Student Workspace</h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Pengelolaan Master Data Siswa (Dapodik), Ekstraksi OCR Dokumen Izin/Sakit, dan Antrean Verifikasi Ketidakhadiran.
+
+          <h1 className="text-xl font-semibold tracking-tight text-slate-900">
+            Master Data Siswa
+          </h1>
+
+          <p className="text-xs text-slate-500 mt-1 max-w-3xl leading-relaxed">
+            Pengelolaan data siswa sekolah, ekstraksi OCR dokumen izin/sakit,
+            dan antrean verifikasi ketidakhadiran dalam satu ruang kerja.
           </p>
         </div>
 
-        <div className="flex items-center space-x-2">
+        <div className="relative z-10 flex items-center space-x-2">
           <button
             onClick={handleSimulateOCRUpload}
             disabled={isUploading}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-xs font-semibold shadow-sm flex items-center space-x-2 transition-all disabled:opacity-50"
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-xs font-medium shadow-sm flex items-center space-x-2 transition-all disabled:opacity-50"
           >
             {isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
             <span>{isUploading ? 'Memproses OCR...' : 'Upload OCR Baru'}</span>
           </button>
         </div>
-      </div>
-
-      {/* Sub-Navigation Tabs */}
-      <div className="flex border-b border-slate-200  bg-white rounded-xl px-4 pt-2 space-x-2 shadow-sm">
-        <button
-          onClick={() => setActiveSubTab('students')}
-          className={`pb-3 px-3 text-xs font-bold border-b-2 flex items-center space-x-2 transition-all ${
-            activeSubTab === 'students'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <Users className="w-4 h-4" />
-          <span>Master Data Siswa ({students.length})</span>
-        </button>
-
-        <button
-          onClick={() => setActiveSubTab('verify')}
-          className={`pb-3 px-3 text-xs font-bold border-b-2 flex items-center space-x-2 transition-all relative ${
-            activeSubTab === 'verify'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <CheckSquare className="w-4 h-4" />
-          <span>Antrean Verifikasi OCR</span>
-          {documents.some((d) => d.status === 'needs_verification') && (
-            <span className="bg-amber-500 text-slate-950 text-[10px] px-1.5 py-0.2 rounded-full font-bold">
-              !
-            </span>
-          )}
-        </button>
-
-        <button
-          onClick={() => setActiveSubTab('ocr')}
-          className={`pb-3 px-3 text-xs font-bold border-b-2 flex items-center space-x-2 transition-all ${
-            activeSubTab === 'ocr'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <ScanText className="w-4 h-4" />
-          <span>Dokumen OCR ({documents.length})</span>
-        </button>
-
-        <button
-          onClick={() => setActiveSubTab('export')}
-          className={`pb-3 px-3 text-xs font-bold border-b-2 flex items-center space-x-2 transition-all ${
-            activeSubTab === 'export'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <FileSpreadsheet className="w-4 h-4" />
-          <span>Export Rekap Excel</span>
-        </button>
       </div>
 
       {/* SUB-TAB 1: MASTER DATA SISWA */}
@@ -477,7 +430,7 @@ export const StudentWorkspace: React.FC = () => {
             </div>
           ) : (
             <div className="bg-white rounded-2xl border border-slate-200  shadow-sm overflow-hidden">
-              <table className="w-full text-left text-[12px] font-sans">
+              <table className="w-full text-left text-xs font-sans">
                 <thead className="bg-slate-50 text-[10px] font-medium tracking-[0.04em] text-slate-500 uppercase">
   <tr>
     <th className="py-3 px-4 w-12">No</th>
@@ -570,19 +523,28 @@ export const StudentWorkspace: React.FC = () => {
     <th className="py-3 px-4 text-right">Aksi</th>
   </tr>
 </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 ">
-                  {filteredStudents.length > 0 ? (
-                    filteredStudents.map((std, idx) => (
+                <tbody className="divide-y divide-slate-100 text-slate-700">
+                  {displayedStudents.length > 0 ? (
+                    displayedStudents.map((std, idx) => (
                       <tr key={std.id} className="hover:bg-blue-50/50 transition-colors">
-                        <td className="py-3 px-4 font-mono text-slate-400">{idx + 1}</td>
-                        <td className="py-3 px-4 font-mono font-bold text-slate-900 ">
-                          {std.nisn} <span className="text-slate-400 font-normal">({std.nis || '-'})</span>
+                        <td className="py-3 px-4 text-xs font-normal text-slate-400">
+                          {(safeStudentPage - 1) * (studentPageSize === 'all' ? filteredStudents.length : studentPageSize) + idx + 1}
                         </td>
-                        <td className="py-3 px-4 font-bold text-slate-900 ">{std.fullName}</td>
-                        <td className="py-3 px-4 font-semibold text-slate-700 ">{std.className}</td>
+                        <td className="py-3 px-4 text-xs font-normal text-slate-600">
+                          <span className="font-mono">{std.nisn}</span>
+                        </td>
+                        <td className="py-3 px-4 text-xs font-normal text-slate-600">
+                          <span className="font-mono">{std.nis}</span>
+                        </td>
+                        <td className="py-3 px-4 text-xs font-normal text-slate-700">
+                          {std.fullName}
+                        </td>
+                        <td className="py-3 px-4 text-xs font-normal text-slate-600">
+                          {std.className}
+                        </td>
                         <td className="py-3 px-4">
                           <span
-                            className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
+                            className={`text-[10px] font-medium px-2 py-0.5 rounded border ${
                               std.status === 'ACTIVE'
                                 ? 'bg-blue-50 text-blue-700 border-blue-200'
                                 : 'bg-slate-100 text-slate-700 border-slate-200'
@@ -594,7 +556,7 @@ export const StudentWorkspace: React.FC = () => {
                         <td className="py-3 px-4 text-right">
                           <button
                             onClick={() => handleOpenEditModal(std)}
-                            className="text-blue-600 dark:text-blue-400 hover:underline font-bold text-xs inline-flex items-center space-x-1"
+                            className="text-blue-600 hover:text-blue-700 hover:underline font-normal text-xs inline-flex items-center space-x-1"
                           >
                             <Edit2 className="w-3.5 h-3.5" />
                             <span>Edit</span>
