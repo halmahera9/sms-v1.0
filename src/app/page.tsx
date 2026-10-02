@@ -82,7 +82,7 @@ export default function HomePage() {
               Masuk ke Sistem
             </Link>
             <a
-              href="#fitur"
+              href="/"
               className="rounded-full border border-slate-200 bg-white px-6 py-3 text-sm font-medium text-slate-700 transition hover:border-slate-300"
             >
               Lihat kemampuan

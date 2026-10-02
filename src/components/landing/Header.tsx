@@ -25,7 +25,7 @@ export default function Header() {
           <a href="#cara-kerja" className="border border-transparent px-3.5 py-1.5 text-xs text-slate-300 transition-colors hover:border-white/20 hover:text-white rounded">
             Cara Kerja
           </a>
-          <a href="#fitur" className="border border-transparent px-3.5 py-1.5 text-xs text-slate-300 transition-colors hover:border-white/20 hover:text-white rounded">
+          <a href="/" className="border border-transparent px-3.5 py-1.5 text-xs text-slate-300 transition-colors hover:border-white/20 hover:text-white rounded">
             Fitur
           </a>
           <a href="#daftar" className="border border-transparent px-3.5 py-1.5 text-xs text-slate-300 transition-colors hover:border-white/20 hover:text-white rounded">
