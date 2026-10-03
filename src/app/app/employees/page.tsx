@@ -204,9 +204,9 @@ export default function MasterEmployeesPage() {
       {/* Title & Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200 pb-6">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Master Data Guru/Pegawai</h1>
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Master Data Guru & Karyawan</h1>
           <p className="text-xs text-slate-600 mt-1">
-            Database utama siswa yang digunakan sebagai referensi Fuzzy Matching OCR.
+            Pengelolaan data guru dan karyawan sekolah sebagai referensi administrasi dan dokumen.
           </p>
         </div>
 
@@ -242,15 +242,15 @@ export default function MasterEmployeesPage() {
       )}
 
       {/* Filter & Search Bar */}
-      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col sm:flex-row gap-4 justify-between items-center">
+      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row gap-4 justify-between items-center">
         <div className="relative w-full sm:w-80">
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-600" />
           <input
             type="text"
-            placeholder="Cari NISN atau Nama Siswa..."
+            placeholder="Cari NIP/NIKKI dan atau nama Guru & Karyawan..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-white border border-slate-200 pl-9 pr-4 py-2 text-xs text-slate-900 rounded outline-none focus:border-blue-600"
+            className="w-full bg-white border border-slate-200 pl-9 pr-4 py-2 text-xs text-slate-900 rounded outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
           />
         </div>
 
@@ -355,7 +355,7 @@ export default function MasterEmployeesPage() {
       )}
 
       {/* Employees Table */}
-      <div className="bg-white rounded-xl overflow-hidden border border-slate-200 shadow-sm">
+      <div className="bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs text-slate-700">
             <thead className="bg-slate-50 text-slate-600 font-mono uppercase text-[11px] border-b border-slate-200">
@@ -378,12 +378,12 @@ export default function MasterEmployeesPage() {
               ) : (
                 filteredEmployees.map((s) => (
                   <tr key={s.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="p-4 font-mono">
+                    <td className="p-4 text-xs font-normal text-slate-600">
                       <div className="text-slate-900 font-medium">{s.nip || '-'}</div>
                       {s.nik && <div className="text-[10px] text-slate-600">NIK: {s.nik}</div>}
                       {s.nrk && !s.nik && <div className="text-[10px] text-slate-600">NRK: {s.nrk}</div>}
                     </td>
-                    <td className="p-4 font-semibold text-slate-900">{s.fullName}</td>
+                    <td className="p-4 text-xs font-normal text-slate-700">{s.fullName}</td>
                     <td className="p-4">
                       <span className="px-2 py-0.5 rounded bg-blue-600/10 text-blue-600 border border-blue-200 font-mono text-[11px]">
                         {s.jabatan}

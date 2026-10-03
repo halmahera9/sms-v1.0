@@ -36,10 +36,17 @@ const workspaceItems: NavItemType[] = [
   },
 ];
 
-const schoolDataItems: NavItemType[] = [
+const schoolDataItems: NavItemType[] = [];
+
+const employeeSubItems: NavItemType[] = [
   {
-    name: 'Guru & Karyawan',
-    href: '/app/employees',
+    name: 'Guru',
+    href: '/app/employees?type=guru',
+    icon: UserRound,
+  },
+  {
+    name: 'Karyawan',
+    href: '/app/employees?type=karyawan',
     icon: UserRound,
   },
 ]; 
@@ -255,6 +262,86 @@ function StudentNavigation({
   );
 }
 
+function EmployeeNavigation({
+  pathname,
+  onNavigate,
+}: {
+  pathname: string;
+  onNavigate?: () => void;
+}) {
+  const employeeActive = pathname.startsWith('/app/employees');
+  const [open, setOpen] = useState(employeeActive);
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        className={[
+          'group flex w-full items-center gap-3 rounded-xl px-3 py-2.5',
+          'text-xs font-semibold transition-all duration-150',
+          employeeActive
+            ? 'bg-white text-[#12336f] shadow-sm'
+            : 'text-blue-100/80 hover:bg-white/10 hover:text-white',
+        ].join(' ')}
+      >
+        <UserRound
+          className={[
+            'h-4 w-4 shrink-0',
+            employeeActive ? 'text-blue-600' : 'text-blue-100/70',
+          ].join(' ')}
+        />
+
+        <span className="flex-1 text-left">
+          Guru & Karyawan
+        </span>
+
+        <ChevronDown
+          className={[
+            'h-4 w-4 transition-transform',
+            open ? 'rotate-180' : '',
+          ].join(' ')}
+        />
+      </button>
+
+      {open && (
+        <div className="ml-4 mt-1 space-y-0.5 border-l border-white/10 pl-3">
+          {employeeSubItems.map((item) => {
+            const active =
+              pathname === '/app/employees' ||
+              pathname.startsWith('/app/employees');
+
+            const Icon = item.icon;
+
+            return (
+              <Link
+                key={item.name}
+                href={item.href}
+                onClick={onNavigate}
+                className={[
+                  'flex items-center gap-2.5 rounded-lg px-3 py-2',
+                  'text-[11px] font-medium transition-colors',
+                  active
+                    ? 'bg-white/10 text-white'
+                    : 'text-blue-100/65 hover:bg-white/5 hover:text-white',
+                ].join(' ')}
+              >
+                <Icon
+                  className={[
+                    'h-3.5 w-3.5 shrink-0',
+                    active ? 'text-blue-300' : 'text-blue-100/50',
+                  ].join(' ')}
+                />
+                <span className="truncate">{item.name}</span>
+              </Link>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SidebarContent({
   pathname,
   role,
@@ -357,15 +444,23 @@ function SidebarContent({
             />
           )}
 
-          {schoolDataItems.map((item) => (
+          {collapsed ? (
             <NavItem
-              key={item.href}
-              item={item}
+              item={{
+                name: 'Guru & Karyawan',
+                href: '/app/employees',
+                icon: UserRound,
+              }}
               pathname={pathname}
               collapsed={collapsed}
               onNavigate={onNavigate}
             />
-          ))}
+          ) : (
+            <EmployeeNavigation
+              pathname={pathname}
+              onNavigate={onNavigate}
+            />
+          )}
         </div>
 
         <Section

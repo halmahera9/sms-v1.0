@@ -29,7 +29,7 @@ export interface StudentFilterDTO {
   search?: string;
   className?: string;
   status?: StudentStatus | 'ALL';
-  limit?: number;
+  limit?: number | 'all';
 }
 
 export interface SaveStudentDTO {
@@ -125,8 +125,11 @@ export async function getStudentsAction(
   _repo: PostgresStudentRepository = new PostgresStudentRepository()
 ): Promise<ActionResponse<StudentRecordDTO[]>> {
   try {
-    let effectiveLimit = 100;
-    if (filter?.limit !== undefined) {
+    let effectiveLimit: number | undefined = 100;
+
+    if (filter?.limit === 'all') {
+      effectiveLimit = undefined;
+    } else if (filter?.limit !== undefined) {
       if (
         typeof filter.limit !== 'number' ||
         !Number.isInteger(filter.limit) ||
@@ -164,7 +167,7 @@ export async function getStudentsAction(
       const students = await tx.student.findMany({
         where: whereClause,
         orderBy: { fullName: 'asc' },
-        take: effectiveLimit,
+        ...(effectiveLimit !== undefined ? { take: effectiveLimit } : {}),
       });
 
       return students.map((s) => ({
