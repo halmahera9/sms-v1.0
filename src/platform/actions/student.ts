@@ -42,6 +42,12 @@ export interface SaveStudentDTO {
   id?: string;
   nisn: string;
   nis: string;
+  nik?: string | null;
+  noKk?: string | null;
+  jenisKelamin?: string | null;
+  tingkatKelas?: string | null;
+  agama?: string | null;
+  tanggalMasuk?: string | null;
   fullName: string;
   className: string;
   status?: StudentStatus;
@@ -275,12 +281,14 @@ export async function saveStudentAction(
         tenantId: context.tenantId, // Derived strictly from server context
         nisn: dto.nisn.trim(),
         nis: dto.nis.trim(),
-        nik: null,
-        noKk: null,
-        jenisKelamin: null,
-        tingkatKelas: null,
-        agama: null,
-        tanggalMasuk: null,
+        nik: dto.nik?.trim() || null,
+        noKk: dto.noKk?.trim() || null,
+        jenisKelamin: dto.jenisKelamin?.trim() || null,
+        tingkatKelas: dto.tingkatKelas?.trim() || null,
+        agama: dto.agama?.trim() || null,
+        tanggalMasuk: dto.tanggalMasuk
+          ? new Date(dto.tanggalMasuk)
+          : null,
         fullName: dto.fullName.trim(),
         className: dto.className.trim(),
         status: studentStatus,

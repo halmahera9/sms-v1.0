@@ -50,6 +50,12 @@ export const StudentWorkspace: React.FC = () => {
   const [formData, setFormData] = useState<SaveStudentDTO>({
     nisn: '',
     nis: '',
+    nik: null,
+    noKk: null,
+    jenisKelamin: null,
+    tingkatKelas: null,
+    agama: null,
+    tanggalMasuk: null,
     fullName: '',
     className: '',
     status: StudentStatus.ACTIVE,
@@ -178,12 +184,23 @@ export const StudentWorkspace: React.FC = () => {
   };
 
   const currentDoc = documents.find((d) => d.id === selectedDocId) || (documents.length > 0 ? documents[0] : null);
+  const [previewStudent, setPreviewStudent] = useState<StudentRecordDTO | null>(null);
+
+  const handleOpenPreview = (student: StudentRecordDTO) => {
+    setPreviewStudent(student);
+  };
 
   const handleOpenCreateModal = () => {
     setEditingStudent(null);
     setFormData({
       nisn: '',
       nis: '',
+      nik: null,
+      noKk: null,
+      jenisKelamin: null,
+      tingkatKelas: null,
+      agama: null,
+      tanggalMasuk: null,
       fullName: '',
       className: '',
       status: StudentStatus.ACTIVE,
@@ -198,6 +215,12 @@ export const StudentWorkspace: React.FC = () => {
       id: student.id,
       nisn: student.nisn,
       nis: student.nis,
+      nik: student.nik,
+      noKk: student.noKk,
+      jenisKelamin: student.jenisKelamin,
+      tingkatKelas: student.tingkatKelas,
+      agama: student.agama,
+      tanggalMasuk: student.tanggalMasuk,
       fullName: student.fullName,
       className: student.className,
       status: student.status,
@@ -205,6 +228,10 @@ export const StudentWorkspace: React.FC = () => {
     setFormError(null);
     setIsModalOpen(true);
   };
+
+  const availableRombels = Array.from(
+    new Set(students.map((student) => student.className).filter(Boolean)),
+  ).sort((a, b) => a.localeCompare(b, 'id'));
 
   const handleSaveStudentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -505,7 +532,8 @@ export const StudentWorkspace: React.FC = () => {
             </div>
           ) : (
             <div className="bg-white rounded-2xl border border-slate-200  shadow-sm overflow-hidden">
-              <table className="w-full text-left text-xs font-sans">
+              <div className="overflow-x-auto">
+                <table className="min-w-[1800px] w-full text-left text-xs font-sans">
                 <thead className="bg-slate-50 text-[10px] font-medium tracking-[0.04em] text-slate-500 uppercase">
                   <tr>
                     <th className="py-3 px-4 w-12">No</th>
@@ -647,13 +675,23 @@ export const StudentWorkspace: React.FC = () => {
                         </td>
 
                         <td className="py-3 px-4 text-right">
-                          <button
-                            onClick={() => handleOpenEditModal(std)}
-                            className="text-blue-600 hover:text-blue-700 hover:underline font-normal text-xs inline-flex items-center space-x-1"
-                          >
-                            <Edit2 className="w-3.5 h-3.5" />
-                            <span>Edit</span>
-                          </button>
+                          <div className="flex items-center justify-end gap-3">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenPreview(std)}
+                              className="text-slate-600 hover:text-blue-600 font-normal text-xs"
+                            >
+                              Preview
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditModal(std)}
+                              className="text-blue-600 hover:text-blue-700 hover:underline font-normal text-xs inline-flex items-center space-x-1"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                              <span>Edit</span>
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))
@@ -665,7 +703,8 @@ export const StudentWorkspace: React.FC = () => {
                     </tr>
                   )}
                 </tbody>
-              </table>
+                </table>
+              </div>
 
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-t border-slate-100 px-4 py-3 bg-white">
                 <div className="text-xs text-slate-400">
@@ -932,6 +971,109 @@ export const StudentWorkspace: React.FC = () => {
         </div>
       )}
 
+      {/* Student Preview Modal */}
+      {previewStudent && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-slate-200 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+              <div>
+                <p className="text-[10px] font-medium uppercase tracking-wider text-blue-600">
+                  Master Data Siswa
+                </p>
+                <h3 className="font-bold text-slate-900 text-base mt-1">
+                  {previewStudent.fullName}
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  NIPD {previewStudent.nis} · NISN {previewStudent.nisn}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPreviewStudent(null)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-5 text-xs">
+              <section>
+                <h4 className="font-semibold text-slate-800 mb-3">
+                  Identitas
+                </h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <p className="text-slate-400">NIK</p>
+                    <p className="text-slate-700 font-mono mt-1">{previewStudent.nik || '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-slate-400">No. KK</p>
+                    <p className="text-slate-700 font-mono mt-1">{previewStudent.noKk || '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-slate-400">Jenis Kelamin</p>
+                    <p className="text-slate-700 mt-1">{previewStudent.jenisKelamin || '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-slate-400">Agama</p>
+                    <p className="text-slate-700 mt-1">{previewStudent.agama || '—'}</p>
+                  </div>
+                </div>
+              </section>
+
+              <section>
+                <h4 className="font-semibold text-slate-800 mb-3">
+                  Akademik
+                </h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <p className="text-slate-400">Tingkat Kelas</p>
+                    <p className="text-slate-700 mt-1">{previewStudent.tingkatKelas || '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-slate-400">Rombel</p>
+                    <p className="text-slate-700 mt-1">{previewStudent.className || '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-slate-400">Tanggal Masuk</p>
+                    <p className="text-slate-700 mt-1">
+                      {previewStudent.tanggalMasuk
+                        ? new Date(previewStudent.tanggalMasuk).toLocaleDateString('id-ID')
+                        : '—'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-slate-400">Status</p>
+                    <p className="text-slate-700 mt-1">{previewStudent.status}</p>
+                  </div>
+                </div>
+              </section>
+
+              <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setPreviewStudent(null)}
+                  className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"
+                >
+                  Tutup
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const student = previewStudent;
+                    setPreviewStudent(null);
+                    handleOpenEditModal(student);
+                  }}
+                  className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
+                >
+                  Edit Data
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Create / Edit Student Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
@@ -1006,19 +1148,120 @@ export const StudentWorkspace: React.FC = () => {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-700  font-bold mb-1">
-                    Kelas *
+                  <label className="block text-slate-700 font-bold mb-1">
+                    NIK
                   </label>
                   <input
                     type="text"
-                    required
-                    placeholder="Contoh: X IPA 1"
-                    value={formData.className}
-                    onChange={(e) => setFormData({ ...formData, className: e.target.value })}
-                    className="w-full bg-slate-50  border border-slate-200  px-3 py-2 rounded-lg text-slate-900 "
+                    maxLength={16}
+                    value={formData.nik ?? ''}
+                    onChange={(e) => setFormData({ ...formData, nik: e.target.value || null })}
+                    className="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-lg text-slate-900 font-mono"
                   />
                 </div>
-                
+
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">
+                    No. KK
+                  </label>
+                  <input
+                    type="text"
+                    maxLength={16}
+                    value={formData.noKk ?? ''}
+                    onChange={(e) => setFormData({ ...formData, noKk: e.target.value || null })}
+                    className="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-lg text-slate-900 font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">
+                    Jenis Kelamin
+                  </label>
+                  <select
+                    value={formData.jenisKelamin ?? ''}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        jenisKelamin: e.target.value || null,
+                      })
+                    }
+                    className="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-lg text-slate-900"
+                  >
+                    <option value="">Pilih jenis kelamin</option>
+                    <option value="Laki-laki">Laki-laki</option>
+                    <option value="Perempuan">Perempuan</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">
+                    Tingkat Kelas
+                  </label>
+                  <select
+                    value={formData.tingkatKelas ?? ''}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        tingkatKelas: e.target.value || null,
+                      })
+                    }
+                    className="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-lg text-slate-900"
+                  >
+                    <option value="">Pilih tingkat</option>
+                    <option value="7">7</option>
+                    <option value="8">8</option>
+                    <option value="9">9</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">
+                    Rombel *
+                  </label>
+                  <select
+                    required
+                    value={formData.className}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        className: e.target.value,
+                      })
+                    }
+                    className="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-lg text-slate-900"
+                  >
+                    <option value="">Pilih rombel</option>
+                    {availableRombels.map((rombel) => (
+                      <option key={rombel} value={rombel}>
+                        {rombel}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">
+                    Tanggal Masuk
+                  </label>
+                  <input
+                    type="date"
+                    value={
+                      formData.tanggalMasuk
+                        ? formData.tanggalMasuk.slice(0, 10)
+                        : ''
+                    }
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        tanggalMasuk: e.target.value || null,
+                      })
+                    }
+                    className="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-lg text-slate-900"
+                  />
+                </div>
               </div>
 
               <div>

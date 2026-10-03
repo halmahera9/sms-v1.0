@@ -292,9 +292,14 @@ export async function importDapodikStudents(
     const fullName = text(row["Nama"]);
     const className = text(row["Rombel Saat Ini"]);
     const nik = text(row["NIK"]);
-    const noKk = text(row["No. KK"]);
-    const jenisKelamin = text(row["Jenis Kelamin"]);
-    const tingkatKelas = text(row["Tingkat Pendidikan"]);
+    const noKk = text(row["No KK"]);
+    const jk = text(row["JK"]).toUpperCase();
+    const jenisKelamin =
+      jk === "P" ? "Perempuan" :
+      jk === "L" ? "Laki-laki" :
+      jk || "";
+    const tingkatKelas =
+      text(row["Rombel Saat Ini"]).match(/(\d+)/)?.[1] ?? "";
     const agama = text(row["Agama"]);
     const tanggalMasuk = normalizeDate(
       row["Tanggal Masuk Sekolah"] ?? row["Tanggal Masuk"],
