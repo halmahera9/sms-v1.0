@@ -6,11 +6,6 @@ import { uploadDocumentIntakeAction } from '@/platform/actions/document';
 import type { ActionResponse } from '@/platform/types';
 import type { DocumentRecordDTO } from '@/platform/types/document';
 
-export const metadata = {
-  title: 'Unggah Dokumen - BANYUBIRU',
-  description: 'Portal Pengunggahan Dokumen Internal BANYUBIRU',
-};
-
 async function uploadDocumentAction(prevState: ActionResponse<DocumentRecordDTO> | null, formData: FormData) {
   return await uploadDocumentIntakeAction(formData);
 }

@@ -136,8 +136,11 @@ export async function getStudentsAction(
         filter.limit < 1 ||
         filter.limit > 200
       ) {
-        throw new Error('Validation Error: limit must be an integer between 1 and 200.');
+        throw new Error(
+          'Validation Error: limit must be an integer between 1 and 200, atau gunakan "all".'
+        );
       }
+
       effectiveLimit = filter.limit;
     }
 
@@ -260,6 +263,12 @@ export async function saveStudentAction(
         tenantId: context.tenantId, // Derived strictly from server context
         nisn: dto.nisn.trim(),
         nis: dto.nis.trim(),
+        nik: null,
+        noKk: null,
+        jenisKelamin: null,
+        tingkatKelas: null,
+        agama: null,
+        tanggalMasuk: null,
         fullName: dto.fullName.trim(),
         className: dto.className.trim(),
         status: studentStatus,

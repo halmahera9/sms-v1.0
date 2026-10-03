@@ -13,7 +13,7 @@
  * - Atomic database operations within tenant transaction
  */
 
-import { DocumentVersion } from '@prisma/client';
+import { DocumentVersion, WorkflowInstance, WorkflowTransition } from '@prisma/client';
 import { randomUUID } from 'crypto';
 
 /**
