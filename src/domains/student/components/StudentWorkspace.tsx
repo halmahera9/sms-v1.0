@@ -61,7 +61,17 @@ export const StudentWorkspace: React.FC = () => {
   const [loadingDocs, setLoadingDocs] = useState<boolean>(true);
   const [docError, setDocError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  type StudentSortKey = 'nisn' | 'nis' | 'fullName' | 'className' | 'status';
+  type StudentSortKey =
+    | 'fullName'
+    | 'nis'
+    | 'nisn'
+    | 'nik'
+    | 'noKk'
+    | 'tingkatKelas'
+    | 'className'
+    | 'agama'
+    | 'tanggalMasuk'
+    | 'status';
 
   const [studentPageSize, setStudentPageSize] = useState<50 | 100 | 'all'>(50);
   const [studentCurrentPage, setStudentCurrentPage] = useState(1);
@@ -71,6 +81,7 @@ export const StudentWorkspace: React.FC = () => {
   const [uploadResultDoc, setUploadResultDoc] = useState<OCRDocumentDTO | null>(null);
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const [verifyingItemId, setVerifyingItemId] = useState<string | null>(null);
+  const [dapodikFile, setDapodikFile] = useState<File | null>(null);
 
   const fetchStudents = async () => {
     setLoadingStudents(true);
@@ -234,6 +245,24 @@ export const StudentWorkspace: React.FC = () => {
     }
   };
 
+  const handleDapodikFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] ?? null;
+
+    if (!file) return;
+
+    const isExcel =
+      file.name.toLowerCase().endsWith(".xls") ||
+      file.name.toLowerCase().endsWith(".xlsx");
+
+    if (!isExcel) {
+      alert("Pilih file Excel Dapodik (.xls atau .xlsx).");
+      event.target.value = "";
+      return;
+    }
+
+    setDapodikFile(file);
+  };
+
   const handleSimulateOCRUpload = async () => {
     if (isUploading) return;
     setIsUploading(true);
@@ -324,19 +353,28 @@ export const StudentWorkspace: React.FC = () => {
           </h1>
 
           <p className="text-xs text-slate-500 mt-1 max-w-3xl leading-relaxed">
-            Pengelolaan data siswa sekolah, ekstraksi OCR dokumen izin/sakit,
-            dan antrean verifikasi ketidakhadiran dalam satu ruang kerja.
+            Perbarui dan sinkronkan data master siswa berdasarkan data terbaru
+            dari Dapodik tanpa mengubah data yang sudah tersimpan.
           </p>
         </div>
 
         <div className="relative z-10 flex items-center space-x-2">
+          <input
+            id="dapodik-student-update"
+            type="file"
+            accept=".xls,.xlsx"
+            onChange={handleDapodikFileChange}
+            className="hidden"
+          />
+
           <button
-            onClick={handleSimulateOCRUpload}
+            type="button"
+            onClick={() => document.getElementById('dapodik-student-update')?.click()}
             disabled={isUploading}
             className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-xs font-medium shadow-sm flex items-center space-x-2 transition-all disabled:opacity-50"
           >
             {isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-            <span>{isUploading ? 'Memproses OCR...' : 'Upload OCR Baru'}</span>
+            <span>Update Data Siswa</span>
           </button>
         </div>
       </div>
@@ -349,7 +387,7 @@ export const StudentWorkspace: React.FC = () => {
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
               <input
                 type="text"
-                placeholder="Cari nama, NISN, NIS, atau kelas..."
+                placeholder="Cari nama, NIS, NISN, NIK, atau kelas..."
                 value={searchTerm}
                 onChange={(e) => {
                   setSearchTerm(e.target.value);
@@ -432,97 +470,87 @@ export const StudentWorkspace: React.FC = () => {
             <div className="bg-white rounded-2xl border border-slate-200  shadow-sm overflow-hidden">
               <table className="w-full text-left text-xs font-sans">
                 <thead className="bg-slate-50 text-[10px] font-medium tracking-[0.04em] text-slate-500 uppercase">
-  <tr>
-    <th className="py-3 px-4 w-12">No</th>
+                  <tr>
+                    <th className="py-3 px-4 w-12">No</th>
 
-    <th className="py-3 px-4">
-      <button
-        type="button"
-        onClick={() => handleStudentSort('nisn')}
-        className="inline-flex items-center gap-1.5 hover:text-blue-600 transition-colors"
-      >
-        NISN
-        {studentSortKey === 'nisn' ? (
-          studentSortDirection === 'asc'
-            ? <ChevronUp className="w-3 h-3 text-blue-600" />
-            : <ChevronDown className="w-3 h-3 text-blue-600" />
-        ) : (
-          <ArrowUpDown className="w-3 h-3 text-slate-300" />
-        )}
-      </button>
-    </th>
+                    <th className="py-3 px-4">
+                      <button
+                        type="button"
+                        onClick={() => handleStudentSort('fullName')}
+                        className="inline-flex items-center gap-1.5 hover:text-blue-600 transition-colors"
+                      >
+                        Nama Siswa
+                        {studentSortKey === 'fullName' ? (
+                          studentSortDirection === 'asc'
+                            ? <ChevronUp className="w-3 h-3 text-blue-600" />
+                            : <ChevronDown className="w-3 h-3 text-blue-600" />
+                        ) : (
+                          <ArrowUpDown className="w-3 h-3 text-slate-300" />
+                        )}
+                      </button>
+                    </th>
 
-    <th className="py-3 px-4">
-      <button
-        type="button"
-        onClick={() => handleStudentSort('nis')}
-        className="inline-flex items-center gap-1.5 hover:text-blue-600 transition-colors"
-      >
-        NIS
-        {studentSortKey === 'nis' ? (
-          studentSortDirection === 'asc'
-            ? <ChevronUp className="w-3 h-3 text-blue-600" />
-            : <ChevronDown className="w-3 h-3 text-blue-600" />
-        ) : (
-          <ArrowUpDown className="w-3 h-3 text-slate-300" />
-        )}
-      </button>
-    </th>
+                    <th className="py-3 px-4">
+                      <button
+                        type="button"
+                        onClick={() => handleStudentSort('nis')}
+                        className="inline-flex items-center gap-1.5 hover:text-blue-600 transition-colors"
+                      >
+                        NIS
+                        {studentSortKey === 'nis' ? (
+                          studentSortDirection === 'asc'
+                            ? <ChevronUp className="w-3 h-3 text-blue-600" />
+                            : <ChevronDown className="w-3 h-3 text-blue-600" />
+                        ) : (
+                          <ArrowUpDown className="w-3 h-3 text-slate-300" />
+                        )}
+                      </button>
+                    </th>
 
-    <th className="py-3 px-4">
-      <button
-        type="button"
-        onClick={() => handleStudentSort('fullName')}
-        className="inline-flex items-center gap-1.5 hover:text-blue-600 transition-colors"
-      >
-        Nama Siswa
-        {studentSortKey === 'fullName' ? (
-          studentSortDirection === 'asc'
-            ? <ChevronUp className="w-3 h-3 text-blue-600" />
-            : <ChevronDown className="w-3 h-3 text-blue-600" />
-        ) : (
-          <ArrowUpDown className="w-3 h-3 text-slate-300" />
-        )}
-      </button>
-    </th>
+                    <th className="py-3 px-4">
+                      <button
+                        type="button"
+                        onClick={() => handleStudentSort('nisn')}
+                        className="inline-flex items-center gap-1.5 hover:text-blue-600 transition-colors"
+                      >
+                        NISN
+                        {studentSortKey === 'nisn' ? (
+                          studentSortDirection === 'asc'
+                            ? <ChevronUp className="w-3 h-3 text-blue-600" />
+                            : <ChevronDown className="w-3 h-3 text-blue-600" />
+                        ) : (
+                          <ArrowUpDown className="w-3 h-3 text-slate-300" />
+                        )}
+                      </button>
+                    </th>
 
-    <th className="py-3 px-4">
-      <button
-        type="button"
-        onClick={() => handleStudentSort('className')}
-        className="inline-flex items-center gap-1.5 hover:text-blue-600 transition-colors"
-      >
-        Kelas
-        {studentSortKey === 'className' ? (
-          studentSortDirection === 'asc'
-            ? <ChevronUp className="w-3 h-3 text-blue-600" />
-            : <ChevronDown className="w-3 h-3 text-blue-600" />
-        ) : (
-          <ArrowUpDown className="w-3 h-3 text-slate-300" />
-        )}
-      </button>
-    </th>
+                    <th className="py-3 px-4">NIK</th>
+                    <th className="py-3 px-4">No. KK</th>
+                    <th className="py-3 px-4">Tingkat Kelas</th>
+                    <th className="py-3 px-4">Rombel</th>
+                    <th className="py-3 px-4">Agama</th>
+                    <th className="py-3 px-4">Tgl Masuk</th>
 
-    <th className="py-3 px-4">
-      <button
-        type="button"
-        onClick={() => handleStudentSort('status')}
-        className="inline-flex items-center gap-1.5 hover:text-blue-600 transition-colors"
-      >
-        Status
-        {studentSortKey === 'status' ? (
-          studentSortDirection === 'asc'
-            ? <ChevronUp className="w-3 h-3 text-blue-600" />
-            : <ChevronDown className="w-3 h-3 text-blue-600" />
-        ) : (
-          <ArrowUpDown className="w-3 h-3 text-slate-300" />
-        )}
-      </button>
-    </th>
+                    <th className="py-3 px-4">
+                      <button
+                        type="button"
+                        onClick={() => handleStudentSort('status')}
+                        className="inline-flex items-center gap-1.5 hover:text-blue-600 transition-colors"
+                      >
+                        Status
+                        {studentSortKey === 'status' ? (
+                          studentSortDirection === 'asc'
+                            ? <ChevronUp className="w-3 h-3 text-blue-600" />
+                            : <ChevronDown className="w-3 h-3 text-blue-600" />
+                        ) : (
+                          <ArrowUpDown className="w-3 h-3 text-slate-300" />
+                        )}
+                      </button>
+                    </th>
 
-    <th className="py-3 px-4 text-right">Aksi</th>
-  </tr>
-</thead>
+                    <th className="py-3 px-4 text-right">Aksi</th>
+                  </tr>
+                </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-700">
                   {displayedStudents.length > 0 ? (
                     displayedStudents.map((std, idx) => (
@@ -530,18 +558,45 @@ export const StudentWorkspace: React.FC = () => {
                         <td className="py-3 px-4 text-xs font-normal text-slate-400">
                           {(safeStudentPage - 1) * (studentPageSize === 'all' ? filteredStudents.length : studentPageSize) + idx + 1}
                         </td>
-                        <td className="py-3 px-4 text-xs font-normal text-slate-600">
-                          <span className="font-mono">{std.nisn}</span>
-                        </td>
-                        <td className="py-3 px-4 text-xs font-normal text-slate-600">
-                          <span className="font-mono">{std.nis}</span>
-                        </td>
+
                         <td className="py-3 px-4 text-xs font-normal text-slate-700">
                           {std.fullName}
                         </td>
+
+                        <td className="py-3 px-4 text-xs font-normal text-slate-600">
+                          <span className="font-mono">{std.nis}</span>
+                        </td>
+
+                        <td className="py-3 px-4 text-xs font-normal text-slate-600">
+                          <span className="font-mono">{std.nisn}</span>
+                        </td>
+
+                        <td className="py-3 px-4 text-xs font-normal text-slate-600">
+                          <span className="font-mono">{std.nik ?? '—'}</span>
+                        </td>
+
+                        <td className="py-3 px-4 text-xs font-normal text-slate-600">
+                          <span className="font-mono">{std.noKk ?? '—'}</span>
+                        </td>
+
+                        <td className="py-3 px-4 text-xs font-normal text-slate-600">
+                          {std.tingkatKelas ?? '—'}
+                        </td>
+
                         <td className="py-3 px-4 text-xs font-normal text-slate-600">
                           {std.className}
                         </td>
+
+                        <td className="py-3 px-4 text-xs font-normal text-slate-600">
+                          {std.agama ?? '—'}
+                        </td>
+
+                        <td className="py-3 px-4 text-xs font-normal text-slate-600">
+                          {std.tanggalMasuk
+                            ? new Date(std.tanggalMasuk).toLocaleDateString('id-ID')
+                            : '—'}
+                        </td>
+
                         <td className="py-3 px-4">
                           <span
                             className={`text-[10px] font-medium px-2 py-0.5 rounded border ${
@@ -553,6 +608,7 @@ export const StudentWorkspace: React.FC = () => {
                             {std.status}
                           </span>
                         </td>
+
                         <td className="py-3 px-4 text-right">
                           <button
                             onClick={() => handleOpenEditModal(std)}
@@ -566,7 +622,7 @@ export const StudentWorkspace: React.FC = () => {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={7} className="py-8 text-center text-slate-400">
+                      <td colSpan={12} className="py-8 text-center text-slate-400">
                         Tidak ada data siswa yang cocok dengan pencarian.
                       </td>
                     </tr>

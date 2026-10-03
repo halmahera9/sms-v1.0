@@ -273,10 +273,9 @@ export async function previewDapodikImport(
 export async function importDapodikStudents(
   tenantId: string,
   buffer: Buffer,
-  dryRun = true,
+  dryRun = false,
 ): Promise<ImportResult> {
   const rows = readSheet(buffer);
-
   const result: ImportResult = {
     created: 0,
     updated: 0,
@@ -292,76 +291,99 @@ export async function importDapodikStudents(
     const nis = text(row["NIPD"]);
     const fullName = text(row["Nama"]);
     const className = text(row["Rombel Saat Ini"]);
+    const nik = text(row["NIK"]);
+    const noKk = text(row["No. KK"]);
+    const jenisKelamin = text(row["Jenis Kelamin"]);
+    const tingkatKelas = text(row["Tingkat Pendidikan"]);
+    const agama = text(row["Agama"]);
+    const tanggalMasuk = normalizeDate(
+      row["Tanggal Masuk Sekolah"] ?? row["Tanggal Masuk"],
+    );
 
-    if (!nisn || !nis || !fullName) {
+    if (!nisn || !nis || !fullName || !className) {
       result.errors.push({
         row: rowNumber,
-        message: "NISN, NIPD, atau Nama kosong",
+        message: "NISN, NIPD, Nama, atau Rombel Saat Ini kosong.",
       });
       continue;
     }
 
-    if (!className) {
-      result.errors.push({
-        row: rowNumber,
-        message: `Rombel Saat Ini kosong untuk ${fullName}`,
-      });
-      continue;
-    }
-
-    if (dryRun) {
-      const existing = await adminPrisma.student.findFirst({
-        where: {
+    const existing = await adminPrisma.student.findUnique({
+      where: {
+        tenantId_nisn: {
           tenantId,
           nisn,
         },
-        select: { id: true },
-      });
+      },
+    });
 
+    if (dryRun) {
       if (existing) result.updated++;
       else result.created++;
-
       continue;
     }
 
-    const existing = await adminPrisma.student.findFirst({
-      where: {
-        tenantId,
-        nisn,
-      },
-      select: { id: true },
-    });
-
-    const data = {
-      tenantId,
-      nisn,
-      nis,
-      fullName,
-      className,
-    };
-
-    if (existing) {
-      await adminPrisma.student.update({
-        where: { id: existing.id },
-        data: {
-          nisn: data.nisn,
-          nis: data.nis,
-          fullName: data.fullName,
-          className: data.className,
-        },
-      });
-
-      result.updated++;
-    } else {
+    if (!existing) {
       await adminPrisma.student.create({
         data: {
-          id: randomUUID(),
-          ...data,
+          id: crypto.randomUUID(),
+          tenantId,
+          nisn,
+          nis,
+          nik: nik || null,
+          noKk: noKk || null,
+          jenisKelamin: jenisKelamin || null,
+          tingkatKelas: tingkatKelas || null,
+          agama: agama || null,
+          tanggalMasuk,
+          fullName,
+          className,
         },
       });
 
       result.created++;
+      continue;
     }
+
+    const data: {
+      nis?: string;
+      nik?: string;
+      noKk?: string;
+      jenisKelamin?: string;
+      tingkatKelas?: string;
+      agama?: string;
+      tanggalMasuk?: Date;
+      fullName?: string;
+      className?: string;
+    } = {};
+
+    if (!existing.nis && nis) data.nis = nis;
+    if (!existing.nik && nik) data.nik = nik;
+    if (!existing.noKk && noKk) data.noKk = noKk;
+    if (!existing.jenisKelamin && jenisKelamin) {
+      data.jenisKelamin = jenisKelamin;
+    }
+    if (!existing.tingkatKelas && tingkatKelas) {
+      data.tingkatKelas = tingkatKelas;
+    }
+    if (!existing.agama && agama) data.agama = agama;
+    if (!existing.tanggalMasuk && tanggalMasuk) {
+      data.tanggalMasuk = tanggalMasuk;
+    }
+    if (!existing.fullName && fullName) data.fullName = fullName;
+    if (!existing.className && className) data.className = className;
+
+    if (Object.keys(data).length === 0) {
+      result.skipped++;
+      continue;
+    }
+
+    await adminPrisma.student.update({
+      where: { id: existing.id },
+      data,
+    });
+
+    result.updated++;
   }
 
   return result;

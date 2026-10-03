@@ -18,6 +18,12 @@ export interface StudentRecordDTO {
   tenantId: string;
   nisn: string;
   nis: string;
+  nik: string | null;
+  noKk: string | null;
+  jenisKelamin: string | null;
+  tingkatKelas: string | null;
+  agama: string | null;
+  tanggalMasuk: string | null;
   fullName: string;
   className: string;
   status: StudentStatus;
@@ -178,6 +184,12 @@ export async function getStudentsAction(
         tenantId: s.tenantId,
         nisn: s.nisn,
         nis: s.nis,
+        nik: s.nik,
+        noKk: s.noKk,
+        jenisKelamin: s.jenisKelamin,
+        tingkatKelas: s.tingkatKelas,
+        agama: s.agama,
+        tanggalMasuk: s.tanggalMasuk?.toISOString() ?? null,
         fullName: s.fullName,
         className: s.className,
         status: s.status,
@@ -283,6 +295,12 @@ export async function saveStudentAction(
         tenantId: result.tenantId,
         nisn: result.nisn,
         nis: result.nis,
+        nik: result.nik,
+        noKk: result.noKk,
+        jenisKelamin: result.jenisKelamin,
+        tingkatKelas: result.tingkatKelas,
+        agama: result.agama,
+        tanggalMasuk: result.tanggalMasuk?.toISOString() ?? null,
         fullName: result.fullName,
         className: result.className,
         status: result.status,
