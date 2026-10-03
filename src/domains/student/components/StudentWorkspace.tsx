@@ -7,6 +7,7 @@ import {
   StudentRecordDTO,
   SaveStudentDTO,
 } from '@/platform/actions/student';
+import { importDapodikAction } from '@/platform/actions/dapodik-import';
 import {
   getOCRDocumentsAction,
   uploadOCRDocumentAction,
@@ -245,8 +246,11 @@ export const StudentWorkspace: React.FC = () => {
     }
   };
 
-  const handleDapodikFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleDapodikFileChange = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
     const file = event.target.files?.[0] ?? null;
+    event.target.value = "";
 
     if (!file) return;
 
@@ -256,11 +260,44 @@ export const StudentWorkspace: React.FC = () => {
 
     if (!isExcel) {
       alert("Pilih file Excel Dapodik (.xls atau .xlsx).");
-      event.target.value = "";
       return;
     }
 
     setDapodikFile(file);
+    setIsUploading(true);
+
+    try {
+      const formData = new FormData();
+      formData.append("mode", "student");
+      formData.append("dryRun", "false");
+      formData.append("file", file);
+
+      const result = await importDapodikAction(formData);
+
+      if (!result.ok) {
+        alert(result.errorMessage || "Update data siswa gagal.");
+        return;
+      }
+
+      await fetchStudents();
+
+      alert(
+        `Update Data Siswa selesai.\n\n` +
+        `Data baru: ${result.created}\n` +
+        `Data diperbarui: ${result.updated}\n` +
+        `Tidak berubah: ${result.skipped}\n` +
+        `Error: ${result.errors.length}`,
+      );
+    } catch (error) {
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Terjadi kesalahan saat memperbarui data siswa.",
+      );
+    } finally {
+      setIsUploading(false);
+      setDapodikFile(null);
+    }
   };
 
   const handleSimulateOCRUpload = async () => {
