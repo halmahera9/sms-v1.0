@@ -214,6 +214,13 @@ model Employee {
   nip               String?        @db.VarChar(18)
   nrk               String?        @db.VarChar(10)
   nik               String?        @db.VarChar(16)
+  jenisKelamin      String?        @map("jenis_kelamin") @db.VarChar(20)
+  tempatLahir       String?        @map("tempat_lahir") @db.VarChar(100)
+  tanggalLahir      DateTime?      @map("tanggal_lahir") @db.Timestamptz
+  jenisGtk          String?        @map("jenis_gtk") @db.VarChar(100)
+  alamat            String?        @map("alamat") @db.Text
+  email             String?        @db.VarChar(255)
+  tanggalSuratTugas DateTime?      @map("tanggal_surat_tugas") @db.Timestamptz
   fullName          String         @map("nama_lengkap") @db.VarChar(255)
   gelarDepan        String?        @map("gelar_depan") @db.VarChar(50)
   gelarBelakang     String?        @map("gelar_belakang") @db.VarChar(50)
@@ -235,15 +242,21 @@ model Employee {
 }
 
 model Student {
-  id        String        @id @db.Uuid
-  tenantId  String        @map("tenant_id") @db.Uuid
-  nisn      String        @db.VarChar(10)
-  nis       String        @db.VarChar(20)
-  fullName  String        @map("nama_lengkap") @db.VarChar(255)
-  className String        @map("kelas") @db.VarChar(50)
-  status    StudentStatus @default(ACTIVE)
-  createdAt DateTime      @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  id           String        @id @db.Uuid
+  tenantId     String        @map("tenant_id") @db.Uuid
+  nisn         String        @db.VarChar(10)
+  nis          String        @db.VarChar(20)
+  nik          String?       @db.VarChar(16)
+  noKk         String?       @map("no_kk") @db.VarChar(16)
+  jenisKelamin String?       @map("jenis_kelamin") @db.VarChar(20)
+  tingkatKelas String?       @map("tingkat_kelas") @db.VarChar(20)
+  agama        String?       @db.VarChar(50)
+  tanggalMasuk DateTime?     @map("tanggal_masuk") @db.Timestamptz
+  fullName     String        @map("nama_lengkap") @db.VarChar(255)
+  className    String        @map("kelas") @db.VarChar(50)
+  status       StudentStatus @default(ACTIVE)
+  createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
 
@@ -344,9 +357,9 @@ model OCRExtraction {
   createdAt         DateTime            @default(now()) @map("created_at") @db.Timestamptz
   updatedAt         DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
-  tenant            Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  document          Document         @relation(fields: [tenantId, documentId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade)
-  documentVersion   DocumentVersion? @relation(fields: [tenantId, documentVersionId], references: [tenantId, id], onDelete: Cascade, onUpdate: Cascade)
+  tenant            Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  document          Document           @relation(fields: [tenantId, documentId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade)
+  documentVersion   DocumentVersion?   @relation(fields: [tenantId, documentVersionId], references: [tenantId, id], onDelete: Cascade, onUpdate: Cascade)
   items             ExtractedItem[]
   extractionResults ExtractionResult[]
 
@@ -396,10 +409,10 @@ model ExtractionResult {
   createdAt         DateTime         @default(now()) @map("created_at") @db.Timestamptz
   updatedAt         DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
-  tenant          Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  document        Document        @relation(fields: [tenantId, documentId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade)
-  documentVersion DocumentVersion @relation(fields: [tenantId, documentVersionId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade)
-  ocrExtraction   OCRExtraction   @relation(fields: [tenantId, ocrExtractionId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade)
+  tenant          Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  document        Document         @relation(fields: [tenantId, documentId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade)
+  documentVersion DocumentVersion  @relation(fields: [tenantId, documentVersionId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade)
+  ocrExtraction   OCRExtraction    @relation(fields: [tenantId, ocrExtractionId], references: [tenantId, id], onDelete: Restrict, onUpdate: Cascade)
   matchingResults MatchingResult[]
 
   // Idempotency: one field per OCR extraction
@@ -474,8 +487,8 @@ model MatchingCandidate {
   ranking          Int      @default(1)
   createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
 
-  tenant             Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  matchingResult     MatchingResult  @relation("ResultCandidates", fields: [tenantId, matchingResultId], references: [tenantId, id], onDelete: Cascade, onUpdate: Cascade)
+  tenant             Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  matchingResult     MatchingResult   @relation("ResultCandidates", fields: [tenantId, matchingResultId], references: [tenantId, id], onDelete: Cascade, onUpdate: Cascade)
   confirmedInResults MatchingResult[] @relation("ConfirmedCandidate")
 
   // IDEMPOTENCY: satu kandidat per entitas per hasil matching
