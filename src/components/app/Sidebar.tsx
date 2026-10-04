@@ -113,6 +113,46 @@ function isItemActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
+function isStudentSubItemActive(pathname: string, item: NavItemType) {
+  if (item.name === 'Master Data Siswa') {
+    return pathname === '/app/students';
+  }
+
+  if (item.name === 'Dokumen & OCR') {
+    return pathname === '/app/ocr';
+  }
+
+  if (item.name === 'Verifikasi Data') {
+    return pathname === '/app/verify';
+  }
+
+  if (item.name === 'Kehadiran') {
+    return false;
+  }
+
+  if (item.name === 'Ekspor & Rekap') {
+    return pathname === '/app/export';
+  }
+
+  return false;
+}
+
+function isDocumentItemActive(pathname: string, item: NavItemType) {
+  if (item.name === 'Dokumen') {
+    return false;
+  }
+
+  if (item.name === 'Verifikasi') {
+    return false;
+  }
+
+  if (item.name === 'Ekspor Data') {
+    return false;
+  }
+
+  return isItemActive(pathname, item.href);
+}
+
 function Section({
   label,
   collapsed,
@@ -143,13 +183,15 @@ function NavItem({
   pathname,
   collapsed,
   onNavigate,
+  activeOverride,
 }: {
   item: NavItemType;
   pathname: string;
   collapsed: boolean;
   onNavigate?: () => void;
+  activeOverride?: boolean;
 }) {
-  const active = isItemActive(pathname, item.href);
+  const active = activeOverride ?? isItemActive(pathname, item.href);
   const Icon = item.icon;
 
   return (
@@ -230,7 +272,7 @@ function StudentNavigation({
       {open && (
         <div className="ml-4 mt-1 space-y-0.5 border-l border-white/10 pl-3">
           {studentSubItems.map((item) => {
-            const active = isItemActive(pathname, item.href);
+            const active = isStudentSubItemActive(pathname, item);
             const Icon = item.icon;
 
             return (
@@ -476,6 +518,7 @@ function SidebarContent({
               pathname={pathname}
               collapsed={collapsed}
               onNavigate={onNavigate}
+              activeOverride={false}
             />
           ))}
         </div>
