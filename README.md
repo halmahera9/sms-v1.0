@@ -17,7 +17,7 @@ Current implementation focuses on:
 
 ## Current Status
 
-Baseline: `e0da826`
+Baseline: `418a00b`
 
 Current branch:
 
@@ -28,6 +28,7 @@ origin/main
 
 Latest commits:
 
+418a00b chore: anchor student workspace and sidebar baseline
 e0da826 fix: redirect root to application dashboard
 03b21d0 feat: add canonical extracted item student matching
 4db3c3b fix: prevent invalid student creation during verification
@@ -43,6 +44,48 @@ Application Routes
 /app/export             Export
 /app/audit              Audit trail
 /upload/[token]         Public upload
+Student Administration Status
+
+The current Student Administration baseline includes:
+
+- PostgreSQL-backed student master data
+- Student preview and edit workspace
+- NISN, NIS, NIK, No. KK, gender, grade level, religion, entry date, class, and status fields
+- Dapodik Excel import foundation
+- Dapodik student preview server action
+- Student master sidebar navigation with route-specific active state
+
+Current Dapodik update flow:
+
+Select Dapodik Excel
+        ↓
+Current implementation imports directly to the student master
+
+The previewDapodikAction server boundary already exists, but the Student
+Workspace has not yet been migrated to use the preview-first flow.
+
+Target flow:
+
+Select Dapodik Excel
+        ↓
+Dapodik Preview
+        ↓
+Admin Review
+        ↓
+Apply
+        ↓
+Student Master
+
+Dapodik import must distinguish:
+
+UNCHANGED
+FILL_BLANK
+CONFLICT
+NEW
+
+NEW records must not be inserted into the master automatically without
+explicit administrative approval.
+
 Verification Workflow
 
 The canonical verification flow is:
