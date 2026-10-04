@@ -7,7 +7,11 @@ import {
   StudentRecordDTO,
   SaveStudentDTO,
 } from '@/platform/actions/student';
-import { importDapodikAction } from '@/platform/actions/dapodik-import';
+import {
+  applyDapodikStudentAction,
+  importDapodikAction,
+  previewDapodikAction,
+} from '@/platform/actions/dapodik-import';
 import {
   getOCRDocumentsAction,
   uploadOCRDocumentAction,
@@ -37,6 +41,89 @@ import {
 } from 'lucide-react';
 import { getStudentAbsenceExportDataAction } from '@/platform/actions/student-export';
 import { mapDtoRowsToExportRows, downloadStudentAbsenceExcel } from '../export';
+
+type FeedbackType = 'success' | 'error' | 'warning';
+
+type FeedbackState = {
+  type: FeedbackType;
+  title: string;
+  message: string;
+} | null;
+
+const FeedbackModal: React.FC<{
+  feedback: FeedbackState;
+  onClose: () => void;
+}> = ({ feedback, onClose }) => {
+  if (!feedback) return null;
+
+  const isSuccess = feedback.type === 'success';
+  const isWarning = feedback.type === 'warning';
+
+  const iconClass = isSuccess
+    ? 'bg-blue-50 text-blue-600 border-blue-100'
+    : isWarning
+      ? 'bg-amber-50 text-amber-600 border-amber-100'
+      : 'bg-red-50 text-red-600 border-red-100';
+
+  const Icon = isSuccess ? CheckCircle2 : AlertCircle;
+
+  return (
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/40 backdrop-blur-sm p-4"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="feedback-modal-title"
+        className="w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl font-sans"
+      >
+        <div className="p-6">
+          <div className="flex items-start gap-4">
+            <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border ${iconClass}`}>
+              <Icon className="h-5 w-5" />
+            </div>
+
+            <div className="min-w-0 flex-1">
+              <h3
+                id="feedback-modal-title"
+                className="text-base font-bold tracking-tight text-slate-900"
+              >
+                {feedback.title}
+              </h3>
+
+              <p className="mt-1.5 whitespace-pre-line text-sm leading-6 text-slate-600">
+                {feedback.message}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Tutup"
+              className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          <div className="mt-6 flex justify-end border-t border-slate-100 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-xl bg-[#12336f] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#0f2b5f]"
+            >
+              Tutup
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export const StudentWorkspace: React.FC = () => {
   const [activeSubTab, setActiveSubTab] = useState<'students' | 'ocr' | 'verify' | 'export'>('students');
@@ -87,8 +174,12 @@ export const StudentWorkspace: React.FC = () => {
   const [selectedDocId, setSelectedDocId] = useState<string>('');
   const [uploadResultDoc, setUploadResultDoc] = useState<OCRDocumentDTO | null>(null);
   const [isUploading, setIsUploading] = useState<boolean>(false);
+  const [feedback, setFeedback] = useState<FeedbackState>(null);
   const [verifyingItemId, setVerifyingItemId] = useState<string | null>(null);
   const [dapodikFile, setDapodikFile] = useState<File | null>(null);
+  const [dapodikPreview, setDapodikPreview] = useState<any>(null);
+  const [showDapodikPreview, setShowDapodikPreview] = useState(false);
+  const [dapodikPreviewFilter, setDapodikPreviewFilter] = useState<"REVIEW" | "ALL" | "UNCHANGED">("REVIEW");
 
   const fetchStudents = async () => {
     setLoadingStudents(true);
@@ -264,12 +355,76 @@ export const StudentWorkspace: React.FC = () => {
       if (res.success) {
         await fetchDocuments();
       } else {
-        alert(res.error?.message || 'Gagal memverifikasi item ekstraksi.');
+        setFeedback({
+          type: 'error',
+          title: 'Verifikasi Gagal',
+          message: res.error?.message || 'Gagal memverifikasi item ekstraksi.',
+        });
       }
     } catch {
-      alert('Terjadi kesalahan jaringan saat memverifikasi item.');
+      setFeedback({
+        type: 'error',
+        title: 'Verifikasi Gagal',
+        message: 'Terjadi kesalahan jaringan saat memverifikasi item.',
+      });
     } finally {
       setVerifyingItemId(null);
+    }
+  };
+
+  const handleApplyDapodik = async () => {
+    if (!dapodikFile) {
+      setFeedback({
+        type: "warning",
+        title: "File Dapodik Tidak Tersedia",
+        message: "Silakan upload ulang file Dapodik untuk menerapkan perubahan.",
+      });
+      return;
+    }
+
+    setIsUploading(true);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", dapodikFile);
+
+      const result = await applyDapodikStudentAction(formData);
+
+      if (!result.ok) {
+        setFeedback({
+          type: "error",
+          title: "Apply Dapodik Gagal",
+          message: result.errorMessage || "Perubahan tidak berhasil diterapkan.",
+        });
+        return;
+      }
+
+      await fetchStudents();
+
+      setShowDapodikPreview(false);
+      setDapodikPreview(null);
+      setDapodikFile(null);
+
+      setFeedback({
+        type: result.errors.length > 0 ? "warning" : "success",
+        title: "Update Data Siswa Selesai",
+        message:
+          `Data diperbarui: ${result.updated}\n` +
+          `Tidak berubah / dilewati: ${result.skipped}\n` +
+          `Data baru tidak dibuat: ${result.created}\n` +
+          `Error: ${result.errors.length}`,
+      });
+    } catch (error) {
+      setFeedback({
+        type: "error",
+        title: "Apply Dapodik Gagal",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Terjadi kesalahan saat menerapkan data Dapodik.",
+      });
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -286,7 +441,11 @@ export const StudentWorkspace: React.FC = () => {
       file.name.toLowerCase().endsWith(".xlsx");
 
     if (!isExcel) {
-      alert("Pilih file Excel Dapodik (.xls atau .xlsx).");
+      setFeedback({
+        type: "warning",
+        title: "File Tidak Valid",
+        message: "Pilih file Excel Dapodik (.xls atau .xlsx).",
+      });
       return;
     }
 
@@ -296,37 +455,27 @@ export const StudentWorkspace: React.FC = () => {
     try {
       const formData = new FormData();
       formData.append("mode", "student");
-      formData.append("dryRun", "false");
       formData.append("file", file);
 
-      const result = await importDapodikAction(formData);
+      const result = await previewDapodikAction(formData);
 
-      if (!result.ok) {
-        alert(result.errorMessage || "Update data siswa gagal.");
-        return;
-      }
+      console.log("DAPODIK PREVIEW RESULT", result);
 
-      await fetchStudents();
-
-      alert(
-        `Update Data Siswa selesai.\n\n` +
-        `Data baru: ${result.created}\n` +
-        `Data diperbarui: ${result.updated}\n` +
-        `Tidak berubah: ${result.skipped}\n` +
-        `Error: ${result.errors.length}`,
-      );
+      setDapodikPreview(result);
+      setShowDapodikPreview(true);
     } catch (error) {
-      alert(
-        error instanceof Error
-          ? error.message
-          : "Terjadi kesalahan saat memperbarui data siswa.",
-      );
+      setFeedback({
+        type: "error",
+        title: "Preview Dapodik Gagal",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Terjadi kesalahan saat membaca data Dapodik.",
+      });
     } finally {
       setIsUploading(false);
-      setDapodikFile(null);
     }
   };
-
   const handleSimulateOCRUpload = async () => {
     if (isUploading) return;
     setIsUploading(true);
@@ -367,10 +516,18 @@ export const StudentWorkspace: React.FC = () => {
         setSelectedDocId(res.data.id);
         await fetchDocuments();
       } else {
-        alert(res.error?.message || 'Gagal mengunggah dokumen OCR.');
+        setFeedback({
+          type: 'error',
+          title: 'Unggah OCR Gagal',
+          message: res.error?.message || 'Gagal mengunggah dokumen OCR.',
+        });
       }
     } catch {
-      alert('Terjadi kesalahan saat memproses unggahan OCR.');
+      setFeedback({
+        type: 'error',
+        title: 'Unggah OCR Gagal',
+        message: 'Terjadi kesalahan saat memproses unggahan OCR.',
+      });
     } finally {
       setIsUploading(false);
     }
@@ -386,20 +543,229 @@ export const StudentWorkspace: React.FC = () => {
         const exportRows = mapDtoRowsToExportRows(res.data.rows);
         const success = downloadStudentAbsenceExcel(exportRows, res.data.filename);
         if (!success) {
-          alert('Gagal membuat file Excel.');
+          setFeedback({
+          type: 'error',
+          title: 'Ekspor Gagal',
+          message: 'Gagal membuat file Excel.',
+        });
         }
       } else {
-        alert('Tidak ada data terverifikasi untuk diekspor. Selesaikan verifikasi manual terlebih dahulu.');
+        setFeedback({
+          type: 'warning',
+          title: 'Data Belum Siap',
+          message: 'Tidak ada data terverifikasi untuk diekspor. Selesaikan verifikasi manual terlebih dahulu.',
+        });
       }
     } catch {
-      alert('Terjadi kesalahan saat mengekspor data Excel.');
+      setFeedback({
+        type: 'error',
+        title: 'Ekspor Gagal',
+        message: 'Terjadi kesalahan saat mengekspor data Excel.',
+      });
     } finally {
       setIsExporting(false);
     }
   };
 
+
+
+  const dapodikPreviewItems = dapodikPreview?.items ?? [];
+  const visibleDapodikItems = dapodikPreviewItems.filter((item: any) => {
+    if (dapodikPreviewFilter === "ALL") return true;
+    if (dapodikPreviewFilter === "UNCHANGED") return item.status === "UNCHANGED";
+    return item.status !== "UNCHANGED";
+  });
+
   return (
     <div className="space-y-6 font-sans">
+      {showDapodikPreview && dapodikPreview && (
+        <div className="fixed inset-0 z-[90] bg-slate-950/40 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-xl max-h-[70vh] overflow-hidden bg-white rounded-2xl border border-slate-200 shadow-2xl font-sans">
+            <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-semibold text-slate-900">
+                  Preview Update Data Dapodik
+                </h2>
+                <p className="text-xs text-slate-500 mt-1">
+                  Periksa perubahan sebelum data diterapkan ke master siswa.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowDapodikPreview(false);
+                  setDapodikPreview(null);
+                  setDapodikFile(null);
+                }}
+                className="p-2 rounded-lg hover:bg-slate-100 text-slate-500"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 p-4 bg-slate-50 border-b border-slate-200">
+              <div className="bg-white rounded-lg border p-3">
+                <div className="text-[11px] text-slate-500">Total</div>
+                <div className="text-lg font-semibold">{dapodikPreview.total}</div>
+              </div>
+
+              <div className="bg-white rounded-lg border p-3">
+                <div className="text-[11px] text-slate-500">Baru</div>
+                <div className="text-lg font-semibold text-blue-600">
+                  {dapodikPreview.newCount}
+                </div>
+              </div>
+
+              <div className="bg-white rounded-lg border p-3">
+                <div className="text-[11px] text-slate-500">Isi Kosong</div>
+                <div className="text-lg font-semibold text-emerald-600">
+                  {dapodikPreview.fillBlankCount}
+                </div>
+              </div>
+
+              <div className="bg-white rounded-lg border p-3">
+                <div className="text-[11px] text-slate-500">Konflik</div>
+                <div className="text-lg font-semibold text-amber-600">
+                  {dapodikPreview.conflictCount}
+                </div>
+              </div>
+
+              <div className="bg-white rounded-lg border p-3">
+                <div className="text-[11px] text-slate-500">Tidak Berubah</div>
+                <div className="text-lg font-semibold text-slate-600">
+                  {dapodikPreview.unchangedCount}
+                </div>
+              </div>
+            </div>
+
+            <div className="px-4 pt-3 flex items-center justify-between gap-3">
+              <div className="inline-flex items-center rounded-lg border border-slate-200 bg-slate-50 p-0.5">
+                {[
+                  ["REVIEW", "Perlu Review"],
+                  ["ALL", "Semua"],
+                  ["UNCHANGED", "Tidak Berubah"],
+                ].map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() =>
+                      setDapodikPreviewFilter(
+                        value as "REVIEW" | "ALL" | "UNCHANGED",
+                      )
+                    }
+                    className={`px-3 py-1.5 rounded-md text-[11px] font-medium transition-colors ${
+                      dapodikPreviewFilter === value
+                        ? "bg-white text-blue-600 shadow-sm"
+                        : "text-slate-500 hover:text-slate-700"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              <span className="text-[11px] text-slate-400">
+                Menampilkan {visibleDapodikItems.length} dari {dapodikPreview.total}
+              </span>
+            </div>
+
+            <div className="max-h-[55vh] overflow-auto p-4 space-y-3">
+              {visibleDapodikItems.length === 0 ? (
+                <div className="py-10 text-center text-xs text-slate-500">
+                  Tidak ada data pada filter ini.
+                </div>
+              ) : (
+                visibleDapodikItems.map((item: any) => (
+                  <div
+                    key={`${item.row}-${item.identifier}`}
+                    className="border border-slate-200 rounded-xl p-3"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">
+                          {item.name || "-"}
+                        </div>
+                        <div className="text-[11px] text-slate-500">
+                          Baris {item.row} · {item.identifier || "-"}
+                        </div>
+                      </div>
+
+                      <span className="px-2 py-1 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-700">
+                        {item.status}
+                      </span>
+                    </div>
+
+                    {item.fields?.length > 0 && (
+                      <div className="mt-3 overflow-x-auto">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="text-left text-slate-500 border-b">
+                              <th className="py-2 pr-3">Field</th>
+                              <th className="py-2 pr-3">Master</th>
+                              <th className="py-2">Dapodik</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {item.fields.map((field: any) => (
+                              <tr
+                                key={field.field}
+                                className="border-b last:border-0"
+                              >
+                                <td className="py-2 pr-3 font-medium">
+                                  {field.label}
+                                </td>
+                                <td className="py-2 pr-3 text-slate-500">
+                                  {field.currentValue || "-"}
+                                </td>
+                                <td className="py-2 font-medium text-slate-900">
+                                  {field.incomingValue || "-"}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+
+                    {item.message && (
+                      <div className="mt-2 text-[11px] text-slate-500">
+                        {item.message}
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="px-5 py-4 border-t border-slate-200 flex justify-end gap-2">
+              {dapodikPreview.fillBlankCount > 0 && (
+                <button
+                  type="button"
+                  onClick={handleApplyDapodik}
+                  disabled={isUploading}
+                  className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold disabled:opacity-50"
+                >
+                  {isUploading ? "Menerapkan..." : `Terapkan ${dapodikPreview.fillBlankCount} Isi Kosong`}
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowDapodikPreview(false);
+                  setDapodikPreview(null);
+                  setDapodikFile(null);
+                }}
+                className="px-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-semibold"
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Workspace Header */}
       <div className="relative overflow-hidden bg-gradient-to-r from-blue-50 via-white to-cyan-50 p-6 rounded-2xl border border-blue-100 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="absolute -right-16 -top-20 h-52 w-52 rounded-full border border-blue-100/80 bg-blue-100/30" />
@@ -1373,6 +1739,11 @@ export const StudentWorkspace: React.FC = () => {
           </div>
         </div>
       )}
+
+      <FeedbackModal
+        feedback={feedback}
+        onClose={() => setFeedback(null)}
+      />
     </div>
   );
 };

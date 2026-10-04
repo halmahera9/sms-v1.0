@@ -68,7 +68,7 @@ export default function MasterEmployeesPage() {
       setPreviewFile(file);
 
       showNotification(
-        `Preview ${file.name}: ${result.total} baris, ${result.newCount} baru, ${result.changedCount} berubah, ${result.errorCount} bermasalah.`
+        `Preview ${file.name}: ${result.total} baris, ${result.newCount} baru, ${(result.fillBlankCount + result.conflictCount)} berubah, ${result.errorCount} bermasalah.`
       );
     } catch (error) {
       alert(error instanceof Error ? error.message : "Gagal melakukan preview Dapodik.");
@@ -274,7 +274,7 @@ export default function MasterEmployeesPage() {
             <div>
               <h2 className="text-sm font-semibold text-slate-900">Preview Import Dapodik</h2>
               <p className="text-xs text-slate-600 mt-1">
-                {preview.total} data · {preview.newCount} baru · {preview.changedCount} berubah · {preview.errorCount} bermasalah
+                {preview.total} data · {preview.newCount} baru · {(preview.fillBlankCount + preview.conflictCount)} berubah · {preview.errorCount} bermasalah
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -338,7 +338,7 @@ export default function MasterEmployeesPage() {
                     <td className="p-3">
                       <span className="font-medium">
                         {item.status === "NEW" && "DATA BARU"}
-                        {item.status === "CHANGED" && "DATA BERUBAH"}
+                        {(item.status === "FILL_BLANK" || item.status === "CONFLICT") && "DATA BERUBAH"}
                         {item.status === "UNCHANGED" && "TIDAK ADA PERUBAHAN"}
                         {item.status === "ERROR" && "DATA BERMASALAH"}
                       </span>

@@ -2,12 +2,20 @@ import { randomUUID } from "crypto";
 import * as XLSX from "xlsx";
 import { adminPrisma } from "@/platform/db/prisma";
 
+export type DapodikPreviewField = {
+  field: string;
+  label: string;
+  currentValue: string;
+  incomingValue: string;
+};
+
 export type DapodikPreviewItem = {
   row: number;
-  status: "NEW" | "CHANGED" | "UNCHANGED" | "ERROR";
+  status: "NEW" | "FILL_BLANK" | "CONFLICT" | "UNCHANGED" | "ERROR";
   identifier: string;
   name: string;
   changes?: string[];
+  fields?: DapodikPreviewField[];
   message?: string;
 };
 
@@ -15,7 +23,8 @@ export type DapodikPreviewResult = {
   mode: "student" | "employee";
   total: number;
   newCount: number;
-  changedCount: number;
+  fillBlankCount: number;
+  conflictCount: number;
   unchangedCount: number;
   errorCount: number;
   items: DapodikPreviewItem[];
@@ -76,6 +85,21 @@ export async function previewDapodikImport(
       const nis = text(row["NIPD"]);
       const fullName = text(row["Nama"]);
       const className = text(row["Rombel Saat Ini"]);
+      const nik = text(row["NIK"]);
+      const noKk = text(row["No KK"]);
+      const jk = text(row["JK"]).toUpperCase();
+      const jenisKelamin =
+        jk === "P" ? "Perempuan" : jk === "L" ? "Laki-laki" : jk;
+      const tingkatKelas =
+        className.match(/(\d+)/)?.[1] ?? "";
+      const agama = text(row["Agama"]);
+      const tanggalMasuk = normalizeDate(
+        row["Tanggal Masuk Sekolah"] ?? row["Tanggal Masuk"],
+      );
+
+      if (!nisn && !nis && !fullName && !className) {
+        continue;
+      }
 
       if (!nisn || !nis || !fullName || !className) {
         items.push({
@@ -93,9 +117,37 @@ export async function previewDapodikImport(
         select: {
           nis: true,
           fullName: true,
+          nik: true,
+          noKk: true,
+          jenisKelamin: true,
+          tingkatKelas: true,
+          agama: true,
+          tanggalMasuk: true,
           className: true,
         },
       });
+
+      const fields = [
+        ["nis", "NIPD", existing?.nis, nis],
+        ["fullName", "Nama", existing?.fullName, fullName],
+        ["nik", "NIK", existing?.nik, nik],
+        ["noKk", "No KK", existing?.noKk, noKk],
+        ["jenisKelamin", "Jenis Kelamin", existing?.jenisKelamin, jenisKelamin],
+        ["tingkatKelas", "Tingkat Kelas", existing?.tingkatKelas, tingkatKelas],
+        ["agama", "Agama", existing?.agama, agama],
+        [
+          "tanggalMasuk",
+          "Tanggal Masuk",
+          existing?.tanggalMasuk?.toISOString().slice(0, 10) ?? "",
+          tanggalMasuk?.toISOString().slice(0, 10) ?? "",
+        ],
+        ["className", "Rombel", existing?.className, className],
+      ].map(([field, label, currentValue, incomingValue]) => ({
+        field: String(field),
+        label: String(label),
+        currentValue: String(currentValue ?? ""),
+        incomingValue: String(incomingValue ?? ""),
+      }));
 
       if (!existing) {
         items.push({
@@ -103,51 +155,55 @@ export async function previewDapodikImport(
           status: "NEW",
           identifier: nisn,
           name: fullName,
+          fields,
           message: "Data siswa baru.",
         });
         continue;
       }
 
-      const changes: string[] = [];
-
-      if (existing.nis !== nis) changes.push("NIPD");
-      if (existing.fullName !== fullName) changes.push("Nama");
-      if (existing.className !== className) changes.push("Rombel");
+      const fillBlank = fields.filter(
+        (x) => !x.currentValue && x.incomingValue,
+      );
+      const conflict = fields.filter(
+        (x) =>
+          x.currentValue &&
+          x.incomingValue &&
+          x.currentValue !== x.incomingValue,
+      );
+      const changed = [...fillBlank, ...conflict];
+      const status = conflict.length
+        ? "CONFLICT"
+        : fillBlank.length
+          ? "FILL_BLANK"
+          : "UNCHANGED";
 
       items.push({
         row: rowNumber,
-        status: changes.length ? "CHANGED" : "UNCHANGED",
+        status,
         identifier: nisn,
         name: fullName,
-        changes: changes.length ? changes : undefined,
-        message: changes.length
-          ? `Data berubah: ${changes.join(", ")}.`
-          : "Tidak ada perubahan.",
+        fields: changed,
+        changes: changed.map((x) => x.label),
+        message:
+          status === "CONFLICT"
+            ? `Ada konflik pada: ${conflict.map((x) => x.label).join(", ")}.`
+            : status === "FILL_BLANK"
+              ? `Field kosong akan diisi: ${fillBlank.map((x) => x.label).join(", ")}.`
+              : "Tidak ada perubahan.",
       });
 
       continue;
     }
 
-    const nip = firstValue(row, [
-      "NIP",
-      "NIP Baru",
-      "NIP Baru (Jika Ada)",
-    ]);
-    const nrk = firstValue(row, [
-      "NRK",
-      "Nomor Registrasi Kepegawaian",
-    ]);
+    const nip = firstValue(row, ["NIP", "NIP Baru", "NIP Baru (Jika Ada)"]);
+    const nrk = firstValue(row, ["NRK", "Nomor Registrasi Kepegawaian"]);
     const nik = firstValue(row, [
       "NIK",
       "No. KTP",
       "Nomor KTP",
       "Nomor Induk Kependudukan",
     ]);
-    const fullName = firstValue(row, [
-      "Nama",
-      "Nama PTK",
-      "Nama Lengkap",
-    ]);
+    const fullName = firstValue(row, ["Nama", "Nama PTK", "Nama Lengkap"]);
     const jabatan = firstValue(row, [
       "Jabatan",
       "Jabatan PTK",
@@ -170,7 +226,6 @@ export async function previewDapodikImport(
         "Status Pegawai",
       ]),
     );
-
     const identifier = nip || nik;
 
     if (!identifier || !fullName) {
@@ -186,12 +241,7 @@ export async function previewDapodikImport(
 
     const existing = nip
       ? await adminPrisma.employee.findUnique({
-          where: {
-            tenantId_nip: {
-              tenantId,
-              nip,
-            },
-          },
+          where: { tenantId_nip: { tenantId, nip } },
           select: {
             nip: true,
             nrk: true,
@@ -205,12 +255,7 @@ export async function previewDapodikImport(
         })
       : nik
         ? await adminPrisma.employee.findUnique({
-            where: {
-              tenantId_nik: {
-                tenantId,
-                nik,
-              },
-            },
+            where: { tenantId_nik: { tenantId, nik } },
             select: {
               nip: true,
               nrk: true,
@@ -224,48 +269,79 @@ export async function previewDapodikImport(
           })
         : null;
 
+    const fields = [
+      ["nip", "NIP", existing?.nip, nip],
+      ["nrk", "NRK", existing?.nrk, nrk],
+      ["nik", "NIK", existing?.nik, nik],
+      ["fullName", "Nama", existing?.fullName, fullName],
+      ["jabatan", "Jabatan", existing?.jabatan, jabatan],
+      ["unitKerja", "Unit Kerja", existing?.unitKerja, unitKerja],
+      ["instansi", "Instansi", existing?.instansi, instansi],
+      [
+        "statusKepegawaian",
+        "Status Kepegawaian",
+        existing?.statusKepegawaian,
+        statusKepegawaian,
+      ],
+    ].map(([field, label, currentValue, incomingValue]) => ({
+      field: String(field),
+      label: String(label),
+      currentValue: String(currentValue ?? ""),
+      incomingValue: String(incomingValue ?? ""),
+    }));
+
     if (!existing) {
       items.push({
         row: rowNumber,
         status: "NEW",
         identifier,
         name: fullName,
+        fields,
         message: "Data guru/pegawai baru.",
       });
       continue;
     }
 
-    const changes: string[] = [];
-
-    if ((existing.nrk ?? "") !== nrk && nrk) changes.push("NRK");
-    if ((existing.nik ?? "") !== nik && nik) changes.push("NIK");
-    if (existing.fullName !== fullName) changes.push("Nama");
-    if (existing.jabatan !== jabatan) changes.push("Jabatan");
-    if (existing.unitKerja !== unitKerja) changes.push("Unit Kerja");
-    if (existing.instansi !== instansi) changes.push("Instansi");
-    if (existing.statusKepegawaian !== statusKepegawaian) {
-      changes.push("Status Kepegawaian");
-    }
+    const fillBlank = fields.filter(
+      (x) => !x.currentValue && x.incomingValue,
+    );
+    const conflict = fields.filter(
+      (x) =>
+        x.currentValue &&
+        x.incomingValue &&
+        x.currentValue !== x.incomingValue,
+    );
+    const changed = [...fillBlank, ...conflict];
+    const status = conflict.length
+      ? "CONFLICT"
+      : fillBlank.length
+        ? "FILL_BLANK"
+        : "UNCHANGED";
 
     items.push({
       row: rowNumber,
-      status: changes.length ? "CHANGED" : "UNCHANGED",
-      identifier: nip,
+      status,
+      identifier,
       name: fullName,
-      changes: changes.length ? changes : undefined,
-      message: changes.length
-        ? `Data berubah: ${changes.join(", ")}.`
-        : "Tidak ada perubahan.",
+      fields: changed,
+      changes: changed.map((x) => x.label),
+      message:
+        status === "CONFLICT"
+          ? `Ada konflik pada: ${conflict.map((x) => x.label).join(", ")}.`
+          : status === "FILL_BLANK"
+            ? `Field kosong akan diisi: ${fillBlank.map((x) => x.label).join(", ")}.`
+            : "Tidak ada perubahan.",
     });
   }
 
   return {
     mode,
     total: items.length,
-    newCount: items.filter((item) => item.status === "NEW").length,
-    changedCount: items.filter((item) => item.status === "CHANGED").length,
-    unchangedCount: items.filter((item) => item.status === "UNCHANGED").length,
-    errorCount: items.filter((item) => item.status === "ERROR").length,
+    newCount: items.filter((x) => x.status === "NEW").length,
+    fillBlankCount: items.filter((x) => x.status === "FILL_BLANK").length,
+    conflictCount: items.filter((x) => x.status === "CONFLICT").length,
+    unchangedCount: items.filter((x) => x.status === "UNCHANGED").length,
+    errorCount: items.filter((x) => x.status === "ERROR").length,
     items,
   };
 }
@@ -347,6 +423,105 @@ export async function importDapodikStudents(
       });
 
       result.created++;
+      continue;
+    }
+
+    const data: {
+      nis?: string;
+      nik?: string;
+      noKk?: string;
+      jenisKelamin?: string;
+      tingkatKelas?: string;
+      agama?: string;
+      tanggalMasuk?: Date;
+      fullName?: string;
+      className?: string;
+    } = {};
+
+    if (!existing.nis && nis) data.nis = nis;
+    if (!existing.nik && nik) data.nik = nik;
+    if (!existing.noKk && noKk) data.noKk = noKk;
+    if (!existing.jenisKelamin && jenisKelamin) {
+      data.jenisKelamin = jenisKelamin;
+    }
+    if (!existing.tingkatKelas && tingkatKelas) {
+      data.tingkatKelas = tingkatKelas;
+    }
+    if (!existing.agama && agama) data.agama = agama;
+    if (!existing.tanggalMasuk && tanggalMasuk) {
+      data.tanggalMasuk = tanggalMasuk;
+    }
+    if (!existing.fullName && fullName) data.fullName = fullName;
+    if (!existing.className && className) data.className = className;
+
+    if (Object.keys(data).length === 0) {
+      result.skipped++;
+      continue;
+    }
+
+    await adminPrisma.student.update({
+      where: { id: existing.id },
+      data,
+    });
+
+    result.updated++;
+  }
+
+  return result;
+}
+
+
+export async function applyDapodikStudentUpdates(
+  tenantId: string,
+  buffer: Buffer,
+): Promise<ImportResult> {
+  const rows = readSheet(buffer);
+  const result: ImportResult = {
+    created: 0,
+    updated: 0,
+    skipped: 0,
+    errors: [],
+  };
+
+  for (let index = 0; index < rows.length; index++) {
+    const row = rows[index];
+    const rowNumber = index + 6;
+
+    const nisn = text(row["NISN"]);
+    const nis = text(row["NIPD"]);
+    const fullName = text(row["Nama"]);
+    const className = text(row["Rombel Saat Ini"]);
+    const nik = text(row["NIK"]);
+    const noKk = text(row["No KK"]);
+    const jk = text(row["JK"]).toUpperCase();
+    const jenisKelamin =
+      jk === "P" ? "Perempuan" :
+      jk === "L" ? "Laki-laki" :
+      jk || "";
+    const tingkatKelas = className.match(/(\d+)/)?.[1] ?? "";
+    const agama = text(row["Agama"]);
+    const tanggalMasuk = normalizeDate(
+      row["Tanggal Masuk Sekolah"] ?? row["Tanggal Masuk"],
+    );
+
+    if (!nisn && !nis && !fullName && !className) {
+      continue;
+    }
+
+    if (!nisn || !nis || !fullName || !className) {
+      result.errors.push({
+        row: rowNumber,
+        message: "NISN, NIPD, Nama, atau Rombel Saat Ini kosong.",
+      });
+      continue;
+    }
+
+    const existing = await adminPrisma.student.findFirst({
+      where: { tenantId, nisn },
+    });
+
+    if (!existing) {
+      result.skipped++;
       continue;
     }
 
