@@ -59,6 +59,77 @@ Unresolved items must not automatically create a student.
 
 The operator must resolve the identity before a successful verification can generate an AbsenceRecord.
 
+Dapodik Student Synchronization
+
+Dapodik student synchronization is implemented through a protected server
+action boundary.
+
+Current structure:
+
+Student Workspace
+        ↓
+Server Action
+        ↓
+Dapodik Import Service
+        ↓
+Student Repository
+        ↓
+PostgreSQL
+
+The Dapodik service currently supports:
+
+- Excel parsing
+- NISN/NIS-based student lookup
+- Student field extraction
+- Blank-field enrichment
+- Import result reporting
+- Preview operation
+
+The preview boundary is available through:
+
+previewDapodikAction
+
+The Student Workspace has not yet been migrated to a preview-first
+interaction. The current upload handler still invokes the import operation
+directly.
+
+Required target architecture:
+
+Student Workspace
+        ↓
+previewDapodikAction
+        ↓
+Dapodik Preview
+        ↓
+Administrative Approval
+        ↓
+Apply Action
+        ↓
+Dapodik Import Service
+        ↓
+Student Repository
+        ↓
+PostgreSQL
+
+Dapodik Resolution States
+
+UNCHANGED
+    No master mutation.
+
+FILL_BLANK
+    Populate fields that are blank in the master record.
+
+CONFLICT
+    Existing master values must not be silently overwritten.
+
+NEW
+    Must require explicit administrative approval before insertion.
+
+Important Constraint
+
+Dapodik import must not bypass the server action authorization boundary,
+tenant context, repository layer, or administrative approval workflow.
+
 Verification Transaction
 
 The canonical PASSED path is transactional:
