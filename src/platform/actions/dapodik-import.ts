@@ -5,6 +5,7 @@ import {
   assertAuthorizedAction,
 } from "@/platform/auth";
 import {
+  applyDapodikEmployeeUpdates,
   applyDapodikStudentUpdates,
   importDapodikEmployees,
   importDapodikStudents,
@@ -191,6 +192,62 @@ export async function applyDapodikStudentAction(
         error instanceof Error
           ? error.message
           : "Apply Dapodik gagal.",
+    };
+  }
+}
+
+
+export async function applyDapodikEmployeeAction(
+  formData: FormData,
+): Promise<DapodikImportActionResult> {
+  const file = formData.get("file");
+
+  if (!(file instanceof File) || file.size === 0) {
+    return {
+      ok: false,
+      mode: "employee",
+      dryRun: false,
+      created: 0,
+      updated: 0,
+      skipped: 0,
+      errors: [],
+      errorMessage: "File Excel wajib dipilih.",
+    };
+  }
+
+  try {
+    return await executeInAuthenticatedContext(async (context) => {
+      assertAuthorizedAction(context, "STUDENT_WRITE");
+
+      const buffer = Buffer.from(await file.arrayBuffer());
+      const result = await applyDapodikEmployeeUpdates(
+        context.tenantId,
+        buffer,
+      );
+
+      return {
+        ok: true,
+        mode: "employee",
+        dryRun: false,
+        created: result.created,
+        updated: result.updated,
+        skipped: result.skipped,
+        errors: result.errors,
+      };
+    });
+  } catch (error) {
+    return {
+      ok: false,
+      mode: "employee",
+      dryRun: false,
+      created: 0,
+      updated: 0,
+      skipped: 0,
+      errors: [],
+      errorMessage:
+        error instanceof Error
+          ? error.message
+          : "Apply Dapodik pegawai gagal.",
     };
   }
 }

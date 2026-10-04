@@ -14,12 +14,10 @@ export class PostgresEmployeeRepository extends BasePostgresRepository<Employee>
     tenantId: string,
     nip: string
   ): Promise<Employee | null> {
-    return await tx.employee.findUnique({
+    return await tx.employee.findFirst({
       where: {
-        tenantId_nip: {
-          tenantId,
-          nip,
-        },
+        tenantId,
+        nip,
       },
     });
   }
@@ -29,12 +27,10 @@ export class PostgresEmployeeRepository extends BasePostgresRepository<Employee>
     tenantId: string,
     nrk: string
   ): Promise<Employee | null> {
-    return await tx.employee.findUnique({
+    return await tx.employee.findFirst({
       where: {
-        tenantId_nrk: {
-          tenantId,
-          nrk,
-        },
+        tenantId,
+        nrk,
       },
     });
   }
@@ -44,12 +40,10 @@ export class PostgresEmployeeRepository extends BasePostgresRepository<Employee>
     tenantId: string,
     nik: string
   ): Promise<Employee | null> {
-    return await tx.employee.findUnique({
+    return await tx.employee.findFirst({
       where: {
-        tenantId_nik: {
-          tenantId,
-          nik,
-        },
+        tenantId,
+        nik,
       },
     });
   }

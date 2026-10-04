@@ -239,9 +239,40 @@ export async function previewDapodikImport(
       continue;
     }
 
+    const dapodikFields = {
+      nuptk: firstValue(row, ["NUPTK"]),
+      noKk: firstValue(row, ["No. KK", "Nomor KK"]),
+      jenisKelamin: firstValue(row, ["Jenis Kelamin"]),
+      tempatLahir: firstValue(row, ["Tempat Lahir"]),
+      tanggalLahir: normalizeDate(firstValue(row, ["Tanggal Lahir"])),
+      agama: firstValue(row, ["Agama"]),
+      alamatJalan: firstValue(row, ["Alamat Jalan", "Alamat"]),
+      hp: firstValue(row, ["HP", "No. HP", "Nomor HP"]),
+      email: firstValue(row, ["Email", "Surel"]),
+      jenisPtk: firstValue(row, ["Jenis PTK"]),
+      tugasTambahan: firstValue(row, ["Tugas Tambahan"]),
+      skPengangkatan: firstValue(row, ["SK Pengangkatan"]),
+      tmtPengangkatan: normalizeDate(firstValue(row, ["TMT Pengangkatan"])),
+      lembagaPengangkatan: firstValue(row, ["Lembaga Pengangkatan"]),
+      pangkatGolongan: firstValue(row, ["Pangkat Golongan"]),
+      sumberGaji: firstValue(row, ["Sumber Gaji"]),
+      namaIbuKandung: firstValue(row, ["Nama Ibu Kandung"]),
+      statusPerkawinan: firstValue(row, ["Status Perkawinan"]),
+      namaSuamiIstri: firstValue(row, ["Nama Suami/Istri"]),
+      tmtPns: normalizeDate(firstValue(row, ["TMT PNS"])),
+      npwp: firstValue(row, ["NPWP"]),
+      kewarganegaraan: firstValue(row, ["Kewarganegaraan"]),
+      bank: firstValue(row, ["Bank"]),
+      nomorRekeningBank: firstValue(row, ["Nomor Rekening Bank", "No. Rekening Bank"]),
+      rekeningAtasNama: firstValue(row, ["Rekening Atas Nama"]),
+      karpeg: firstValue(row, ["Karpeg"]),
+      karisKarsu: firstValue(row, ["Karis/Karsu"]),
+      nuks: firstValue(row, ["NUKS"]),
+    };
+
     const existing = nip
-      ? await adminPrisma.employee.findUnique({
-          where: { tenantId_nip: { tenantId, nip } },
+      ? await adminPrisma.employee.findFirst({
+          where: { tenantId, nip },
           select: {
             nip: true,
             nrk: true,
@@ -251,11 +282,42 @@ export async function previewDapodikImport(
             unitKerja: true,
             instansi: true,
             statusKepegawaian: true,
+            nuptk: true,
+            noKk: true,
+            jenisKelamin: true,
+            tempatLahir: true,
+            tanggalLahir: true,
+            agama: true,
+            alamatJalan: true,
+            hp: true,
+            email: true,
+            jenisPtk: true,
+            tugasTambahan: true,
+            skPengangkatan: true,
+            tmtPengangkatan: true,
+            lembagaPengangkatan: true,
+            pangkatGolongan: true,
+            sumberGaji: true,
+            namaIbuKandung: true,
+            statusPerkawinan: true,
+            namaSuamiIstri: true,
+            tmtPns: true,
+            npwp: true,
+            kewarganegaraan: true,
+            bank: true,
+            nomorRekeningBank: true,
+            rekeningAtasNama: true,
+            karpeg: true,
+            karisKarsu: true,
+            nuks: true,
+            ...Object.fromEntries(
+              Object.keys(dapodikFields).map((field) => [field, true]),
+            ),
           },
         })
       : nik
-        ? await adminPrisma.employee.findUnique({
-            where: { tenantId_nik: { tenantId, nik } },
+        ? await adminPrisma.employee.findFirst({
+            where: { tenantId, nik },
             select: {
               nip: true,
               nrk: true,
@@ -265,6 +327,37 @@ export async function previewDapodikImport(
               unitKerja: true,
               instansi: true,
               statusKepegawaian: true,
+            nuptk: true,
+            noKk: true,
+            jenisKelamin: true,
+            tempatLahir: true,
+            tanggalLahir: true,
+            agama: true,
+            alamatJalan: true,
+            hp: true,
+            email: true,
+            jenisPtk: true,
+            tugasTambahan: true,
+            skPengangkatan: true,
+            tmtPengangkatan: true,
+            lembagaPengangkatan: true,
+            pangkatGolongan: true,
+            sumberGaji: true,
+            namaIbuKandung: true,
+            statusPerkawinan: true,
+            namaSuamiIstri: true,
+            tmtPns: true,
+            npwp: true,
+            kewarganegaraan: true,
+            bank: true,
+            nomorRekeningBank: true,
+            rekeningAtasNama: true,
+            karpeg: true,
+            karisKarsu: true,
+            nuks: true,
+              ...Object.fromEntries(
+                Object.keys(dapodikFields).map((field) => [field, true]),
+              ),
             },
           })
         : null;
@@ -277,17 +370,44 @@ export async function previewDapodikImport(
       ["jabatan", "Jabatan", existing?.jabatan, jabatan],
       ["unitKerja", "Unit Kerja", existing?.unitKerja, unitKerja],
       ["instansi", "Instansi", existing?.instansi, instansi],
-      [
-        "statusKepegawaian",
-        "Status Kepegawaian",
-        existing?.statusKepegawaian,
-        statusKepegawaian,
-      ],
+      ["statusKepegawaian", "Status Kepegawaian", existing?.statusKepegawaian, statusKepegawaian],
+      ["nuptk", "NUPTK", existing?.nuptk, dapodikFields.nuptk],
+      ["noKk", "No. KK", existing?.noKk, dapodikFields.noKk],
+      ["jenisKelamin", "Jenis Kelamin", existing?.jenisKelamin, dapodikFields.jenisKelamin],
+      ["tempatLahir", "Tempat Lahir", existing?.tempatLahir, dapodikFields.tempatLahir],
+      ["tanggalLahir", "Tanggal Lahir", existing?.tanggalLahir, dapodikFields.tanggalLahir],
+      ["agama", "Agama", existing?.agama, dapodikFields.agama],
+      ["alamatJalan", "Alamat", existing?.alamatJalan, dapodikFields.alamatJalan],
+      ["hp", "HP", existing?.hp, dapodikFields.hp],
+      ["email", "Email", existing?.email, dapodikFields.email],
+      ["jenisPtk", "Jenis PTK", existing?.jenisPtk, dapodikFields.jenisPtk],
+      ["tugasTambahan", "Tugas Tambahan", existing?.tugasTambahan, dapodikFields.tugasTambahan],
+      ["skPengangkatan", "SK Pengangkatan", existing?.skPengangkatan, dapodikFields.skPengangkatan],
+      ["tmtPengangkatan", "TMT Pengangkatan", existing?.tmtPengangkatan, dapodikFields.tmtPengangkatan],
+      ["lembagaPengangkatan", "Lembaga Pengangkatan", existing?.lembagaPengangkatan, dapodikFields.lembagaPengangkatan],
+      ["pangkatGolongan", "Pangkat/Golongan", existing?.pangkatGolongan, dapodikFields.pangkatGolongan],
+      ["sumberGaji", "Sumber Gaji", existing?.sumberGaji, dapodikFields.sumberGaji],
+      ["namaIbuKandung", "Nama Ibu Kandung", existing?.namaIbuKandung, dapodikFields.namaIbuKandung],
+      ["statusPerkawinan", "Status Perkawinan", existing?.statusPerkawinan, dapodikFields.statusPerkawinan],
+      ["namaSuamiIstri", "Nama Suami/Istri", existing?.namaSuamiIstri, dapodikFields.namaSuamiIstri],
+      ["tmtPns", "TMT PNS", existing?.tmtPns, dapodikFields.tmtPns],
+      ["npwp", "NPWP", existing?.npwp, dapodikFields.npwp],
+      ["kewarganegaraan", "Kewarganegaraan", existing?.kewarganegaraan, dapodikFields.kewarganegaraan],
+      ["bank", "Bank", existing?.bank, dapodikFields.bank],
+      ["nomorRekeningBank", "Nomor Rekening Bank", existing?.nomorRekeningBank, dapodikFields.nomorRekeningBank],
+      ["rekeningAtasNama", "Rekening Atas Nama", existing?.rekeningAtasNama, dapodikFields.rekeningAtasNama],
+      ["karpeg", "Karpeg", existing?.karpeg, dapodikFields.karpeg],
+      ["karisKarsu", "Karis/Karsu", existing?.karisKarsu, dapodikFields.karisKarsu],
+      ["nuks", "NUKS", existing?.nuks, dapodikFields.nuks],
     ].map(([field, label, currentValue, incomingValue]) => ({
       field: String(field),
       label: String(label),
-      currentValue: String(currentValue ?? ""),
-      incomingValue: String(incomingValue ?? ""),
+      currentValue: currentValue instanceof Date
+        ? currentValue.toISOString()
+        : String(currentValue ?? ""),
+      incomingValue: incomingValue instanceof Date
+        ? incomingValue.toISOString()
+        : String(incomingValue ?? ""),
     }));
 
     if (!existing) {
@@ -569,6 +689,213 @@ export async function applyDapodikStudentUpdates(
   return result;
 }
 
+
+export async function applyDapodikEmployeeUpdates(
+  tenantId: string,
+  buffer: Buffer,
+): Promise<ImportResult> {
+  const rows = readSheet(buffer);
+
+  const result: ImportResult = {
+    created: 0,
+    updated: 0,
+    skipped: 0,
+    errors: [],
+  };
+
+  for (let index = 0; index < rows.length; index++) {
+    const row = rows[index];
+    const rowNumber = index + 6;
+
+    const nip = firstValue(row, ["NIP", "NIP Baru", "NIP Baru (Jika Ada)"]);
+    const nrk = firstValue(row, ["NRK", "Nomor Registrasi Kepegawaian"]);
+    const nik = firstValue(row, [
+      "NIK",
+      "No. KTP",
+      "Nomor KTP",
+      "Nomor Induk Kependudukan",
+    ]);
+
+    const fullName = firstValue(row, [
+      "Nama",
+      "Nama PTK",
+      "Nama Lengkap",
+    ]);
+
+    if (!nip || !fullName) {
+      if (!nip && !fullName) continue;
+
+      result.errors.push({
+        row: rowNumber,
+        message: "NIP atau Nama pegawai kosong.",
+      });
+      continue;
+    }
+
+    const existing = await adminPrisma.employee.findFirst({
+      where: {
+        tenantId,
+        nip,
+      },
+    });
+
+    // Data baru tidak dibuat otomatis.
+    if (!existing) {
+      result.skipped++;
+      continue;
+    }
+
+    const unitKerja = firstValue(row, [
+      "Unit Kerja",
+      "Unit Kerja PTK",
+      "Rombel",
+    ]);
+
+    const instansi = firstValue(row, [
+      "Instansi",
+      "Sekolah",
+      "Nama Sekolah",
+    ]);
+
+    const jabatan = firstValue(row, [
+      "Jabatan",
+      "Jabatan PTK",
+      "Jabatan/Tugas",
+    ]);
+
+    const statusRaw = firstValue(row, [
+      "Status Kepegawaian",
+      "Status Kepegawaian PTK",
+      "Status Pegawai",
+    ]);
+
+    const statusKepegawaian = employeeStatus(statusRaw);
+
+    const nuptk = firstValue(row, ["NUPTK"]);
+    const noKk = firstValue(row, ["No. KK", "No KK", "Nomor KK"]);
+    const jenisKelamin = firstValue(row, ["Jenis Kelamin", "JK"]);
+    const tempatLahir = firstValue(row, ["Tempat Lahir"]);
+    const tanggalLahir = normalizeDate(row["Tanggal Lahir"]);
+    const agama = firstValue(row, ["Agama"]);
+    const alamatJalan = firstValue(row, ["Alamat Jalan", "Alamat"]);
+    const hp = firstValue(row, ["HP", "No. HP", "Nomor HP"]);
+    const email = firstValue(row, ["Email", "Surel"]);
+    const jenisPtk = firstValue(row, ["Jenis PTK", "Jenis GTK"]);
+    const tugasTambahan = firstValue(row, ["Tugas Tambahan"]);
+    const skPengangkatan = firstValue(row, ["SK Pengangkatan"]);
+    const tmtPengangkatan = normalizeDate(row["TMT Pengangkatan"]);
+    const lembagaPengangkatan = firstValue(row, ["Lembaga Pengangkatan"]);
+    const pangkatGolongan = firstValue(row, ["Pangkat Golongan"]);
+    const sumberGaji = firstValue(row, ["Sumber Gaji"]);
+    const namaIbuKandung = firstValue(row, ["Nama Ibu Kandung"]);
+    const statusPerkawinan = firstValue(row, ["Status Perkawinan"]);
+    const namaSuamiIstri = firstValue(row, ["Nama Suami/Istri"]);
+    const tmtPns = normalizeDate(row["TMT PNS"]);
+    const npwp = firstValue(row, ["NPWP"]);
+    const kewarganegaraan = firstValue(row, ["Kewarganegaraan"]);
+    const bank = firstValue(row, ["Bank"]);
+    const nomorRekeningBank = firstValue(row, [
+      "Nomor Rekening Bank",
+      "No. Rekening Bank",
+    ]);
+    const rekeningAtasNama = firstValue(row, ["Rekening Atas Nama"]);
+    const karpeg = firstValue(row, ["Karpeg"]);
+    const karisKarsu = firstValue(row, ["Karis/Karsu"]);
+    const nuks = firstValue(row, ["NUKS"]);
+
+    const data: Record<string, unknown> = {};
+
+    const put = (field: string, current: unknown, incoming: unknown) => {
+      if (
+        (current === null ||
+          current === undefined ||
+          current === "") &&
+        incoming !== null &&
+        incoming !== undefined &&
+        incoming !== ""
+      ) {
+        data[field] = incoming;
+      }
+    };
+
+    put("nrk", existing.nrk, nrk);
+    put("nik", existing.nik, nik);
+    put("fullName", existing.fullName, fullName);
+    put("jabatan", existing.jabatan, jabatan);
+    put("unitKerja", existing.unitKerja, unitKerja);
+    put("instansi", existing.instansi, instansi);
+
+    put("nuptk", existing.nuptk, nuptk);
+    put("noKk", existing.noKk, noKk);
+    put("jenisKelamin", existing.jenisKelamin, jenisKelamin);
+    put("tempatLahir", existing.tempatLahir, tempatLahir);
+    put("tanggalLahir", existing.tanggalLahir, tanggalLahir);
+    put("agama", existing.agama, agama);
+    put("alamatJalan", existing.alamatJalan, alamatJalan);
+    put("hp", existing.hp, hp);
+    put("email", existing.email, email);
+    put("jenisPtk", existing.jenisPtk, jenisPtk);
+    put("tugasTambahan", existing.tugasTambahan, tugasTambahan);
+    put("skPengangkatan", existing.skPengangkatan, skPengangkatan);
+    put("tmtPengangkatan", existing.tmtPengangkatan, tmtPengangkatan);
+    put(
+      "lembagaPengangkatan",
+      existing.lembagaPengangkatan,
+      lembagaPengangkatan,
+    );
+    put("pangkatGolongan", existing.pangkatGolongan, pangkatGolongan);
+    put("sumberGaji", existing.sumberGaji, sumberGaji);
+    put("namaIbuKandung", existing.namaIbuKandung, namaIbuKandung);
+    put(
+      "statusPerkawinan",
+      existing.statusPerkawinan,
+      statusPerkawinan,
+    );
+    put("namaSuamiIstri", existing.namaSuamiIstri, namaSuamiIstri);
+    put("tmtPns", existing.tmtPns, tmtPns);
+    put("npwp", existing.npwp, npwp);
+    put("kewarganegaraan", existing.kewarganegaraan, kewarganegaraan);
+    put("bank", existing.bank, bank);
+    put(
+      "nomorRekeningBank",
+      existing.nomorRekeningBank,
+      nomorRekeningBank,
+    );
+    put(
+      "rekeningAtasNama",
+      existing.rekeningAtasNama,
+      rekeningAtasNama,
+    );
+    put("karpeg", existing.karpeg, karpeg);
+    put("karisKarsu", existing.karisKarsu, karisKarsu);
+    put("nuks", existing.nuks, nuks);
+
+    if (
+      (existing.statusKepegawaian === null ||
+        existing.statusKepegawaian === undefined) &&
+      statusKepegawaian
+    ) {
+      data.statusKepegawaian = statusKepegawaian;
+    }
+
+    if (Object.keys(data).length === 0) {
+      result.skipped++;
+      continue;
+    }
+
+    await adminPrisma.employee.update({
+      where: {
+        id: existing.id,
+      },
+      data,
+    });
+
+    result.updated++;
+  }
+
+  return result;
+}
+
 function employeeStatus(value: unknown): "PNS" | "PPPK" | "HONORER" | "NON_ASN" {
   const raw = text(value).toUpperCase();
 
@@ -670,22 +997,18 @@ export async function importDapodikEmployees(
     // Field administratif yang belum tersedia dari file Dapodik diberi nilai default.
 
     const existing = nip
-      ? await adminPrisma.employee.findUnique({
+      ? await adminPrisma.employee.findFirst({
           where: {
-            tenantId_nip: {
-              tenantId,
-              nip,
-            },
+            tenantId,
+            nip,
           },
           select: { id: true },
         })
       : nik
-        ? await adminPrisma.employee.findUnique({
+        ? await adminPrisma.employee.findFirst({
             where: {
-              tenantId_nik: {
-                tenantId,
-                nik,
-              },
+              tenantId,
+              nik,
             },
             select: { id: true },
           })

@@ -231,12 +231,33 @@ model Employee {
   createdAt         DateTime       @default(now()) @map("created_at") @db.Timestamptz
   updatedAt         DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  tenant              Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  nuptk               String?   @db.VarChar(20)
+  noKk                String?   @map("no_kk") @db.VarChar(16)
+  agama               String?   @db.VarChar(50)
+  alamatJalan         String?   @map("alamat_jalan") @db.VarChar(255)
+  hp                  String?   @db.VarChar(30)
+  jenisPtk            String?   @map("jenis_ptk") @db.VarChar(100)
+  tugasTambahan       String?   @map("tugas_tambahan") @db.VarChar(255)
+  skPengangkatan      String?   @map("sk_pengangkatan") @db.VarChar(100)
+  tmtPengangkatan     DateTime? @map("tmt_pengangkatan") @db.Timestamptz
+  lembagaPengangkatan String?   @map("lembaga_pengangkatan") @db.VarChar(255)
+  pangkatGolongan     String?   @map("pangkat_golongan") @db.VarChar(100)
+  sumberGaji          String?   @map("sumber_gaji") @db.VarChar(100)
+  namaIbuKandung      String?   @map("nama_ibu_kandung") @db.VarChar(255)
+  statusPerkawinan    String?   @map("status_perkawinan") @db.VarChar(50)
+  namaSuamiIstri      String?   @map("nama_suami_istri") @db.VarChar(255)
+  tmtPns              DateTime? @map("tmt_pns") @db.Timestamptz
+  npwp                String?   @db.VarChar(30)
+  kewarganegaraan     String?   @db.VarChar(50)
+  bank                String?   @db.VarChar(100)
+  nomorRekeningBank   String?   @map("nomor_rekening_bank") @db.VarChar(50)
+  rekeningAtasNama    String?   @map("rekening_atas_nama") @db.VarChar(255)
+  karpeg              String?   @db.VarChar(50)
+  karisKarsu          String?   @map("karis_karsu") @db.VarChar(50)
+  nuks                String?   @db.VarChar(50)
 
   @@unique([tenantId, id])
-  @@unique([tenantId, nip])
-  @@unique([tenantId, nrk])
-  @@unique([tenantId, nik])
   @@index([tenantId, unitKerja])
   @@map("employees")
 }

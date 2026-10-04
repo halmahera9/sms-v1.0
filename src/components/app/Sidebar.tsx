@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   LayoutDashboard,
   Users,
@@ -312,6 +312,14 @@ function EmployeeNavigation({
   onNavigate?: () => void;
 }) {
   const employeeActive = pathname.startsWith('/app/employees');
+  const [employeeType, setEmployeeType] = useState<'guru' | 'karyawan'>('guru');
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const type = new URLSearchParams(window.location.search).get('type');
+    if (type === 'karyawan') setEmployeeType('karyawan');
+    else setEmployeeType('guru');
+  }, [pathname]);
   const [open, setOpen] = useState(employeeActive);
 
   return (
@@ -350,8 +358,9 @@ function EmployeeNavigation({
         <div className="ml-4 mt-1 space-y-0.5 border-l border-white/10 pl-3">
           {employeeSubItems.map((item) => {
             const active =
-              pathname === '/app/employees' ||
-              pathname.startsWith('/app/employees');
+              item.name === 'Guru'
+                ? employeeType === 'guru'
+                : employeeType === 'karyawan';
 
             const Icon = item.icon;
 
