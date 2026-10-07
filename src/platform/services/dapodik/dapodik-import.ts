@@ -640,10 +640,9 @@ export async function applyDapodikStudentUpdates(
       where: { tenantId, nisn },
     });
 
-    if (!existing) {
-      result.skipped++;
-      continue;
-    }
+    // Data baru hanya dibuat ketika operator menekan APPLY.
+    // Preview tetap mengklasifikasikan sebagai NEW.
+
 
     const data: {
       nis?: string;
@@ -657,21 +656,21 @@ export async function applyDapodikStudentUpdates(
       className?: string;
     } = {};
 
-    if (!existing.nis && nis) data.nis = nis;
-    if (!existing.nik && nik) data.nik = nik;
-    if (!existing.noKk && noKk) data.noKk = noKk;
-    if (!existing.jenisKelamin && jenisKelamin) {
+    if (!existing!.nis && nis) data.nis = nis;
+    if (!existing!.nik && nik) data.nik = nik;
+    if (!existing!.noKk && noKk) data.noKk = noKk;
+    if (!existing!.jenisKelamin && jenisKelamin) {
       data.jenisKelamin = jenisKelamin;
     }
-    if (!existing.tingkatKelas && tingkatKelas) {
+    if (!existing!.tingkatKelas && tingkatKelas) {
       data.tingkatKelas = tingkatKelas;
     }
-    if (!existing.agama && agama) data.agama = agama;
-    if (!existing.tanggalMasuk && tanggalMasuk) {
+    if (!existing!.agama && agama) data.agama = agama;
+    if (!existing!.tanggalMasuk && tanggalMasuk) {
       data.tanggalMasuk = tanggalMasuk;
     }
-    if (!existing.fullName && fullName) data.fullName = fullName;
-    if (!existing.className && className) data.className = className;
+    if (!existing!.fullName && fullName) data.fullName = fullName;
+    if (!existing!.className && className) data.className = className;
 
     if (Object.keys(data).length === 0) {
       result.skipped++;
@@ -679,7 +678,7 @@ export async function applyDapodikStudentUpdates(
     }
 
     await adminPrisma.student.update({
-      where: { id: existing.id },
+      where: { id: existing!.id },
       data,
     });
 
@@ -739,12 +738,6 @@ export async function applyDapodikEmployeeUpdates(
       },
     });
 
-    // Data baru tidak dibuat otomatis.
-    if (!existing) {
-      result.skipped++;
-      continue;
-    }
-
     const unitKerja = firstValue(row, [
       "Unit Kerja",
       "Unit Kerja PTK",
@@ -802,6 +795,56 @@ export async function applyDapodikEmployeeUpdates(
     const karpeg = firstValue(row, ["Karpeg"]);
     const karisKarsu = firstValue(row, ["Karis/Karsu"]);
     const nuks = firstValue(row, ["NUKS"]);
+
+    if (!existing) {
+      await adminPrisma.employee.create({
+        data: {
+          id: crypto.randomUUID(),
+          tenantId,
+          nip: nip || null,
+          nrk: nrk || null,
+          nik: nik || null,
+          fullName,
+          jabatan: jabatan || "Belum diisi",
+          unitKerja: unitKerja || "SMP Negeri 99 Jakarta",
+          instansi: instansi || "SMP Negeri 99 Jakarta",
+          statusKepegawaian: statusKepegawaian || "NON_ASN",
+          nuptk: nuptk || null,
+          noKk: noKk || null,
+          jenisKelamin: jenisKelamin || null,
+          tempatLahir: tempatLahir || null,
+          tanggalLahir: tanggalLahir || null,
+          agama: agama || null,
+          alamatJalan: alamatJalan || null,
+          hp: hp || null,
+          email: email || null,
+          jenisPtk: jenisPtk || null,
+          tugasTambahan: tugasTambahan || null,
+          skPengangkatan: skPengangkatan || null,
+          tmtPengangkatan: tmtPengangkatan || null,
+          lembagaPengangkatan: lembagaPengangkatan || null,
+          pangkatGolongan: pangkatGolongan || null,
+          sumberGaji: sumberGaji || null,
+          namaIbuKandung: namaIbuKandung || null,
+          statusPerkawinan: statusPerkawinan || null,
+          namaSuamiIstri: namaSuamiIstri || null,
+          tmtPns: tmtPns || null,
+          npwp: npwp || null,
+          kewarganegaraan: kewarganegaraan || null,
+          bank: bank || null,
+          nomorRekeningBank: nomorRekeningBank || null,
+          rekeningAtasNama: rekeningAtasNama || null,
+          karpeg: karpeg || null,
+          karisKarsu: karisKarsu || null,
+          nuks: nuks || null,
+        },
+      });
+
+      result.created++;
+      continue;
+    }
+
+    const currentEmployee = existing;
 
     const data: Record<string, unknown> = {};
 

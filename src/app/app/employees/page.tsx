@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Upload,
   Search,
@@ -11,6 +11,9 @@ import {
   X,
   CalendarDays,
   UserRound,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import {
@@ -57,11 +60,33 @@ export default function MasterEmployeesPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [pageSize, setPageSize] = useState(10);
   const [page, setPage] = useState(1);
+  const [isHydrated, setIsHydrated] = useState(false);
+
+  useEffect(() => {
+    setIsHydrated(true);
+  }, []);
+
+  const [sortConfig, setSortConfig] = useState<{
+    key:
+      | 'fullName'
+      | 'identity'
+      | 'pangkatGolongan'
+      | 'tmtPengangkatan'
+      | 'jabatan'
+      | 'statusKepegawaian'
+      | 'tempatLahir'
+      | 'tanggalLahir'
+      | 'workPeriod'
+      | 'email';
+    direction: 'asc' | 'desc';
+  } | null>(null);
 
   const [employeeType, setEmployeeType] = useState<'guru' | 'karyawan'>('guru');
 
   const [previewEmployee, setPreviewEmployee] = useState<Employee | null>(null);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
+  const [showEmployeeForm, setShowEmployeeForm] = useState(false);
+  const [formError, setFormError] = useState('');
 
   const [showDapodikPreview, setShowDapodikPreview] = useState(false);
   const [dapodikPreview, setDapodikPreview] = useState<any>(null);
@@ -69,6 +94,17 @@ export default function MasterEmployeesPage() {
     useState<'REVIEW' | 'ALL' | 'UNCHANGED'>('REVIEW');
   const [dapodikFile, setDapodikFile] = useState<File | null>(null);
   const [isApplyingDapodik, setIsApplyingDapodik] = useState(false);
+  const dapodikPreviewListRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!showDapodikPreview) return;
+
+    requestAnimationFrame(() => {
+      if (dapodikPreviewListRef.current) {
+        dapodikPreviewListRef.current.scrollTop = 0;
+      }
+    });
+  }, [showDapodikPreview, dapodikPreviewFilter]);
 
   const [form, setForm] = useState<any>({
     id: undefined,
@@ -108,7 +144,7 @@ export default function MasterEmployeesPage() {
   const filteredEmployees = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
 
-    return employees.filter((employee) => {
+    const result = employees.filter((employee) => {
       const haystack = [
         employee.fullName,
         employee.nip,
@@ -117,6 +153,10 @@ export default function MasterEmployeesPage() {
         employee.nuptk,
         employee.jabatan,
         employee.unitKerja,
+        employee.pangkatGolongan,
+        employee.statusKepegawaian,
+        employee.tempatLahir,
+        employee.email,
       ]
         .filter(Boolean)
         .join(' ')
@@ -124,7 +164,128 @@ export default function MasterEmployeesPage() {
 
       return !q || haystack.includes(q);
     });
-  }, [employees, searchQuery]);
+
+    if (!sortConfig) {
+      return result;
+    }
+
+    const getValue = (employee: Employee) => {
+      switch (sortConfig.key) {
+        case 'fullName':
+          return String(employee.fullName ?? '').toLowerCase();
+
+        case 'identity':
+          return String(
+            employee.nip || employee.nrk || employee.nik || ''
+          ).toLowerCase();
+
+        case 'pangkatGolongan':
+          return String(employee.pangkatGolongan ?? '').toLowerCase();
+
+        case 'tmtPengangkatan':
+        case 'workPeriod':
+          return employee.tmtPengangkatan
+            ? new Date(String(employee.tmtPengangkatan)).getTime()
+            : 0;
+
+        case 'jabatan':
+          return String(employee.jabatan ?? '').toLowerCase();
+
+        case 'statusKepegawaian':
+          return String(
+            employee.statusKepegawaian ?? ''
+          ).toLowerCase();
+
+        case 'tempatLahir':
+          return String(employee.tempatLahir ?? '').toLowerCase();
+
+        case 'tanggalLahir':
+          return employee.tanggalLahir
+            ? new Date(String(employee.tanggalLahir)).getTime()
+            : 0;
+
+        case 'email':
+          return String(employee.email ?? '').toLowerCase();
+
+        default:
+          return '';
+      }
+    };
+
+    return [...result].sort((a, b) => {
+      const av = getValue(a);
+      const bv = getValue(b);
+
+      if (typeof av === 'number' && typeof bv === 'number') {
+        return sortConfig.direction === 'asc'
+          ? av - bv
+          : bv - av;
+      }
+
+      const comparison = String(av).localeCompare(
+        String(bv),
+        'id',
+        {
+          numeric: true,
+          sensitivity: 'base',
+        }
+      );
+
+      return sortConfig.direction === 'asc'
+        ? comparison
+        : -comparison;
+    });
+  }, [employees, searchQuery, sortConfig]);
+
+  const handleSort = (
+    key:
+      | 'fullName'
+      | 'identity'
+      | 'pangkatGolongan'
+      | 'tmtPengangkatan'
+      | 'jabatan'
+      | 'statusKepegawaian'
+      | 'tempatLahir'
+      | 'tanggalLahir'
+      | 'workPeriod'
+      | 'email'
+  ) => {
+    setSortConfig((current) => ({
+      key,
+      direction:
+        current?.key === key && current.direction === 'asc'
+          ? 'desc'
+          : 'asc',
+    }));
+
+    setPage(1);
+  };
+
+  const sortIcon = (
+    key:
+      | 'fullName'
+      | 'identity'
+      | 'pangkatGolongan'
+      | 'tmtPengangkatan'
+      | 'jabatan'
+      | 'statusKepegawaian'
+      | 'tempatLahir'
+      | 'tanggalLahir'
+      | 'workPeriod'
+      | 'email'
+  ) => {
+    if (sortConfig?.key !== key) {
+      return (
+        <ArrowUpDown className="h-3 w-3 text-slate-400" />
+      );
+    }
+
+    return sortConfig.direction === 'asc' ? (
+      <ArrowUp className="h-3 w-3 text-blue-600" />
+    ) : (
+      <ArrowDown className="h-3 w-3 text-blue-600" />
+    );
+  };
 
   const displayedEmployees =
     pageSize === 0
@@ -140,6 +301,7 @@ export default function MasterEmployeesPage() {
 
   const openCreate = () => {
     setEditingEmployee(null);
+    setShowEmployeeForm(true);
     setForm({
       id: undefined,
       nip: '',
@@ -156,11 +318,34 @@ export default function MasterEmployeesPage() {
       tempatLahir: '',
       tanggalLahir: '',
       email: '',
+      noKk: '',
+      jenisKelamin: '',
+      agama: '',
+      alamatJalan: '',
+      hp: '',
+      jenisPtk: '',
+      tugasTambahan: '',
+      skPengangkatan: '',
+      lembagaPengangkatan: '',
+      sumberGaji: '',
+      namaIbuKandung: '',
+      statusPerkawinan: '',
+      namaSuamiIstri: '',
+      tmtPns: '',
+      npwp: '',
+      kewarganegaraan: '',
+      bank: '',
+      nomorRekeningBank: '',
+      rekeningAtasNama: '',
+      karpeg: '',
+      karisKarsu: '',
+      nuks: '',
     });
   };
 
   const openEdit = (employee: Employee) => {
     setEditingEmployee(employee);
+    setShowEmployeeForm(true);
     setForm({
       ...employee,
       tmtPengangkatan: employee.tmtPengangkatan
@@ -173,6 +358,33 @@ export default function MasterEmployeesPage() {
   };
 
   const handleSave = async () => {
+    setFormError('');
+
+    const nik = String(form.nik ?? '').trim();
+
+    if (nik && !/^\d{16}$/.test(nik)) {
+      setFormError('NIK tidak valid. NIK harus tepat 16 angka.');
+      return;
+    }
+
+    if (!String(form.fullName ?? '').trim()) {
+      setFormError('Nama lengkap wajib diisi.');
+      return;
+    }
+
+    if (!String(form.jabatan ?? '').trim()) {
+      setFormError('Jabatan wajib diisi.');
+      return;
+    }
+
+    if (
+      form.statusPerkawinan === 'Kawin' &&
+      !String(form.namaSuamiIstri ?? '').trim()
+    ) {
+      setFormError('Nama Suami/Istri wajib diisi untuk status Kawin.');
+      return;
+    }
+
     const result = await saveEmployeeAction({
       id: form.id,
       nip: form.nip || null,
@@ -183,6 +395,34 @@ export default function MasterEmployeesPage() {
       unitKerja: form.unitKerja || '',
       instansi: form.instansi || '',
       statusKepegawaian: form.statusKepegawaian,
+      nuptk: form.nuptk || null,
+      noKk: form.noKk || null,
+      jenisKelamin: form.jenisKelamin || null,
+      tempatLahir: form.tempatLahir || null,
+      tanggalLahir: form.tanggalLahir || null,
+      agama: form.agama || null,
+      alamatJalan: form.alamatJalan || null,
+      hp: form.hp || null,
+      email: form.email || null,
+      jenisPtk: form.jenisPtk || null,
+      tugasTambahan: form.tugasTambahan || null,
+      skPengangkatan: form.skPengangkatan || null,
+      tmtPengangkatan: form.tmtPengangkatan || null,
+      lembagaPengangkatan: form.lembagaPengangkatan || null,
+      pangkatGolongan: form.pangkatGolongan || null,
+      sumberGaji: form.sumberGaji || null,
+      namaIbuKandung: form.namaIbuKandung || null,
+      statusPerkawinan: form.statusPerkawinan || null,
+      namaSuamiIstri: form.namaSuamiIstri || null,
+      tmtPns: form.tmtPns || null,
+      npwp: form.npwp || null,
+      kewarganegaraan: form.kewarganegaraan || null,
+      bank: form.bank || null,
+      nomorRekeningBank: form.nomorRekeningBank || null,
+      rekeningAtasNama: form.rekeningAtasNama || null,
+      karpeg: form.karpeg || null,
+      karisKarsu: form.karisKarsu || null,
+      nuks: form.nuks || null,
     });
 
     if (!result.success) {
@@ -191,6 +431,8 @@ export default function MasterEmployeesPage() {
     }
 
     setEditingEmployee(null);
+    setShowEmployeeForm(false);
+    setShowEmployeeForm(false);
     await loadEmployees();
   };
 
@@ -251,7 +493,7 @@ export default function MasterEmployeesPage() {
       await loadEmployees();
 
       alert(
-        `Update selesai. ${result.updated} data diperbarui, ${result.skipped} tidak berubah.`,
+        `Proses selesai. ${result.created ?? 0} data baru ditambahkan, ${result.updated ?? 0} data dilengkapi, dan ${result.skipped ?? 0} data tidak berubah.`,
       );
     } finally {
       setIsApplyingDapodik(false);
@@ -344,7 +586,7 @@ export default function MasterEmployeesPage() {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={openCreate}
+              onClick={() => openCreate()}
               className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-blue-700"
             >
               <Plus className="h-4 w-4" />
@@ -378,18 +620,41 @@ export default function MasterEmployeesPage() {
           <table className="min-w-[1800px] w-full text-left text-xs font-sans">
             <thead className="bg-slate-50 text-[10px] font-medium tracking-[0.04em] text-slate-500 uppercase">
               <tr>
-                <th className="py-3 px-4 w-12">No</th>
-                <th className="py-3 px-4">Nama</th>
-                <th className="py-3 px-4">NIP/NIKKI</th>
-                <th className="py-3 px-4">Pangkat/Golongan</th>
-                <th className="py-3 px-4">TMT</th>
-                <th className="py-3 px-4">Jabatan</th>
-                <th className="py-3 px-4">Status Kepegawaian</th>
-                <th className="py-3 px-4">Tmp. Lahir</th>
-                <th className="py-3 px-4">Tgl Lahir</th>
-                <th className="py-3 px-4">Masa Kerja</th>
-                <th className="py-3 px-4">Email</th>
-                <th className="py-3 px-4 text-right">Aksi</th>
+                <th className="py-3 px-4 w-12">
+                  No
+                </th>
+
+                {[
+                  ['fullName', 'Nama'],
+                  ['identity', 'NIP/NIKKI'],
+                  ['pangkatGolongan', 'Pangkat/Golongan'],
+                  ['tmtPengangkatan', 'TMT'],
+                  ['jabatan', 'Jabatan'],
+                  ['statusKepegawaian', 'Status Kepegawaian'],
+                  ['tempatLahir', 'Tmp. Lahir'],
+                  ['tanggalLahir', 'Tgl Lahir'],
+                  ['workPeriod', 'Masa Kerja'],
+                  ['email', 'Email'],
+                ].map(([key, label]) => (
+                  <th
+                    key={key}
+                    className="py-3 px-4"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => handleSort(key as any)}
+                      className="inline-flex items-center gap-1.5 whitespace-nowrap hover:text-blue-600"
+                      title={`Urutkan ${label}`}
+                    >
+                      <span>{label}</span>
+                      {sortIcon(key as any)}
+                    </button>
+                  </th>
+                ))}
+
+                <th className="py-3 px-4 text-right">
+                  Aksi
+                </th>
               </tr>
             </thead>
 
@@ -521,7 +786,7 @@ export default function MasterEmployeesPage() {
 
                 <button
                   type="button"
-                  disabled={page >= totalPages}
+                  disabled={!isHydrated || page >= totalPages}
                   onClick={() => setPage((p) => p + 1)}
                   className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-500 disabled:opacity-40"
                 >
@@ -635,8 +900,7 @@ export default function MasterEmployeesPage() {
       )}
 
       {/* EDIT */}
-      {editingEmployee !== null || form.id === undefined ? (
-        form.fullName || editingEmployee ? (
+      {showEmployeeForm && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
             <div className="max-h-[85vh] w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl">
               <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
@@ -650,7 +914,7 @@ export default function MasterEmployeesPage() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => setEditingEmployee(null)}
+                  onClick={() => { setEditingEmployee(null); setShowEmployeeForm(false); }}
                   className="rounded-lg p-2 text-slate-400 hover:bg-slate-100"
                 >
                   <X className="h-5 w-5" />
@@ -665,21 +929,57 @@ export default function MasterEmployeesPage() {
                     ['nrk', 'NIKKI / NRK', false],
                     ['nik', 'NIK', false],
                     ['nuptk', 'NUPTK', false],
+                    ['noKk', 'No. KK', false],
                     ['pangkatGolongan', 'Pangkat/Golongan', false],
                     ['tmtPengangkatan', 'TMT Pengangkatan', false],
                     ['jabatan', 'Jabatan', false],
                     ['unitKerja', 'Unit Kerja', false],
+                    ['instansi', 'Instansi', false],
+                    ['jenisPtk', 'Jenis PTK', false],
+                    ['tugasTambahan', 'Tugas Tambahan', false],
                     ['tempatLahir', 'Tempat Lahir', false],
                     ['tanggalLahir', 'Tanggal Lahir', false],
+                    ['jenisKelamin', 'Jenis Kelamin', false],
+                    ['agama', 'Agama', false],
+                    ['alamatJalan', 'Alamat', false],
+                    ['hp', 'HP', false],
                     ['email', 'Email', false],
+                    ['skPengangkatan', 'SK Pengangkatan', false],
+                    ['lembagaPengangkatan', 'Lembaga Pengangkatan', false],
+                    ['sumberGaji', 'Sumber Gaji', false],
+                    ['namaIbuKandung', 'Nama Ibu Kandung', false],
+                    ['statusPerkawinan', 'Status Perkawinan', false],
+                    ['namaSuamiIstri', 'Nama Suami/Istri', false],
+                    ['tmtPns', 'TMT PNS', false],
+                    ['npwp', 'NPWP', false],
+                    ['kewarganegaraan', 'Kewarganegaraan', false],
+                    ['bank', 'Bank', false],
+                    ['nomorRekeningBank', 'Nomor Rekening Bank', false],
+                    ['rekeningAtasNama', 'Rekening Atas Nama', false],
+                    ['karpeg', 'Karpeg', false],
+                    ['karisKarsu', 'Karis/Karsu', false],
+                    ['nuks', 'NUKS', false],
                   ].map(([key, label, required]) => (
                     <label key={String(key)} className="space-y-1">
                       <span className="text-[11px] font-medium text-slate-600">
                         {String(label)}{required ? ' *' : ''}
                       </span>
+                      {key === 'jenisKelamin' ? (
+                        <select
+                          value={form[String(key)] ?? ''}
+                          onChange={(e) => setForm((current: any) => ({ ...current, [String(key)]: e.target.value }))}
+                          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs"
+                        >
+                          <option value="">Pilih Jenis Kelamin</option>
+                          <option value="Laki-laki">Laki-laki</option>
+                          <option value="Perempuan">Perempuan</option>
+                        </select>
+                      ) : (
                       <input
                         type={
-                          key === 'tmtPengangkatan' || key === 'tanggalLahir'
+                          key === 'tmtPengangkatan' ||
+                          key === 'tanggalLahir' ||
+                          key === 'tmtPns'
                             ? 'date'
                             : key === 'email'
                               ? 'email'
@@ -694,6 +994,7 @@ export default function MasterEmployeesPage() {
                         }
                         className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                       />
+                      )}
                     </label>
                   ))}
 
@@ -723,7 +1024,7 @@ export default function MasterEmployeesPage() {
               <div className="flex justify-end gap-2 border-t border-slate-200 px-6 py-4">
                 <button
                   type="button"
-                  onClick={() => setEditingEmployee(null)}
+                  onClick={() => { setEditingEmployee(null); setShowEmployeeForm(false); }}
                   className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600"
                 >
                   Batal
@@ -738,118 +1039,110 @@ export default function MasterEmployeesPage() {
               </div>
             </div>
           </div>
-        ) : null
-      ) : null}
+        )}
 
       {/* DAPODIK PREVIEW */}
       {showDapodikPreview && dapodikPreview && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
-          <div className="w-full max-w-xl max-h-[70vh] overflow-hidden rounded-2xl bg-white shadow-2xl">
-            <div className="border-b border-slate-200 px-5 py-4">
-              <h2 className="text-base font-bold text-slate-900">
-                Preview Update Data Dapodik
-              </h2>
-              <p className="mt-1 text-xs text-slate-500">
-                Periksa perubahan sebelum menerapkan data ke master {label}.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-5 gap-2 px-5 py-4">
-              {[
-                ['Total', dapodikPreview.total],
-                ['Baru', dapodikPreview.newCount],
-                ['Isi Kosong', dapodikPreview.fillBlankCount],
-                ['Konflik', dapodikPreview.conflictCount],
-                ['Tidak Berubah', dapodikPreview.unchangedCount],
-              ].map(([label, value]) => (
-                <div key={String(label)} className="rounded-xl bg-slate-50 p-2 text-center">
-                  <div className="text-lg font-bold text-slate-900">{value}</div>
-                  <div className="text-[10px] text-slate-500">{label}</div>
-                </div>
-              ))}
-            </div>
-
-            <div className="flex gap-2 px-5 pb-3">
-              {([
-                ['REVIEW', 'Perlu Review'],
-                ['ALL', 'Semua'],
-                ['UNCHANGED', 'Tidak Berubah'],
-              ] as const).map(([value, label]) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => setDapodikPreviewFilter(value)}
-                  className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
-                    dapodikPreviewFilter === value
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-slate-100 text-slate-600'
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-
-            <div className="max-h-[32vh] overflow-y-auto px-5 pb-4">
-              {(dapodikPreview.items ?? [])
-                .filter((item: any) => {
-                  if (dapodikPreviewFilter === 'ALL') return true;
-                  if (dapodikPreviewFilter === 'UNCHANGED') {
-                    return item.status === 'UNCHANGED';
-                  }
-                  return item.status !== 'UNCHANGED';
-                })
-                .map((item: any) => (
-                  <div
-                    key={`${item.row}-${item.identifier}`}
-                    className="mb-2 rounded-xl border border-slate-200 p-3"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <div className="text-xs font-semibold text-slate-900">
-                          {item.name}
-                        </div>
-                        <div className="text-[10px] text-slate-500">
-                          {item.identifier}
-                        </div>
-                      </div>
-                      <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-semibold">
-                        {item.status}
-                      </span>
-                    </div>
-
-                    {item.fields?.map((field: any) => (
-                      <div
-                        key={`${item.row}-${field.field}`}
-                        className="mt-1 flex justify-between gap-3 text-[10px]"
-                      >
-                        <span className="text-slate-500">{field.label}</span>
-                        <span className="font-medium text-slate-800">
-                          {field.currentValue || '(kosong)'} → {field.incomingValue || '(kosong)'}
-                        </span>
-                      </div>
-                    ))}
+          <div className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+            <div className="shrink-0 border-b border-slate-200 px-6 py-5">
+              <h2 className="text-lg font-bold text-slate-900">Preview Data Dapodik</h2>
+              <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {[
+                  ["Total", dapodikPreview.total],
+                  ["Data Baru", dapodikPreview.newCount],
+                  ["Data Dilengkapi", dapodikPreview.fillBlankCount],
+                  ["Perlu Ditinjau", dapodikPreview.conflictCount],
+                  ["Data Sudah Sesuai", dapodikPreview.items?.filter((x:any) => x.status === "UNCHANGED").length ?? 0],
+                ].map(([label,value]) => (
+                  <div key={String(label)} className="rounded-xl border border-slate-200 p-3">
+                    <div className="text-[10px] text-slate-500">{label}</div>
+                    <div className="text-lg font-bold text-slate-900">{value}</div>
                   </div>
                 ))}
+              </div>
+              <div className="mt-4 flex gap-2">
+                {[
+                  ["REVIEW","Perlu Review"],
+                  ["ALL","Semua"],
+                  ["UNCHANGED","Tidak Berubah"],
+                ].map(([value,label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setDapodikPreviewFilter(value as "REVIEW" | "ALL" | "UNCHANGED")}
+                    className={`rounded-xl px-3 py-2 text-xs font-semibold ${
+                      dapodikPreviewFilter === value
+                        ? "bg-blue-600 text-white"
+                        : "border border-slate-200 text-slate-600"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
             </div>
 
-            <div className="flex justify-end gap-2 border-t border-slate-200 px-5 py-4">
-              {dapodikPreview.fillBlankCount > 0 && (
-                <button
-                  type="button"
-                  onClick={handleApplyDapodik}
-                  disabled={isApplyingDapodik}
-                  className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white disabled:opacity-50"
-                >
-                  {isApplyingDapodik
-                    ? 'Menerapkan...'
-                    : `Terapkan ${dapodikPreview.fillBlankCount} Isi Kosong`}
+            <div ref={dapodikPreviewListRef} className="min-h-0 flex-1 overflow-y-auto bg-slate-50 p-6">
+              <div className="mb-3 text-[10px] text-slate-500">
+                Menampilkan {dapodikPreview.items?.filter((item:any) =>
+                  dapodikPreviewFilter === "ALL" ||
+                  (dapodikPreviewFilter === "REVIEW" && ["NEW","FILL_BLANK","CONFLICT"].includes(item.status)) ||
+                  (dapodikPreviewFilter === "UNCHANGED" && item.status === "UNCHANGED")
+                ).length ?? 0} dari {dapodikPreview.total} data Guru
+              </div>
+
+              <div className="space-y-3">
+                {(dapodikPreview.items ?? [])
+                  .filter((item:any) =>
+                    dapodikPreviewFilter === "ALL" ||
+                    (dapodikPreviewFilter === "REVIEW" && ["NEW","FILL_BLANK","CONFLICT"].includes(item.status)) ||
+                    (dapodikPreviewFilter === "UNCHANGED" && item.status === "UNCHANGED")
+                  )
+                  .map((item:any, index:number) => (
+                    <div key={`${item.row}-${index}`} className="rounded-2xl border border-slate-200 bg-white p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="text-sm font-bold text-slate-900">{item.name || "-"}</div>
+                          <div className="text-[10px] text-slate-500">{item.identifier || "-"}</div>
+                        </div>
+                        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-semibold text-slate-600">
+                          {item.status}
+                        </span>
+                      </div>
+
+                      <div className="mt-3 grid grid-cols-3 gap-2 border-t border-slate-100 pt-3 text-[10px]">
+                        <div className="font-semibold text-slate-500">Field</div>
+                        <div className="font-semibold text-slate-500">Master</div>
+                        <div className="font-semibold text-slate-500">Dapodik</div>
+
+                        {(item.fields ?? []).map((field:any) => (
+                          <Fragment key={field.field}>
+                            <div className="text-slate-700">{field.label}</div>
+                            <div className="text-slate-400">{field.currentValue || "(kosong)"}</div>
+                            <div className="font-medium text-slate-700">{field.incomingValue || "(kosong)"}</div>
+                          </Fragment>
+                        ))}
+                      </div>
+
+                      {item.message && (
+                        <div className="mt-3 text-[10px] text-slate-500">{item.message}</div>
+                      )}
+                    </div>
+                  ))}
+              </div>
+            </div>
+
+            <div className="shrink-0 border-t border-slate-200 px-6 py-4 text-right">
+              {Number(dapodikPreview.newCount) > 0 && (
+                <button type="button" onClick={handleApplyDapodik} disabled={isApplyingDapodik}
+                  className="mr-2 rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white disabled:opacity-50">
+                  {isApplyingDapodik ? "Menerapkan..." : `Tambahkan ${dapodikPreview.newCount} Data Baru ke Master`}
                 </button>
               )}
-
               <button
                 type="button"
-                onClick={() => setShowDapodikPreview(false)}
+                onClick={() => { setShowDapodikPreview(false); setDapodikPreview(null); setDapodikFile(null); }}
                 className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600"
               >
                 Tutup
@@ -858,6 +1151,7 @@ export default function MasterEmployeesPage() {
           </div>
         </div>
       )}
+
     </div>
   );
 }

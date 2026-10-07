@@ -177,3 +177,19 @@ Tenant isolation is enforced at the persistence layer and application boundary.
 Important Constraint
 
 Do not bypass canonical repositories, authorization boundaries, tenant context, or audit recording merely to make a UI operation work.
+
+## PINPOINT — EMPLOYEE / GURU / DAPODIK
+
+Server boundary:
+`src/app/app/employees/page.tsx` → `src/platform/actions/employee.ts` → Employee repository / database.
+
+Dapodik flow:
+Dapodik Excel → `src/platform/services/dapodik/dapodik-import.ts` → Preview → explicit Apply → Employee Master.
+
+Rules:
+- FILL_BLANK may fill empty Master fields.
+- CONFLICT must not overwrite existing Master values automatically.
+- NEW requires explicit Apply.
+- UI status terminology follows the canonical Student UX.
+
+Detailed implementation baseline is maintained in `PRD.md`.

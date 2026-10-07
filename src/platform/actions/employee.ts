@@ -121,6 +121,35 @@ export interface SaveEmployeeDTO {
   unitKerja?: string | null;
   instansi?: string | null;
   statusKepegawaian: EmployeeStatus;
+
+  nuptk?: string | null;
+  noKk?: string | null;
+  jenisKelamin?: string | null;
+  tempatLahir?: string | null;
+  tanggalLahir?: string | null;
+  agama?: string | null;
+  alamatJalan?: string | null;
+  hp?: string | null;
+  email?: string | null;
+  jenisPtk?: string | null;
+  tugasTambahan?: string | null;
+  skPengangkatan?: string | null;
+  tmtPengangkatan?: string | null;
+  lembagaPengangkatan?: string | null;
+  pangkatGolongan?: string | null;
+  sumberGaji?: string | null;
+  namaIbuKandung?: string | null;
+  statusPerkawinan?: string | null;
+  namaSuamiIstri?: string | null;
+  tmtPns?: string | null;
+  npwp?: string | null;
+  kewarganegaraan?: string | null;
+  bank?: string | null;
+  nomorRekeningBank?: string | null;
+  rekeningAtasNama?: string | null;
+  karpeg?: string | null;
+  karisKarsu?: string | null;
+  nuks?: string | null;
 }
 
 export async function saveEmployeeAction(
@@ -131,8 +160,15 @@ export async function saveEmployeeAction(
       throw new Error('Validation Error: Payload data pegawai tidak valid.');
     }
 
+    if (dto.nik && !/^\d{16}$/.test(dto.nik.trim())) {
+      throw new Error(
+        'Validation Error: NIK tidak valid. NIK harus tepat 16 angka.'
+      );
+    }
+
     if (
       !dto.fullName ||
+
       typeof dto.fullName !== 'string' ||
       dto.fullName.trim().length === 0 ||
       dto.fullName.trim().length > 255
@@ -176,6 +212,34 @@ export async function saveEmployeeAction(
             unitKerja: dto.unitKerja?.trim() ?? existing.unitKerja,
             instansi: dto.instansi?.trim() ?? existing.instansi,
             statusKepegawaian: dto.statusKepegawaian,
+            nuptk: dto.nuptk?.trim() || null,
+            noKk: dto.noKk?.trim() || null,
+            jenisKelamin: dto.jenisKelamin?.trim() || null,
+            tempatLahir: dto.tempatLahir?.trim() || null,
+            tanggalLahir: dto.tanggalLahir ? new Date(dto.tanggalLahir) : null,
+            agama: dto.agama?.trim() || null,
+            alamatJalan: dto.alamatJalan?.trim() || null,
+            hp: dto.hp?.trim() || null,
+            email: dto.email?.trim() || null,
+            jenisPtk: dto.jenisPtk?.trim() || null,
+            tugasTambahan: dto.tugasTambahan?.trim() || null,
+            skPengangkatan: dto.skPengangkatan?.trim() || null,
+            tmtPengangkatan: dto.tmtPengangkatan ? new Date(dto.tmtPengangkatan) : null,
+            lembagaPengangkatan: dto.lembagaPengangkatan?.trim() || null,
+            pangkatGolongan: dto.pangkatGolongan?.trim() || null,
+            sumberGaji: dto.sumberGaji?.trim() || null,
+            namaIbuKandung: dto.namaIbuKandung?.trim() || null,
+            statusPerkawinan: dto.statusPerkawinan?.trim() || null,
+            namaSuamiIstri: dto.namaSuamiIstri?.trim() || null,
+            tmtPns: dto.tmtPns ? new Date(dto.tmtPns) : null,
+            npwp: dto.npwp?.trim() || null,
+            kewarganegaraan: dto.kewarganegaraan?.trim() || null,
+            bank: dto.bank?.trim() || null,
+            nomorRekeningBank: dto.nomorRekeningBank?.trim() || null,
+            rekeningAtasNama: dto.rekeningAtasNama?.trim() || null,
+            karpeg: dto.karpeg?.trim() || null,
+            karisKarsu: dto.karisKarsu?.trim() || null,
+            nuks: dto.nuks?.trim() || null,
           },
         });
       }
@@ -192,6 +256,34 @@ export async function saveEmployeeAction(
           unitKerja: dto.unitKerja?.trim() || '',
           instansi: dto.instansi?.trim() || 'SMP Negeri 99 Jakarta',
           statusKepegawaian: dto.statusKepegawaian,
+          nuptk: dto.nuptk?.trim() || null,
+          noKk: dto.noKk?.trim() || null,
+          jenisKelamin: dto.jenisKelamin?.trim() || null,
+          tempatLahir: dto.tempatLahir?.trim() || null,
+          tanggalLahir: dto.tanggalLahir ? new Date(dto.tanggalLahir) : null,
+          agama: dto.agama?.trim() || null,
+          alamatJalan: dto.alamatJalan?.trim() || null,
+          hp: dto.hp?.trim() || null,
+          email: dto.email?.trim() || null,
+          jenisPtk: dto.jenisPtk?.trim() || null,
+          tugasTambahan: dto.tugasTambahan?.trim() || null,
+          skPengangkatan: dto.skPengangkatan?.trim() || null,
+          tmtPengangkatan: dto.tmtPengangkatan ? new Date(dto.tmtPengangkatan) : null,
+          lembagaPengangkatan: dto.lembagaPengangkatan?.trim() || null,
+          pangkatGolongan: dto.pangkatGolongan?.trim() || null,
+          sumberGaji: dto.sumberGaji?.trim() || null,
+          namaIbuKandung: dto.namaIbuKandung?.trim() || null,
+          statusPerkawinan: dto.statusPerkawinan?.trim() || null,
+          namaSuamiIstri: dto.namaSuamiIstri?.trim() || null,
+          tmtPns: dto.tmtPns ? new Date(dto.tmtPns) : null,
+          npwp: dto.npwp?.trim() || null,
+          kewarganegaraan: dto.kewarganegaraan?.trim() || null,
+          bank: dto.bank?.trim() || null,
+          nomorRekeningBank: dto.nomorRekeningBank?.trim() || null,
+          rekeningAtasNama: dto.rekeningAtasNama?.trim() || null,
+          karpeg: dto.karpeg?.trim() || null,
+          karisKarsu: dto.karisKarsu?.trim() || null,
+          nuks: dto.nuks?.trim() || null,
         },
       });
     });

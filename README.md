@@ -136,3 +136,12 @@ Then:
 git status --short
 git log --oneline -5
 
+
+## PINPOINT — EMPLOYEE / GURU / DAPODIK
+
+Implementation baseline: see `PRD.md` section `PINPOINT — EMPLOYEE / GURU / DAPODIK — 2026-10-07`.
+
+Canonical source files:
+- `src/app/app/employees/page.tsx`
+- `src/platform/actions/employee.ts`
+- `src/platform/services/dapodik/dapodik-import.ts`
