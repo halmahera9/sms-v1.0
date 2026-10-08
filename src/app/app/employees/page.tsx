@@ -922,6 +922,12 @@ export default function MasterEmployeesPage() {
               </div>
 
               <div className="max-h-[65vh] overflow-y-auto p-6">
+                {formError && (
+                  <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    {formError}
+                  </div>
+                )}
+
                 <div className="grid gap-4 sm:grid-cols-2">
                   {[
                     ['fullName', 'Nama', true],
@@ -973,6 +979,23 @@ export default function MasterEmployeesPage() {
                           <option value="">Pilih Jenis Kelamin</option>
                           <option value="Laki-laki">Laki-laki</option>
                           <option value="Perempuan">Perempuan</option>
+                        </select>
+                      ) : key === 'agama' ? (
+                        <select
+                          value={form[String(key)] ?? ''}
+                          onChange={(e) => setForm((current: any) => ({ ...current, [String(key)]: e.target.value }))}
+                          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs"
+                        >
+                          <option value="">Pilih Agama</option>
+                          <option value="Islam">Islam</option>
+                          <option value="Kristen">Kristen</option>
+                          <option value="Katolik">Katolik</option>
+                          <option value="Hindu">Hindu</option>
+                          <option value="Buddha">Buddha</option>
+                          <option value="Konghucu">Konghucu</option>
+                          <option value="Kepercayaan terhadap Tuhan YME">
+                            Kepercayaan terhadap Tuhan YME
+                          </option>
                         </select>
                       ) : (
                       <input
