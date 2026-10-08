@@ -187,7 +187,7 @@ export async function saveEmployeeAction(
     }
 
     const saved = await executeInAuthenticatedContext(async (context, tx) => {
-      assertAuthorizedAction(context, 'STUDENT_WRITE');
+      assertAuthorizedAction(context, 'EMPLOYEE_WRITE');
 
       if (dto.id) {
         const existing = await tx.employee.findFirst({
