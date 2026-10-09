@@ -226,15 +226,15 @@ export async function previewDapodikImport(
         "Status Pegawai",
       ]),
     );
-    const identifier = nip || nik;
+    const identifier = nik || nip;
 
-    if (!identifier || !fullName) {
+    if (!nik || !fullName) {
       items.push({
         row: rowNumber,
         status: "ERROR",
         identifier: identifier || "-",
         name: fullName,
-        message: "NIP/NIK atau Nama kosong.",
+        message: "NIK atau Nama kosong. NIK wajib untuk impor otomatis.",
       });
       continue;
     }
@@ -270,10 +270,57 @@ export async function previewDapodikImport(
       nuks: firstValue(row, ["NUKS"]),
     };
 
-    const existing = nip
+    const existingByNik = await adminPrisma.employee.findFirst({
+      where: { tenantId, nik },
+      select: {
+            id: true,
+            nip: true,
+            nrk: true,
+            nik: true,
+            fullName: true,
+            jabatan: true,
+            unitKerja: true,
+            instansi: true,
+            statusKepegawaian: true,
+            nuptk: true,
+            noKk: true,
+            jenisKelamin: true,
+            tempatLahir: true,
+            tanggalLahir: true,
+            agama: true,
+            alamatJalan: true,
+            hp: true,
+            email: true,
+            jenisPtk: true,
+            tugasTambahan: true,
+            skPengangkatan: true,
+            tmtPengangkatan: true,
+            lembagaPengangkatan: true,
+            pangkatGolongan: true,
+            sumberGaji: true,
+            namaIbuKandung: true,
+            statusPerkawinan: true,
+            namaSuamiIstri: true,
+            tmtPns: true,
+            npwp: true,
+            kewarganegaraan: true,
+            bank: true,
+            nomorRekeningBank: true,
+            rekeningAtasNama: true,
+            karpeg: true,
+            karisKarsu: true,
+            nuks: true,
+            ...Object.fromEntries(
+              Object.keys(dapodikFields).map((field) => [field, true]),
+            ),
+      },
+    });
+
+    const existingByNip = nip
       ? await adminPrisma.employee.findFirst({
           where: { tenantId, nip },
           select: {
+            id: true,
             nip: true,
             nrk: true,
             nik: true,
@@ -315,52 +362,25 @@ export async function previewDapodikImport(
             ),
           },
         })
-      : nik
-        ? await adminPrisma.employee.findFirst({
-            where: { tenantId, nik },
-            select: {
-              nip: true,
-              nrk: true,
-              nik: true,
-              fullName: true,
-              jabatan: true,
-              unitKerja: true,
-              instansi: true,
-              statusKepegawaian: true,
-            nuptk: true,
-            noKk: true,
-            jenisKelamin: true,
-            tempatLahir: true,
-            tanggalLahir: true,
-            agama: true,
-            alamatJalan: true,
-            hp: true,
-            email: true,
-            jenisPtk: true,
-            tugasTambahan: true,
-            skPengangkatan: true,
-            tmtPengangkatan: true,
-            lembagaPengangkatan: true,
-            pangkatGolongan: true,
-            sumberGaji: true,
-            namaIbuKandung: true,
-            statusPerkawinan: true,
-            namaSuamiIstri: true,
-            tmtPns: true,
-            npwp: true,
-            kewarganegaraan: true,
-            bank: true,
-            nomorRekeningBank: true,
-            rekeningAtasNama: true,
-            karpeg: true,
-            karisKarsu: true,
-            nuks: true,
-              ...Object.fromEntries(
-                Object.keys(dapodikFields).map((field) => [field, true]),
-              ),
-            },
-          })
-        : null;
+      : null;
+
+    if (
+      existingByNik &&
+      existingByNip &&
+      existingByNik.id !== existingByNip.id
+    ) {
+      items.push({
+        row: rowNumber,
+        status: "CONFLICT",
+        identifier,
+        name: fullName,
+        fields: [],
+        message: "NIK dan NIP mengarah ke data pegawai berbeda. Perlu verifikasi manual.",
+      });
+      continue;
+    }
+
+    const existing = existingByNik ?? existingByNip;
 
     const fields = [
       ["nip", "NIP", existing?.nip, nip],
@@ -721,22 +741,39 @@ export async function applyDapodikEmployeeUpdates(
       "Nama Lengkap",
     ]);
 
-    if (!nip || !fullName) {
-      if (!nip && !fullName) continue;
+    if (!nik || !fullName) {
+      if (!nik && !fullName) continue;
 
       result.errors.push({
         row: rowNumber,
-        message: "NIP atau Nama pegawai kosong.",
+        message: "NIK atau Nama pegawai kosong. NIK wajib untuk impor otomatis.",
       });
       continue;
     }
 
-    const existing = await adminPrisma.employee.findFirst({
-      where: {
-        tenantId,
-        nip,
-      },
+    const existingByNik = await adminPrisma.employee.findFirst({
+      where: { tenantId, nik },
     });
+
+    const existingByNip = nip
+      ? await adminPrisma.employee.findFirst({
+          where: { tenantId, nip },
+        })
+      : null;
+
+    if (
+      existingByNik &&
+      existingByNip &&
+      existingByNik.id !== existingByNip.id
+    ) {
+      result.errors.push({
+        row: rowNumber,
+        message: "NIK dan NIP mengarah ke data pegawai berbeda. Perlu verifikasi manual.",
+      });
+      continue;
+    }
+
+    const existing = existingByNik ?? existingByNip;
 
     const unitKerja = firstValue(row, [
       "Unit Kerja",

@@ -406,6 +406,44 @@ export default function MasterEmployeesPage() {
       return;
     }
 
+    const lengthLimits: Array<[keyof typeof form, string, number]> = [
+      ['nip', 'NIP', 18],
+      ['nrk', 'NIKKI / NRK', 10],
+      ['nuptk', 'NUPTK', 20],
+      ['noKk', 'No. KK', 16],
+      ['jenisKelamin', 'Jenis kelamin', 20],
+      ['tempatLahir', 'Tempat lahir', 100],
+      ['agama', 'Agama', 50],
+      ['alamatJalan', 'Alamat', 255],
+      ['hp', 'HP', 30],
+      ['email', 'Email', 255],
+      ['jenisPtk', 'Jenis PTK', 100],
+      ['tugasTambahan', 'Tugas tambahan', 255],
+      ['skPengangkatan', 'SK pengangkatan', 100],
+      ['lembagaPengangkatan', 'Lembaga pengangkatan', 255],
+      ['pangkatGolongan', 'Pangkat/golongan', 100],
+      ['sumberGaji', 'Sumber gaji', 100],
+      ['namaIbuKandung', 'Nama ibu kandung', 255],
+      ['statusPerkawinan', 'Status perkawinan', 50],
+      ['namaSuamiIstri', 'Nama suami/istri', 255],
+      ['npwp', 'NPWP', 30],
+      ['kewarganegaraan', 'Kewarganegaraan', 50],
+      ['bank', 'Bank', 100],
+      ['nomorRekeningBank', 'Nomor rekening bank', 50],
+      ['rekeningAtasNama', 'Nama pemilik rekening', 255],
+      ['karpeg', 'Karpeg', 50],
+      ['karisKarsu', 'Karis/Karsu', 50],
+      ['nuks', 'NUKS', 50],
+    ];
+
+    for (const [field, label, max] of lengthLimits) {
+      const value = form[field];
+      if (typeof value === 'string' && value.trim().length > max) {
+        setFormError(`${label} maksimal ${max} karakter.`);
+        return;
+      }
+    }
+
     if (!String(form.fullName ?? '').trim()) {
       setFormError('Nama lengkap wajib diisi.');
       return;
@@ -504,7 +542,11 @@ export default function MasterEmployeesPage() {
       !file.name.toLowerCase().endsWith('.xls') &&
       !file.name.toLowerCase().endsWith('.xlsx')
     ) {
-      alert('File Dapodik harus berformat .xls atau .xlsx.');
+      setFeedback({
+        type: 'error',
+        title: 'Preview Dapodik Gagal',
+        message: 'File Dapodik harus berformat .xls atau .xlsx.',
+      });
       return;
     }
 
@@ -519,11 +561,14 @@ export default function MasterEmployeesPage() {
       setDapodikPreviewFilter('REVIEW');
       setShowDapodikPreview(true);
     } catch (error) {
-      alert(
-        error instanceof Error
-          ? error.message
-          : 'Gagal melakukan preview Dapodik.',
-      );
+      setFeedback({
+        type: 'error',
+        title: 'Preview Dapodik Gagal',
+        message:
+          error instanceof Error
+            ? error.message
+            : 'Gagal melakukan preview Dapodik.',
+      });
     }
   };
 
@@ -539,7 +584,11 @@ export default function MasterEmployeesPage() {
       const result = await applyDapodikEmployeeAction(formData);
 
       if (!result.ok) {
-        alert(result.errorMessage ?? 'Apply Dapodik gagal.');
+        setFeedback({
+          type: 'error',
+          title: 'Apply Dapodik Gagal',
+          message: result.errorMessage ?? 'Apply Dapodik gagal.',
+        });
         return;
       }
 
@@ -548,9 +597,14 @@ export default function MasterEmployeesPage() {
       setDapodikFile(null);
       await loadEmployees();
 
-      alert(
-        `Proses selesai. ${result.created ?? 0} data baru ditambahkan, ${result.updated ?? 0} data dilengkapi, dan ${result.skipped ?? 0} data tidak berubah.`,
-      );
+      setFeedback({
+        type: 'success',
+        title: 'Update Data Guru Selesai',
+        message: `Data baru ditambahkan: ${result.created ?? 0}
+Data dilengkapi: ${result.updated ?? 0}
+Data tidak berubah: ${result.skipped ?? 0}
+Error: 0`,
+      });
     } finally {
       setIsApplyingDapodik(false);
     }
@@ -1127,109 +1181,161 @@ export default function MasterEmployeesPage() {
           </div>
         )}
 
-      {/* DAPODIK PREVIEW */}
+      {/* DAPODIK PREVIEW — canonical Student UX */}
       {showDapodikPreview && dapodikPreview && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
-          <div className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
-            <div className="shrink-0 border-b border-slate-200 px-6 py-5">
-              <h2 className="text-lg font-bold text-slate-900">Preview Data Dapodik</h2>
-              <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                {[
-                  ["Total", dapodikPreview.total],
-                  ["Data Baru", dapodikPreview.newCount],
-                  ["Data Dilengkapi", dapodikPreview.fillBlankCount],
-                  ["Perlu Ditinjau", dapodikPreview.conflictCount],
-                  ["Data Sudah Sesuai", dapodikPreview.items?.filter((x:any) => x.status === "UNCHANGED").length ?? 0],
-                ].map(([label,value]) => (
-                  <div key={String(label)} className="rounded-xl border border-slate-200 p-3">
-                    <div className="text-[10px] text-slate-500">{label}</div>
-                    <div className="text-lg font-bold text-slate-900">{value}</div>
-                  </div>
-                ))}
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-sm">
+          <div className="flex max-h-[70vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white font-sans shadow-2xl">
+            <div className="flex shrink-0 items-center justify-between border-b border-slate-200 px-5 py-4">
+              <div>
+                <h2 className="text-base font-semibold text-slate-900">
+                  Preview Update Data Dapodik
+                </h2>
+                <p className="mt-1 text-xs text-slate-500">
+                  Periksa perubahan sebelum data diterapkan ke master guru.
+                </p>
               </div>
-              <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                aria-label="Tutup preview Dapodik"
+                onClick={() => {
+                  setShowDapodikPreview(false);
+                  setDapodikPreview(null);
+                  setDapodikFile(null);
+                }}
+                className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="grid shrink-0 grid-cols-2 gap-2 border-b border-slate-200 bg-slate-50 p-4 sm:grid-cols-5">
+              {[
+                ["Total", dapodikPreview.total, "text-slate-900"],
+                ["Baru", dapodikPreview.newCount, "text-blue-600"],
+                ["Isi Kosong", dapodikPreview.fillBlankCount, "text-emerald-600"],
+                ["Konflik", dapodikPreview.conflictCount, "text-amber-600"],
+                ["Tidak Berubah", dapodikPreview.items?.filter((item: any) => item.status === "UNCHANGED").length ?? 0, "text-slate-600"],
+              ].map(([label, value, color]) => (
+                <div key={String(label)} className="rounded-lg border border-slate-200 bg-white p-3">
+                  <div className="text-[11px] text-slate-500">{label}</div>
+                  <div className={`text-lg font-semibold ${color}`}>{value}</div>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex shrink-0 items-center justify-between gap-3 px-4 pt-3">
+              <div className="inline-flex items-center rounded-lg border border-slate-200 bg-slate-50 p-0.5">
                 {[
-                  ["REVIEW","Perlu Review"],
-                  ["ALL","Semua"],
-                  ["UNCHANGED","Tidak Berubah"],
-                ].map(([value,label]) => (
+                  ["REVIEW", "Perlu Review"],
+                  ["ALL", "Semua"],
+                  ["UNCHANGED", "Tidak Berubah"],
+                ].map(([value, label]) => (
                   <button
                     key={value}
                     type="button"
                     onClick={() => setDapodikPreviewFilter(value as "REVIEW" | "ALL" | "UNCHANGED")}
-                    className={`rounded-xl px-3 py-2 text-xs font-semibold ${
+                    className={`rounded-md px-3 py-1.5 text-[11px] font-medium transition-colors ${
                       dapodikPreviewFilter === value
-                        ? "bg-blue-600 text-white"
-                        : "border border-slate-200 text-slate-600"
+                        ? "bg-white text-blue-600 shadow-sm"
+                        : "text-slate-500 hover:text-slate-700"
                     }`}
                   >
                     {label}
                   </button>
                 ))}
               </div>
-            </div>
-
-            <div ref={dapodikPreviewListRef} className="min-h-0 flex-1 overflow-y-auto bg-slate-50 p-6">
-              <div className="mb-3 text-[10px] text-slate-500">
-                Menampilkan {dapodikPreview.items?.filter((item:any) =>
+              <span className="text-[11px] text-slate-400">
+                Menampilkan {(dapodikPreview.items ?? []).filter((item: any) =>
                   dapodikPreviewFilter === "ALL" ||
-                  (dapodikPreviewFilter === "REVIEW" && ["NEW","FILL_BLANK","CONFLICT"].includes(item.status)) ||
+                  (dapodikPreviewFilter === "REVIEW" && ["NEW", "FILL_BLANK", "CONFLICT", "ERROR"].includes(item.status)) ||
                   (dapodikPreviewFilter === "UNCHANGED" && item.status === "UNCHANGED")
-                ).length ?? 0} dari {dapodikPreview.total} data Guru
-              </div>
-
-              <div className="space-y-3">
-                {(dapodikPreview.items ?? [])
-                  .filter((item:any) =>
-                    dapodikPreviewFilter === "ALL" ||
-                    (dapodikPreviewFilter === "REVIEW" && ["NEW","FILL_BLANK","CONFLICT"].includes(item.status)) ||
-                    (dapodikPreviewFilter === "UNCHANGED" && item.status === "UNCHANGED")
-                  )
-                  .map((item:any, index:number) => (
-                    <div key={`${item.row}-${index}`} className="rounded-2xl border border-slate-200 bg-white p-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <div className="text-sm font-bold text-slate-900">{item.name || "-"}</div>
-                          <div className="text-[10px] text-slate-500">{item.identifier || "-"}</div>
-                        </div>
-                        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-semibold text-slate-600">
-                          {item.status}
-                        </span>
-                      </div>
-
-                      <div className="mt-3 grid grid-cols-3 gap-2 border-t border-slate-100 pt-3 text-[10px]">
-                        <div className="font-semibold text-slate-500">Field</div>
-                        <div className="font-semibold text-slate-500">Master</div>
-                        <div className="font-semibold text-slate-500">Dapodik</div>
-
-                        {(item.fields ?? []).map((field:any) => (
-                          <Fragment key={field.field}>
-                            <div className="text-slate-700">{field.label}</div>
-                            <div className="text-slate-400">{field.currentValue || "(kosong)"}</div>
-                            <div className="font-medium text-slate-700">{field.incomingValue || "(kosong)"}</div>
-                          </Fragment>
-                        ))}
-                      </div>
-
-                      {item.message && (
-                        <div className="mt-3 text-[10px] text-slate-500">{item.message}</div>
-                      )}
-                    </div>
-                  ))}
-              </div>
+                ).length} dari {dapodikPreview.total} data Guru
+              </span>
             </div>
 
-            <div className="shrink-0 border-t border-slate-200 px-6 py-4 text-right">
+            <div ref={dapodikPreviewListRef} className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
+              {(dapodikPreview.items ?? []).filter((item: any) =>
+                dapodikPreviewFilter === "ALL" ||
+                (dapodikPreviewFilter === "REVIEW" && ["NEW", "FILL_BLANK", "CONFLICT", "ERROR"].includes(item.status)) ||
+                (dapodikPreviewFilter === "UNCHANGED" && item.status === "UNCHANGED")
+              ).length === 0 ? (
+                <div className="py-10 text-center text-xs text-slate-500">
+                  Tidak ada data pada filter ini.
+                </div>
+              ) : (
+                (dapodikPreview.items ?? []).filter((item: any) =>
+                  dapodikPreviewFilter === "ALL" ||
+                  (dapodikPreviewFilter === "REVIEW" && ["NEW", "FILL_BLANK", "CONFLICT", "ERROR"].includes(item.status)) ||
+                  (dapodikPreviewFilter === "UNCHANGED" && item.status === "UNCHANGED")
+                ).map((item: any, index: number) => (
+                  <div key={`${item.row}-${item.identifier}-${index}`} className="rounded-xl border border-slate-200 p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">{item.name || "-"}</div>
+                        <div className="text-[11px] text-slate-500">
+                          Baris {item.row} · {item.identifier || "-"}
+                        </div>
+                      </div>
+                      <span className={`rounded-full px-2 py-1 text-[10px] font-semibold ${
+                        item.status === "NEW" ? "bg-blue-50 text-blue-700" :
+                        item.status === "FILL_BLANK" ? "bg-emerald-50 text-emerald-700" :
+                        item.status === "CONFLICT" || item.status === "ERROR" ? "bg-amber-50 text-amber-700" :
+                        "bg-slate-100 text-slate-700"
+                      }`}>
+                        {item.status}
+                      </span>
+                    </div>
+
+                    {(item.fields ?? []).length > 0 && (
+                      <div className="mt-3 overflow-x-auto">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="border-b text-left text-slate-500">
+                              <th className="py-2 pr-3">Field</th>
+                              <th className="py-2 pr-3">Master</th>
+                              <th className="py-2">Dapodik</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(item.fields ?? []).map((field: any) => (
+                              <tr key={field.field} className="border-b last:border-0">
+                                <td className="py-2 pr-3 font-medium">{field.label}</td>
+                                <td className="py-2 pr-3 text-slate-500">{field.currentValue || "-"}</td>
+                                <td className="py-2 font-medium text-slate-900">{field.incomingValue || "-"}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+
+                    {item.message && (
+                      <div className="mt-2 text-[11px] text-slate-500">{item.message}</div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="flex shrink-0 justify-end gap-2 border-t border-slate-200 px-5 py-4">
               {Number(dapodikPreview.newCount) > 0 && (
-                <button type="button" onClick={handleApplyDapodik} disabled={isApplyingDapodik}
-                  className="mr-2 rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white disabled:opacity-50">
+                <button
+                  type="button"
+                  onClick={handleApplyDapodik}
+                  disabled={isApplyingDapodik}
+                  className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+                >
                   {isApplyingDapodik ? "Menerapkan..." : `Tambahkan ${dapodikPreview.newCount} Data Baru ke Master`}
                 </button>
               )}
               <button
                 type="button"
-                onClick={() => { setShowDapodikPreview(false); setDapodikPreview(null); setDapodikFile(null); }}
-                className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600"
+                onClick={() => {
+                  setShowDapodikPreview(false);
+                  setDapodikPreview(null);
+                  setDapodikFile(null);
+                }}
+                className="rounded-xl bg-slate-900 px-4 py-2 text-xs font-semibold text-white"
               >
                 Tutup
               </button>

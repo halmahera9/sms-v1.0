@@ -167,6 +167,45 @@ export async function saveEmployeeAction(
       );
     }
 
+    const lengthLimits: Array<[keyof SaveEmployeeDTO, string, number]> = [
+      ['nip', 'NIP', 18],
+      ['nrk', 'NIKKI / NRK', 10],
+      ['nuptk', 'NUPTK', 20],
+      ['noKk', 'No. KK', 16],
+      ['jenisKelamin', 'Jenis kelamin', 20],
+      ['tempatLahir', 'Tempat lahir', 100],
+      ['agama', 'Agama', 50],
+      ['alamatJalan', 'Alamat', 255],
+      ['hp', 'HP', 30],
+      ['email', 'Email', 255],
+      ['jenisPtk', 'Jenis PTK', 100],
+      ['tugasTambahan', 'Tugas tambahan', 255],
+      ['skPengangkatan', 'SK pengangkatan', 100],
+      ['lembagaPengangkatan', 'Lembaga pengangkatan', 255],
+      ['pangkatGolongan', 'Pangkat/golongan', 100],
+      ['sumberGaji', 'Sumber gaji', 100],
+      ['namaIbuKandung', 'Nama ibu kandung', 255],
+      ['statusPerkawinan', 'Status perkawinan', 50],
+      ['namaSuamiIstri', 'Nama suami/istri', 255],
+      ['npwp', 'NPWP', 30],
+      ['kewarganegaraan', 'Kewarganegaraan', 50],
+      ['bank', 'Bank', 100],
+      ['nomorRekeningBank', 'Nomor rekening bank', 50],
+      ['rekeningAtasNama', 'Nama pemilik rekening', 255],
+      ['karpeg', 'Karpeg', 50],
+      ['karisKarsu', 'Karis/Karsu', 50],
+      ['nuks', 'NUKS', 50],
+    ];
+
+    for (const [field, label, max] of lengthLimits) {
+      const value = dto[field];
+      if (typeof value === 'string' && value.trim().length > max) {
+        throw new Error(
+          `Validation Error: ${label} maksimal ${max} karakter.`,
+        );
+      }
+    }
+
     if (
       !dto.fullName ||
 
