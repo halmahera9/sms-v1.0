@@ -7,6 +7,7 @@ import {
   assertAuthorizedAction,
 } from '@/platform/auth';
 import { EmployeeStatus } from '@prisma/client';
+import { PostgresEmployeeRepository } from '@/platform/repositories/employee';
 import type { ActionErrorCode, ActionError, ActionResponse } from '@/platform/types';
 
 export type { ActionErrorCode, ActionError, ActionResponse };
@@ -338,6 +339,28 @@ export async function saveEmployeeAction(
     };
   } catch (err) {
     return handleActionError<EmployeeRecordDTO>(err);
+  }
+}
+
+
+export async function deleteEmployeeAction(
+  id: string,
+): Promise<ActionResponse<boolean>> {
+  try {
+    if (!id || typeof id !== 'string') {
+      throw new Error('Validation Error: ID pegawai tidak valid.');
+    }
+
+    const deleted = await executeInAuthenticatedContext(async (context, tx) => {
+      assertAuthorizedAction(context, 'EMPLOYEE_DELETE');
+
+      const repo = new PostgresEmployeeRepository();
+      return repo.deleteTx(tx, id);
+    });
+
+    return { success: true, data: deleted };
+  } catch (err) {
+    return handleActionError<boolean>(err);
   }
 }
 

@@ -132,6 +132,28 @@ function handleActionError<T>(err: unknown): ActionResponse<T> {
  * Queries student master records for authenticated tenant under RLS.
  * Allowed roles: ADMIN, OPERATOR, VERIFIKATOR.
  */
+
+export async function deleteStudentAction(
+  id: string,
+): Promise<ActionResponse<boolean>> {
+  try {
+    if (!id || typeof id !== 'string') {
+      throw new Error('Validation Error: ID siswa tidak valid.');
+    }
+
+    const deleted = await executeInAuthenticatedContext(async (context, tx) => {
+      assertAuthorizedAction(context, 'STUDENT_DELETE');
+
+      const repo = new PostgresStudentRepository();
+      return repo.deleteTx(tx, id);
+    });
+
+    return { success: true, data: deleted };
+  } catch (err) {
+    return handleActionError<boolean>(err);
+  }
+}
+
 export async function getStudentsAction(
   filter?: StudentFilterDTO,
   _repo: PostgresStudentRepository = new PostgresStudentRepository()

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import {
+  deleteStudentAction,
   getStudentsAction,
   saveStudentAction,
   StudentRecordDTO,
@@ -41,6 +42,8 @@ import {
 } from 'lucide-react';
 import { getStudentAbsenceExportDataAction } from '@/platform/actions/student-export';
 import { mapDtoRowsToExportRows, downloadStudentAbsenceExcel } from '../export';
+import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
+import { FeedbackModal as SharedFeedbackModal, type FeedbackState as SharedFeedbackState } from '@/components/ui/FeedbackModal';
 
 type FeedbackType = 'success' | 'error' | 'warning';
 
@@ -175,6 +178,7 @@ export const StudentWorkspace: React.FC = () => {
   const [uploadResultDoc, setUploadResultDoc] = useState<OCRDocumentDTO | null>(null);
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const [feedback, setFeedback] = useState<FeedbackState>(null);
+  const [deleteTarget, setDeleteTarget] = useState<StudentRecordDTO | null>(null);
   const [verifyingItemId, setVerifyingItemId] = useState<string | null>(null);
   const [dapodikFile, setDapodikFile] = useState<File | null>(null);
   const [dapodikPreview, setDapodikPreview] = useState<any>(null);
@@ -334,8 +338,19 @@ export const StudentWorkspace: React.FC = () => {
     try {
       const res = await saveStudentAction(formData);
       if (res.success && res.data) {
+        const savedName = String(formData.fullName ?? '').trim();
+        const isEdit = Boolean(formData.id);
+
         setIsModalOpen(false);
         await fetchStudents();
+
+        setFeedback({
+          type: 'success',
+          title: isEdit ? 'Update Data Siswa Selesai' : 'Tambah Data Siswa Selesai',
+          message: isEdit
+            ? `Data siswa "${savedName}" berhasil diperbarui.`
+            : `Data siswa "${savedName}" berhasil ditambahkan.`,
+        });
       } else {
         setFormError(res.error?.message || 'Gagal menyimpan data siswa.');
       }
@@ -344,6 +359,40 @@ export const StudentWorkspace: React.FC = () => {
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleDeleteStudent = (student: StudentRecordDTO) => {
+    setDeleteTarget(student);
+  };
+
+  const confirmDeleteStudent = async () => {
+    if (!deleteTarget) return;
+
+    const student = deleteTarget;
+    setDeleteTarget(null);
+
+    const result = await deleteStudentAction(student.id);
+
+    if (!result.success) {
+      setFeedback({
+        type: 'error',
+        title: 'Hapus Data Siswa Gagal',
+        message:
+          typeof result.error === 'string'
+            ? result.error
+            : result.error?.message || 'Data siswa tidak berhasil dihapus.',
+      });
+      return;
+    }
+
+    setPreviewStudent(null);
+    await fetchStudents();
+
+    setFeedback({
+      type: 'success',
+      title: 'Hapus Data Siswa Selesai',
+      message: `Data siswa "${student.fullName}" berhasil dihapus.`,
+    });
   };
 
   const handleVerifyItem = async (itemId: string) => {
@@ -1057,6 +1106,13 @@ export const StudentWorkspace: React.FC = () => {
                               <Edit2 className="w-3.5 h-3.5" />
                               <span>Edit</span>
                             </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteStudent(std)}
+                              className="text-red-600 hover:text-red-700 hover:underline font-normal text-xs"
+                            >
+                              Hapus
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -1740,8 +1796,21 @@ export const StudentWorkspace: React.FC = () => {
         </div>
       )}
 
-      <FeedbackModal
-        feedback={feedback}
+      <ConfirmationModal
+        open={!!deleteTarget}
+        title="Hapus Data Siswa?"
+        message={
+          deleteTarget
+            ? `Data "${deleteTarget.fullName}" akan dihapus.\n\nData yang dihapus tidak dapat dipulihkan.`
+            : ''
+        }
+        confirmLabel="Hapus"
+        onConfirm={confirmDeleteStudent}
+        onClose={() => setDeleteTarget(null)}
+      />
+
+      <SharedFeedbackModal
+        feedback={feedback as SharedFeedbackState}
         onClose={() => setFeedback(null)}
       />
     </div>

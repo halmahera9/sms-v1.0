@@ -15,12 +15,15 @@ import {
   ArrowUp,
   ArrowDown,
 } from 'lucide-react';
+import { FeedbackModal, type FeedbackState } from '@/components/ui/FeedbackModal';
+import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
 import * as XLSX from 'xlsx';
 import {
   applyDapodikEmployeeAction,
   previewDapodikAction,
 } from '@/platform/actions/dapodik-import';
 import {
+  deleteEmployeeAction,
   getEmployeesAction,
   saveEmployeeAction,
 } from '@/platform/actions/employee';
@@ -61,6 +64,8 @@ export default function MasterEmployeesPage() {
   const [pageSize, setPageSize] = useState(10);
   const [page, setPage] = useState(1);
   const [isHydrated, setIsHydrated] = useState(false);
+  const [feedback, setFeedback] = useState<FeedbackState>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Employee | null>(null);
 
   useEffect(() => {
     setIsHydrated(true);
@@ -357,6 +362,40 @@ export default function MasterEmployeesPage() {
     });
   };
 
+  const handleDeleteEmployee = async (employee: Employee) => {
+    setDeleteTarget(employee);
+  };
+
+  const confirmDeleteEmployee = async () => {
+    if (!deleteTarget) return;
+
+    const employee = deleteTarget;
+    setDeleteTarget(null);
+
+    const result = await deleteEmployeeAction(employee.id);
+
+    if (!result.success) {
+      setFeedback({
+        type: 'error',
+        title: 'Hapus Data Guru Gagal',
+        message:
+          typeof result.error === 'string'
+            ? result.error
+            : result.error?.message || 'Data guru tidak berhasil dihapus.',
+      });
+      return;
+    }
+
+    setPreviewEmployee(null);
+    await loadEmployees();
+
+    setFeedback({
+      type: 'success',
+      title: 'Hapus Data Guru Selesai',
+      message: `Data guru "${employee.fullName}" berhasil dihapus.`,
+    });
+  };
+
   const handleSave = async () => {
     setFormError('');
 
@@ -426,14 +465,31 @@ export default function MasterEmployeesPage() {
     });
 
     if (!result.success) {
-      alert(result.error?.message ?? 'Gagal menyimpan data guru.');
+      setFeedback({
+        type: 'error',
+        title: 'Simpan Data Guru Gagal',
+        message:
+          typeof result.error === 'string'
+            ? result.error
+            : result.error?.message ?? 'Gagal menyimpan data guru.',
+      });
       return;
     }
 
+    const savedName = String(form.fullName ?? '').trim();
+    const isEdit = Boolean(form.id);
+
     setEditingEmployee(null);
     setShowEmployeeForm(false);
-    setShowEmployeeForm(false);
     await loadEmployees();
+
+    setFeedback({
+      type: 'success',
+      title: isEdit ? 'Update Data Guru Selesai' : 'Tambah Data Guru Selesai',
+      message: isEdit
+        ? `Data guru "${savedName}" berhasil diperbarui.`
+        : `Data guru "${savedName}" berhasil ditambahkan.`,
+    });
   };
 
   const handleDapodikFileChange = async (
@@ -731,6 +787,13 @@ export default function MasterEmployeesPage() {
                           <Edit2 className="w-3.5 h-3.5" />
                           <span>Edit</span>
                         </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteEmployee(employee)}
+                          className="text-red-600 hover:text-red-700 hover:underline font-normal text-xs"
+                        >
+                          Hapus
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -786,7 +849,7 @@ export default function MasterEmployeesPage() {
 
                 <button
                   type="button"
-                  disabled={!isHydrated || page >= totalPages}
+                  disabled={page >= totalPages}
                   onClick={() => setPage((p) => p + 1)}
                   className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-500 disabled:opacity-40"
                 >
@@ -1174,6 +1237,24 @@ export default function MasterEmployeesPage() {
           </div>
         </div>
       )}
+
+      <ConfirmationModal
+        open={!!deleteTarget}
+        title="Hapus Data Guru?"
+        message={
+          deleteTarget
+            ? `Data "${deleteTarget.fullName}" akan dihapus.\n\nData yang dihapus tidak dapat dipulihkan.`
+            : ''
+        }
+        confirmLabel="Hapus"
+        onConfirm={confirmDeleteEmployee}
+        onClose={() => setDeleteTarget(null)}
+      />
+
+      <FeedbackModal
+        feedback={feedback}
+        onClose={() => setFeedback(null)}
+      />
 
     </div>
   );
